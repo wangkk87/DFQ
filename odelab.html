@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ODE Lab — Interactive Differential Equations</title>
+<meta name="description" content="Interactive calculus tools for Calc I, II, and III — limits, derivatives, integrals, series, vectors, and multivariable calculus. Built for the classroom.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7FAFA;
+  --paper-2:#EAF1F1;
+  --ink:#15233A;
+  --ink-soft:#445268;
+  --ink-faint:#82909F;
+  --line:#D8E3E3;
+  --grid:#E4ECEC;
+  --white:#FFFFFF;
+
+  /* course hues */
+  --c-calc1:#2563EB;   /* Calc I  — blue   */
+  --c-calc2:#0D9488;   /* Calc II — teal   */
+  --c-calc3:#7C3AED;   /* Calc III— violet */
+
+  --shadow-sm:0 1px 2px rgba(21,35,58,.06), 0 1px 3px rgba(21,35,58,.05);
+  --shadow-md:0 4px 6px rgba(21,35,58,.05), 0 10px 20px rgba(21,35,58,.08);
+  --shadow-lg:0 12px 28px rgba(21,35,58,.12), 0 2px 6px rgba(21,35,58,.06);
+
+  --r-sm:8px; --r-md:14px; --r-lg:22px;
+  --maxw:1180px;
+
+  --display:"Fraunces", Georgia, serif;
+  --body:"Inter", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, monospace;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  font-family:var(--body);
+  color:var(--ink);
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:26px 26px;
+  background-position:-1px -1px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+canvas{display:block;}
+
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+
+/* ---------- Top bar ---------- */
+.topbar{position:sticky;top:0;z-index:60;backdrop-filter:saturate(140%) blur(8px);background:rgba(247,250,250,.82);border-bottom:1px solid var(--line);}
+.topbar-inner{display:flex;align-items:center;gap:18px;height:62px;}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600;font-size:1.18rem;letter-spacing:-.01em;cursor:pointer;background:none;border:none;color:var(--ink);padding:0;}
+.brand .mark{width:28px;height:28px;flex:none;}
+.brand .beta{font-family:var(--mono);font-size:.62rem;font-weight:500;color:var(--ink-faint);border:1px solid var(--line);border-radius:99px;padding:2px 7px;letter-spacing:.04em;}
+.topbar nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;}
+.topbar nav a{font-size:.82rem;font-weight:500;text-decoration:none;color:var(--ink-soft);padding:7px 11px;border-radius:99px;transition:.15s;white-space:nowrap;}
+.topbar nav a:hover{color:var(--ink);background:var(--paper-2);}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);}
+.hero-inner{display:grid;grid-template-columns:1.05fr 1fr;gap:40px;align-items:center;padding:62px 0 56px;}
+.eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--c-calc2);font-weight:500;margin-bottom:18px;}
+.hero h1{font-family:var(--display);font-weight:600;font-size:clamp(2.4rem,5.2vw,3.9rem);line-height:1.02;letter-spacing:-.02em;margin:0 0 18px;}
+.hero h1 em{font-style:italic;color:var(--c-calc1);}
+.hero p.lead{font-size:1.08rem;color:var(--ink-soft);max-width:46ch;margin:0 0 26px;}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+.btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:99px;font-weight:600;font-size:.92rem;padding:12px 22px;text-decoration:none;transition:.18s;}
+.btn-primary{background:var(--ink);color:var(--paper);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:var(--shadow-md);}
+.hero-stat{font-family:var(--mono);font-size:.78rem;color:var(--ink-faint);}
+.hero-stat b{color:var(--ink);font-weight:700;}
+
+.hero-canvas-card{position:relative;background:var(--white);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);padding:18px 18px 14px;}
+.hero-canvas-card .cap{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.hero-canvas-card .cap .ttl{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);}
+.hero-canvas-card .cap .live{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.7rem;color:var(--c-calc2);}
+.hero-canvas-card .cap .live .dot{width:7px;height:7px;border-radius:99px;background:var(--c-calc2);animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+#heroCanvas{width:100%;height:300px;}
+.hero-readout{display:flex;gap:18px;font-family:var(--mono);font-size:.74rem;color:var(--ink-soft);margin-top:8px;border-top:1px dashed var(--line);padding-top:10px;}
+.hero-readout span b{color:var(--ink);}
+
+/* ---------- Category sections ---------- */
+.section{padding:54px 0 8px;}
+.sec-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+.sec-head .num{font-family:var(--mono);font-size:.78rem;color:var(--ink-faint);font-weight:500;}
+.sec-head h2{font-family:var(--display);font-weight:600;font-size:1.7rem;letter-spacing:-.01em;margin:0;display:flex;align-items:center;gap:12px;}
+.sec-head h2::before{content:"";width:13px;height:13px;border-radius:4px;background:var(--cat,var(--ink));}
+.sec-head .desc{font-size:.9rem;color:var(--ink-soft);margin-left:auto;max-width:38ch;text-align:right;}
+.enrich{display:flex;align-items:center;gap:14px;background:var(--white);border:1px solid var(--line);border-left:3px solid var(--cat,var(--ink));border-radius:12px;padding:11px 16px;margin:-6px 0 24px;box-shadow:var(--shadow-sm);}
+.enrich .etag{flex:none;font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--cat,var(--ink));background:color-mix(in srgb,var(--cat,#888) 12%,transparent);padding:4px 9px;border-radius:20px;}
+.enrich .etext{flex:1;font-size:.92rem;color:var(--ink-soft);line-height:1.45;}
+.enrich button{flex:none;width:28px;height:28px;border:1px solid var(--line);background:var(--paper);border-radius:8px;color:var(--ink-soft);font-size:.95rem;cursor:pointer;transition:.15s;}
+.enrich button:hover{border-color:var(--cat,var(--ink));color:var(--cat,var(--ink));transform:rotate(90deg);}
+@media(max-width:640px){.enrich{flex-wrap:wrap;gap:8px;}.enrich .etext{flex-basis:100%;order:3;}}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:16px;}
+.card{position:relative;text-align:left;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 18px 16px;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:8px;min-height:128px;width:100%;border-top:3px solid var(--cat,var(--ink));}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--cat,var(--line));}
+.card:focus-visible{outline:3px solid var(--cat,var(--ink));outline-offset:2px;}
+.card .ttl{font-weight:600;font-size:1.02rem;letter-spacing:-.01em;line-height:1.2;}
+.card .blurb{font-size:.84rem;color:var(--ink-soft);line-height:1.4;flex:1;}
+.card .tag{font-family:var(--mono);font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--cat,var(--ink-faint));font-weight:500;}
+.card .go{position:absolute;right:16px;bottom:14px;color:var(--cat,var(--ink-faint));opacity:0;transform:translateX(-4px);transition:.18s;}
+.card:hover .go{opacity:1;transform:translateX(0);}
+.card .ch{font-family:var(--mono);font-size:.6rem;color:var(--ink-faint);letter-spacing:.04em;}
+
+/* ---------- Applet view ---------- */
+#appletView{display:none;padding:30px 0 80px;min-height:70vh;}
+.app-top{display:flex;align-items:center;gap:14px;margin-bottom:8px;flex-wrap:wrap;}
+.back{display:inline-flex;align-items:center;gap:7px;background:var(--white);border:1px solid var(--line);border-radius:99px;padding:8px 15px;font-weight:600;font-size:.85rem;color:var(--ink);transition:.15s;}
+.back:hover{background:var(--paper-2);transform:translateX(-2px);}
+.app-cat{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;font-weight:500;padding:5px 11px;border-radius:99px;color:#fff;}
+.app-head h2{font-family:var(--display);font-weight:600;font-size:2rem;letter-spacing:-.015em;margin:6px 0 6px;}
+.app-head p{color:var(--ink-soft);max-width:70ch;margin:0 0 18px;font-size:.96rem;}
+
+.panel{background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:20px;box-shadow:var(--shadow-sm);}
+.app-grid{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start;}
+.controls{display:flex;flex-direction:column;gap:16px;}
+.ctrl{display:flex;flex-direction:column;gap:6px;}
+.ctrl label{font-size:.82rem;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;}
+.ctrl label .val{font-family:var(--mono);color:var(--ink-soft);font-weight:500;}
+.ctrl input[type=range]{width:100%;accent-color:var(--accent,var(--c-calc1));}
+.ctrl input[type=number],.ctrl input[type=text],.ctrl select,.ctrl textarea{font-family:var(--mono);font-size:.88rem;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);width:100%;}
+.ctrl textarea{min-height:90px;resize:vertical;line-height:1.5;}
+.ctrl .hint{font-size:.74rem;color:var(--ink-faint);}
+.seg{display:flex;border:1px solid var(--line);border-radius:99px;overflow:hidden;background:var(--paper);}
+.seg button{flex:1;border:none;background:transparent;padding:8px;font-size:.8rem;font-weight:600;color:var(--ink-soft);transition:.15s;}
+.seg button.on{background:var(--accent,var(--c-calc1));color:#fff;}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;}
+.abtn{border:1px solid var(--line);background:var(--paper);border-radius:var(--r-sm);padding:9px 13px;font-weight:600;font-size:.82rem;color:var(--ink);transition:.15s;flex:1;white-space:nowrap;}
+.abtn:hover{border-color:var(--accent,var(--ink));}
+.abtn.primary{background:var(--accent,var(--c-calc1));color:#fff;border-color:transparent;}
+.abtn.primary:hover{filter:brightness(1.07);}
+.abtn:disabled{opacity:.45;cursor:not-allowed;}
+
+.viz{display:flex;flex-direction:column;gap:14px;}
+.plot-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;}
+.plot-card .plot-title{font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px;}
+.plotwrap{width:100%;}
+.plotwrap canvas{width:100%;height:auto;}
+.zoom-ctl{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:.5;transition:.15s;}
+.plot-card:hover .zoom-ctl{opacity:1;}
+.zoom-ctl button{width:26px;height:26px;border:1px solid var(--line);background:var(--white);color:var(--ink);border-radius:6px;font-size:1rem;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:var(--shadow-sm);}
+.zoom-ctl button:hover{border-color:var(--accent,var(--c-calc1));color:var(--accent,var(--c-calc1));}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;}
+.stat .k{font-family:var(--mono);font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);}
+.stat .v{font-family:var(--mono);font-size:1.18rem;font-weight:700;color:var(--ink);margin-top:2px;word-break:break-word;}
+.stat .v.accent{color:var(--accent,var(--c-calc1));}
+
+.note{font-size:.82rem;color:var(--ink-soft);background:var(--paper-2);border-left:3px solid var(--accent,var(--c-calc1));border-radius:0 var(--r-sm) var(--r-sm) 0;padding:11px 14px;}
+.note b{color:var(--ink);}
+
+.foot{border-top:1px solid var(--line);margin-top:40px;padding:34px 0;color:var(--ink-faint);font-size:.82rem;}
+.foot a{color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);}
+.foot .row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;}
+.foot .brand-sm{font-family:var(--display);font-weight:600;color:var(--ink);font-size:1rem;}
+
+/* ---------- Search bar ---------- */
+.search-wrap{padding:18px 0 4px;}
+.search-box{display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--line);border-radius:99px;padding:10px 18px;box-shadow:var(--shadow-sm);max-width:480px;transition:.18s;}
+.search-box:focus-within{border-color:var(--c-calc1);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+.search-box svg{color:var(--ink-faint);flex:none;}
+.search-box input{border:none;background:transparent;font-family:var(--body);font-size:.93rem;color:var(--ink);outline:none;width:100%;}
+.search-box input::placeholder{color:var(--ink-faint);}
+#searchEmpty{display:none;text-align:center;padding:40px 0;color:var(--ink-faint);font-size:.9rem;}
+
+/* ---------- Difficulty badges ---------- */
+.diff{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;margin-left:auto;}
+.diff-intro{background:rgba(13,148,136,.12);color:#0D9488;}
+.diff-inter{background:rgba(245,158,11,.14);color:#B45309;}
+.diff-adv{background:rgba(124,58,237,.14);color:#7C3AED;}
+
+/* ---------- Guiding questions ---------- */
+.guiding{background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(13,148,136,.06));border:1px solid rgba(37,99,235,.15);border-radius:var(--r-md);padding:14px 18px;margin-bottom:16px;}
+.guiding .q-title{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--c-calc1);font-weight:600;margin-bottom:8px;}
+.guiding ol{margin:0;padding-left:18px;font-size:.84rem;color:var(--ink-soft);line-height:1.7;}
+.guiding ol li{margin-bottom:2px;}
+
+.kbd{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.68rem;color:var(--ink-faint);}
+.kbd kbd{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:.68rem;}
+
+.share-btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.72rem;font-weight:600;background:var(--paper-2);border:1px solid var(--line);border-radius:99px;padding:6px 13px;cursor:pointer;color:var(--ink-soft);transition:.15s;}
+.share-btn:hover{color:var(--ink);border-color:var(--ink-soft);}
+.share-btn.copied{color:var(--c-calc2);border-color:var(--c-calc2);}
+
+.formula{font-family:var(--mono);font-size:.86rem;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;color:var(--ink);overflow-x:auto;}
+
+@media(max-width:880px){
+  .hero-inner{grid-template-columns:1fr;gap:30px;padding:40px 0;}
+  .hero-canvas-card{order:-1;}
+  .app-grid{grid-template-columns:1fr !important;}
+  .app-grid > .panel{order:2;}
+  .app-grid > .viz{order:1;}
+  .sec-head .desc{display:none;}
+  .topbar nav{display:none;}
+  .search-wrap{padding:12px 0 0;}
+  .guiding{margin-bottom:12px;}
+}
+@media(max-width:540px){
+  .wrap{padding:0 14px;}
+  .app-head h2{font-size:1.5rem;}
+  .stats{grid-template-columns:repeat(2,1fr);}
+  .btnrow{flex-direction:column;}
+  .abtn{flex:unset;}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important;}
+}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <button class="brand" onclick="goHome()" aria-label="ODE Lab home">
+      <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M4 26 C 9 26, 11 6, 16 6 S 23 26, 28 26" stroke="#2563EB" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <line x1="4" y1="22" x2="28" y2="10" stroke="#7C3AED" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="6" y="20" width="3.4" height="6" rx="1" fill="#0D9488" opacity="0.55"/>
+        <rect x="11" y="15" width="3.4" height="11" rx="1" fill="#0D9488" opacity="0.55"/>
+        <rect x="16" y="11" width="3.4" height="15" rx="1" fill="#0D9488" opacity="0.55"/>
+        <circle cx="16" cy="6" r="2.3" fill="#15233A"/>
+      </svg>
+      ODE Lab <span class="beta">v1</span>
+    </button>
+    <nav id="topnav"></nav>
+    <button class="share-btn" id="darkToggle" onclick="toggleDark()" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" id="darkIcon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="home">
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div>
+        <div class="eyebrow">Interactive Differential Equations · MATH 345 · Boyce &amp; DiPrima</div>
+        <h1>See the <em>solution</em>.<br>Not just the symbols.</h1>
+        <p class="lead">A hands-on collection for learning differential equations — sketch a slope field, drop initial conditions and watch solutions thread through, solve second-order systems with full steps, and read stability straight off a phase portrait. Built for the classroom.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#c1">Explore the tools →</a>
+          <span class="hero-stat"><b id="appletCount">0</b> live tools · <b>Ch 1–7</b></span>
+        </div>
+      </div>
+      <div class="hero-canvas-card">
+        <div class="cap">
+          <span class="ttl">Slope field → solution curve</span>
+          <span class="live"><span class="dot"></span>flowing</span>
+        </div>
+        <canvas id="heroCanvas" width="560" height="300" aria-label="An animation of a solution curve flowing through a direction field"></canvas>
+        <div class="hero-readout">
+          <span>t <b id="heroH">—</b></span>
+          <span>y <b id="heroSlope">—</b></span>
+          <span>y′ <b id="heroDeriv">—</b></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input id="searchInput" type="search" placeholder="Search tools… (slope field, Euler, Laplace, phase portrait)" autocomplete="off" oninput="filterCatalog(this.value)" onkeydown="if(event.key==='Escape')this.value='',filterCatalog('')">
+      </div>
+    </div>
+    <div id="searchEmpty">No tools match your search. Try a different keyword.</div>
+  </div>
+  <div class="wrap" id="catalog"></div>
+
+  <footer class="foot">
+    <div class="wrap row">
+      <div>
+        <div class="brand-sm">ODE Lab</div>
+        <div style="margin-top:6px;max-width:52ch;">Free to use, remix, and share. Numerical methods are approximate — meant for intuition, not proof.</div>
+      </div>
+      <div style="text-align:right;font-family:var(--mono);font-size:.76rem;line-height:1.9;">
+        Dr. Wang · MATH 345.
+      </div>
+    </div>
+  </footer>
+</main>
+
+<section id="appletView" aria-live="polite"></section>
+
+<script>
+/* =====================================================================
+   CalculusLab — single-file interactive calculus collection
+   Sections:  (1) math utils  (2) plot helpers  (3) applets
+              (4) catalog/registry  (5) router + hero animation
+   ===================================================================== */
+
+/* ----------------------------- (1) MATH ----------------------------- */
+const M = {
+  TAU:2*Math.PI,
+  sum(a){ return a.reduce((s,x)=>s+x,0); },
+  mean(a){ return a.length? M.sum(a)/a.length : 0; },
+  min(a){ return Math.min(...a); }, max(a){ return Math.max(...a); },
+  round(x,d=2){ if(!isFinite(x))return x; const f=10**d; return Math.round(x*f)/f; },
+  clamp(x,lo,hi){ return Math.max(lo,Math.min(hi,x)); },
+  lerp(a,b,t){ return a+(b-a)*t; },
+  factorial(n){ let r=1; for(let i=2;i<=n;i++)r*=i; return r; },
+  // numerical first derivative (central difference)
+  nderiv(f,x,h=1e-4){ return (f(x+h)-f(x-h))/(2*h); },
+  // numerical second derivative
+  nderiv2(f,x,h=1e-3){ return (f(x+h)-2*f(x)+f(x-h))/(h*h); },
+  // composite Simpson's rule (n forced even)
+  integrate(f,a,b,n=400){ if(a===b)return 0; if(n%2)n++; const h=(b-a)/n; let s=f(a)+f(b);
+    for(let i=1;i<n;i++){ const x=a+i*h; s+= (i%2? 4:2)*f(x); }
+    let r=s*h/3; return isFinite(r)? r : NaN; },
+  // Riemann sum with a chosen rule
+  riemann(f,a,b,n,mode){ const h=(b-a)/n; let s=0;
+    for(let i=0;i<n;i++){ const xl=a+i*h, xr=xl+h;
+      if(mode==='left')      s+=f(xl)*h;
+      else if(mode==='right')s+=f(xr)*h;
+      else if(mode==='mid')  s+=f((xl+xr)/2)*h;
+      else if(mode==='trap') s+=(f(xl)+f(xr))/2*h;
+    } return s; },
+  // ----- vectors (arrays of length 2 or 3) -----
+  vadd(a,b){ return a.map((x,i)=>x+b[i]); },
+  vsub(a,b){ return a.map((x,i)=>x-b[i]); },
+  vscale(a,s){ return a.map(x=>x*s); },
+  dot(a,b){ return a.reduce((s,x,i)=>s+x*b[i],0); },
+  vlen(a){ return Math.sqrt(M.dot(a,a)); },
+  cross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; },
+  vnorm(a){ const L=M.vlen(a); return L? a.map(x=>x/L):a.slice(); },
+  // gradient of a 2-var function g(x,y) -> [gx,gy]
+  grad(g,x,y,h=1e-4){ return [(g(x+h,y)-g(x-h,y))/(2*h), (g(x,y+h)-g(x,y-h))/(2*h)]; },
+};
+
+/* ---------- tiny safe math expression parser ----------
+   Supports: + - * / ^ , parentheses, unary minus, variables,
+   and named functions/constants. Compiles to a JS function. */
+function compileExpr(src, vars){
+  // Prefer the Sym parser (correct unary/^ precedence; handles -x^2, exp(-x^2)).
+  try{ if(typeof Sym!=='undefined'){ const f=Sym.compile(src,vars); f(...vars.map(()=>0.137)); return f; } }catch(e){ /* fall back to legacy tokenizer below */ }
+  return compileExprLegacy(src, vars);
+}
+function compileExprLegacy(src, vars){
+  const fns = {
+    sin:'Math.sin', cos:'Math.cos', tan:'Math.tan',
+    asin:'Math.asin', acos:'Math.acos', atan:'Math.atan',
+    sinh:'Math.sinh', cosh:'Math.cosh', tanh:'Math.tanh',
+    exp:'Math.exp', log:'Math.log', ln:'Math.log', log10:'Math.log10',
+    sqrt:'Math.sqrt', abs:'Math.abs', sign:'Math.sign',
+    floor:'Math.floor', ceil:'Math.ceil', round:'Math.round',
+    atan2:'Math.atan2', pow:'Math.pow', min:'Math.min', max:'Math.max'
+  };
+  const consts = { pi:'Math.PI', e:'Math.E' };
+  let s = (src||'').toLowerCase().replace(/\s+/g,'');
+  if(!s) throw new Error('empty expression');
+  // implicit multiplication: 2x -> 2*x , )( -> )*( , x( handled below carefully
+  // tokenize
+  let js = '';
+  let i = 0;
+  const isAlpha = c=>/[a-z]/.test(c);
+  const isDigit = c=>/[0-9.]/.test(c);
+  while(i < s.length){
+    let c = s[i];
+    if(isDigit(c)){
+      let num=''; while(i<s.length && isDigit(s[i])){ num+=s[i++]; }
+      js += num;
+      // implicit mult: number followed by variable/( /function
+      if(i<s.length && (isAlpha(s[i]) || s[i]==='(')) js += '*';
+      continue;
+    }
+    if(isAlpha(c)){
+      let name=''; while(i<s.length && /[a-z0-9]/.test(s[i])){ name+=s[i++]; }
+      if(fns[name]){ js += fns[name]; if(s[i]!=='(') throw new Error(name+' needs ()'); }
+      else if(consts[name]){ js += consts[name];
+        if(i<s.length && (isAlpha(s[i])||s[i]==='('||isDigit(s[i]))) js+='*'; }
+      else if(vars.includes(name)){ js += name;
+        if(i<s.length && (isAlpha(s[i])||s[i]==='('||isDigit(s[i]))) js+='*'; }
+      else throw new Error('unknown name: '+name);
+      continue;
+    }
+    if(c==='^'){ // turn a^b into Math.pow via marker: we'll handle with a stack-free trick
+      js += '**'; i++; continue;
+    }
+    if('+-*/(),'.includes(c)){
+      js += c; i++;
+      // implicit mult after ) before ( or var or digit
+      if(c===')' && i<s.length && (isAlpha(s[i])||isDigit(s[i])||s[i]==='(')) js += '*';
+      continue;
+    }
+    throw new Error('bad character: '+c);
+  }
+  const fn = new Function(...vars, 'return ('+js+');');
+  // smoke test
+  const test = fn(...vars.map(()=>0.37));
+  if(typeof test!=='number') throw new Error('not numeric');
+  return fn;
+}
+
+/* --------------------------- (2) PLOTTING --------------------------- */
+const COL = {
+  calc1:'#2563EB', calc2:'#0D9488', calc3:'#7C3AED',
+  ink:'#15233A', soft:'#445268', faint:'#82909F', line:'#D8E3E3', grid:'#E4ECEC', paper:'#F7FAFA',
+  coral:'#F43F5E', amber:'#F59E0B', green:'#16A34A', cyan:'#06B6D4', rose:'#E11D48', slate:'#64748B'
+};
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+
+class Chart{
+  constructor(canvas,{m={t:16,r:16,b:34,l:46},cssH=null,zoom=null}={}){
+    this.c=canvas; this.ctx=canvas.getContext('2d'); this.m=m; this.cssH=cssH; this.zoom=zoom; this.resize();
+    canvas._chart=this;
+  }
+  resize(){
+    const cssW=this.c.clientWidth||this.c.parentElement.clientWidth||520;
+    const cssH=this.cssH|| Math.round(cssW*0.62);
+    const dpr=window.devicePixelRatio||1;
+    this.c.style.height=cssH+'px';
+    this.c.width=cssW*dpr; this.c.height=cssH*dpr;
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.W=cssW; this.H=cssH;
+    this.px0=this.m.l; this.px1=cssW-this.m.r; this.py0=cssH-this.m.b; this.py1=this.m.t;
+  }
+  setX(min,max){ this._bx=[min, max===min?min+1:max]; this._apply(); return this; }
+  setY(min,max){ this._by=[min, max===min?min+1:max]; this._apply(); return this; }
+  _apply(){ const z=this.zoom;
+    if(this._bx){ let[a,b]=this._bx; if(z){ const c=(a+b)/2+z.ox*(b-a), h=(b-a)/2/z.k; a=c-h; b=c+h; } this.xmin=a; this.xmax=b; }
+    if(this._by){ let[a,b]=this._by; if(z){ const c=(a+b)/2+z.oy*(b-a), h=(b-a)/2/z.k; a=c-h; b=c+h; } this.ymin=a; this.ymax=b; } }
+  X(v){ return this.px0+(v-this.xmin)/(this.xmax-this.xmin)*(this.px1-this.px0); }
+  Y(v){ return this.py0+(v-this.ymin)/(this.ymax-this.ymin)*(this.py1-this.py0); }
+  ix(px){ return this.xmin+(px-this.px0)/(this.px1-this.px0)*(this.xmax-this.xmin); }
+  iy(py){ return this.ymin+(py-this.py0)/(this.py1-this.py0)*(this.ymax-this.ymin); }
+  clear(){ this.ctx.clearRect(0,0,this.W,this.H); }
+  frame(){ const ctx=this.ctx; ctx.strokeStyle=COL.line; ctx.lineWidth=1; ctx.strokeRect(this.px0,this.py1,this.px1-this.px0,this.py0-this.py1); }
+  gridlines(xt,yt){ const ctx=this.ctx; ctx.strokeStyle=COL.grid; ctx.lineWidth=1;
+    if(xt) xt.forEach(t=>{ const x=this.X(t); ctx.beginPath(); ctx.moveTo(x,this.py1); ctx.lineTo(x,this.py0); ctx.stroke(); });
+    if(yt) yt.forEach(t=>{ const y=this.Y(t); ctx.beginPath(); ctx.moveTo(this.px0,y); ctx.lineTo(this.px1,y); ctx.stroke(); }); }
+  axes(){ // draw x=0 / y=0 axis lines if in range
+    const ctx=this.ctx; ctx.strokeStyle=COL.faint; ctx.lineWidth=1.4;
+    if(this.ymin<0&&this.ymax>0){ const y=this.Y(0); ctx.beginPath(); ctx.moveTo(this.px0,y); ctx.lineTo(this.px1,y); ctx.stroke(); }
+    if(this.xmin<0&&this.xmax>0){ const x=this.X(0); ctx.beginPath(); ctx.moveTo(x,this.py1); ctx.lineTo(x,this.py0); ctx.stroke(); } }
+  axisX(ticks,fmt=(v)=>(''+M.round(v,2))){ const ctx=this.ctx; ctx.fillStyle=COL.soft; ctx.font='11px "JetBrains Mono",monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+    ticks.forEach(t=>{ const x=this.X(t); ctx.strokeStyle=COL.line; ctx.beginPath(); ctx.moveTo(x,this.py0); ctx.lineTo(x,this.py0+4); ctx.stroke(); ctx.fillText(fmt(t),x,this.py0+7); }); }
+  axisY(ticks,fmt=(v)=>(''+M.round(v,2))){ const ctx=this.ctx; ctx.fillStyle=COL.soft; ctx.font='11px "JetBrains Mono",monospace'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    ticks.forEach(t=>{ const y=this.Y(t); ctx.strokeStyle=COL.grid; ctx.beginPath(); ctx.moveTo(this.px0-4,y); ctx.lineTo(this.px0,y); ctx.stroke(); ctx.fillText(fmt(t),this.px0-7,y); }); }
+  bars(bins,color){ const ctx=this.ctx;
+    bins.forEach((b)=>{ if(b.count<=0)return; const x=this.X(b.lo), w=this.X(b.hi)-this.X(b.lo)-1, y=this.Y(b.count);
+      ctx.fillStyle=color; ctx.fillRect(x+0.5,y,Math.max(1,w),this.py0-y); ctx.strokeStyle=COL.paper; ctx.lineWidth=1; ctx.strokeRect(x+0.5,y,Math.max(1,w),this.py0-y); }); }
+  points(xs,ys,color,r=4){ const ctx=this.ctx; for(let i=0;i<xs.length;i++){ ctx.fillStyle=color; ctx.beginPath(); ctx.arc(this.X(xs[i]),this.Y(ys[i]),r,0,7); ctx.fill(); ctx.strokeStyle=COL.paper; ctx.lineWidth=1; ctx.stroke(); } }
+  dot(x,y,color,r=4){ const ctx=this.ctx; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(this.X(x),this.Y(y),r,0,7); ctx.fill(); ctx.strokeStyle=COL.paper; ctx.lineWidth=1.5; ctx.stroke(); }
+  line(x0,y0,x1,y1,color,w=2,dash=[]){ const ctx=this.ctx; ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(this.X(x0),this.Y(y0)); ctx.lineTo(this.X(x1),this.Y(y1)); ctx.stroke(); ctx.restore(); }
+  pline(px,py,color,w=2,dash=[]){ const ctx=this.ctx; ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(px[0],py[0]); for(let i=1;i<px.length;i++)ctx.lineTo(px[i],py[i]); ctx.stroke(); ctx.restore(); }
+  vline(x,color,w=2,dash=[]){ const ctx=this.ctx; ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(this.X(x),this.py1); ctx.lineTo(this.X(x),this.py0); ctx.stroke(); ctx.restore(); }
+  // plot y=f(x); breaks the path across large jumps (asymptotes)
+  curve(fn,color,w=2.2,n=400){ const ctx=this.ctx; ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineJoin='round'; ctx.beginPath();
+    let pen=false, prevY=null; const yspan=this.ymax-this.ymin;
+    for(let i=0;i<=n;i++){ const x=this.xmin+(this.xmax-this.xmin)*i/n; let y=fn(x);
+      if(!isFinite(y)){ pen=false; prevY=null; continue; }
+      const px=this.X(x), py=this.Y(M.clamp(y,this.ymin-yspan*4,this.ymax+yspan*4));
+      const jump = prevY!==null && Math.abs(y-prevY) > yspan*3;
+      if(!pen || jump){ ctx.moveTo(px,py); pen=true; } else ctx.lineTo(px,py);
+      prevY=y;
+    } ctx.stroke(); }
+  // shade region under f from a to b down to y=0 (or to g)
+  shade(fn,a,b,color,n=160,gn=null){ const ctx=this.ctx; ctx.fillStyle=color; ctx.beginPath();
+    const g = gn || (()=>0);
+    ctx.moveTo(this.X(a),this.Y(g(a)));
+    for(let i=0;i<=n;i++){ const x=a+(b-a)*i/n; ctx.lineTo(this.X(x),this.Y(fn(x))); }
+    for(let i=n;i>=0;i--){ const x=a+(b-a)*i/n; ctx.lineTo(this.X(x),this.Y(g(x))); }
+    ctx.closePath(); ctx.fill(); }
+  marker(x,label,color){ const ctx=this.ctx; this.vline(x,color,2,[4,3]); ctx.fillStyle=color; ctx.font='bold 10px "JetBrains Mono",monospace'; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(label,this.X(x),this.py1+11); }
+  arrow(x0,y0,x1,y1,color,w=2){ const ctx=this.ctx; const X0=this.X(x0),Y0=this.Y(y0),X1=this.X(x1),Y1=this.Y(y1);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(X0,Y0); ctx.lineTo(X1,Y1); ctx.stroke();
+    const ang=Math.atan2(Y1-Y0,X1-X0), s=7; ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X1-s*Math.cos(ang-0.4),Y1-s*Math.sin(ang-0.4)); ctx.lineTo(X1-s*Math.cos(ang+0.4),Y1-s*Math.sin(ang+0.4)); ctx.closePath(); ctx.fill(); }
+}
+function niceTicks(min,max,n=6){ const span=max-min||1; const step0=span/n; const mag=Math.pow(10,Math.floor(Math.log10(step0)));
+  const norm=step0/mag; let step; if(norm<1.5)step=1; else if(norm<3)step=2; else if(norm<7)step=5; else step=10; step*=mag;
+  const t=[]; let v=Math.ceil(min/step)*step; while(v<=max+1e-9){ t.push(M.round(v,6)); v+=step; } return t; }
+/* ----------------------- (3) UI + REGISTRY -------------------------- */
+const CATS = {
+  c1:{name:'First-Order ODEs', color:COL.calc1, n:'1–2', desc:'Direction fields, separable & linear equations, Euler\u2019s method, autonomous models. Boyce Ch 1–2.',
+    facts:[
+      {t:'use',s:'Newton\u2019s law of cooling — a first-order ODE — is how forensic investigators estimate a time of death.'},
+      {t:'fact',s:'A direction field lets you sketch every solution of an equation without ever solving it.'},
+      {t:'use',s:'Radioactive decay, drug clearance in the bloodstream, and a draining RC circuit are all the same equation y′ = −k y.'},
+      {t:'fact',s:'Verhulst wrote the logistic equation in 1838 — it predicted population saturation a century before ecologists measured it.'},
+      {t:'use',s:'Mixing-tank problems (salt in, salt out) are the bread-and-butter first-order models behind chemical engineering.'}
+    ]},
+  c2:{name:'Higher-Order Linear', color:COL.calc2, n:'3–4', desc:'Constant-coefficient equations, the three root cases, mechanical vibrations and resonance. Boyce Ch 3–4.',
+    facts:[
+      {t:'use',s:'Every car suspension is a damped second-order system, tuned so you don\u2019t keep bouncing after a pothole.'},
+      {t:'fact',s:'The Tacoma Narrows Bridge (1940) shook itself apart through resonance — a forced second-order ODE gone wrong.'},
+      {t:'fact',s:'A repeated root forces a solution like t·e^{rt} — the only time t sneaks into the exponential family.'},
+      {t:'use',s:'Pendulum clocks, guitar strings, and RLC radios are all governed by the same y″ + … = … template.'}
+    ]},
+  c3:{name:'The Laplace Transform', color:COL.calc3, n:'6', desc:'Turning calculus into algebra: transforms, initial-value problems, step and impulse forcing. Boyce Ch 6.',
+    facts:[
+      {t:'fact',s:'The Laplace transform turns differentiation into multiplication by s — calculus becomes algebra.'},
+      {t:'use',s:'Control engineers design autopilots and cruise control almost entirely in the Laplace s-domain.'},
+      {t:'fact',s:'The unit impulse δ(t) — an infinitely tall, infinitely thin spike — has Laplace transform exactly 1.'},
+      {t:'use',s:'Laplace gracefully handles switches and hammer blows (discontinuous and impulse forcing) that stump other methods.'}
+    ]},
+  c4:{name:'Systems & Phase Planes', color:COL.amber, n:'7', desc:'Matrices, eigenvalues, and the geometry of x′ = A x: nodes, saddles, spirals and centers. Boyce Ch 7.',
+    facts:[
+      {t:'fact',s:'The eigenvalues of a 2×2 matrix decide everything: node, saddle, spiral, or center.'},
+      {t:'use',s:'Predator–prey models (Lotka–Volterra) trace closed loops in the phase plane — boom-and-bust cycles.'},
+      {t:'fact',s:'A complex eigenvalue pair always means rotation: spirals if it grows or decays, centers if it is purely imaginary.'},
+      {t:'use',s:'Coupled tanks, multi-loop circuits, and competing species all collapse into a single system x′ = A x.'}
+    ]},
+};
+const APPLETS = [];
+const add = (a)=>APPLETS.push(a);
+
+const UI = {
+  appGrid(controls,viz){ const g=document.createElement('div'); g.className='app-grid';
+    const c=document.createElement('div'); c.className='panel'; const cc=document.createElement('div'); cc.className='controls'; controls.forEach(x=>cc.appendChild(x)); c.appendChild(cc);
+    const v=document.createElement('div'); v.className='viz'; viz.forEach(x=>v.appendChild(x));
+    if(window.innerWidth<=880){ g.append(v,c); } else { g.append(c,v); }
+    return g; },
+  slider({label,min,max,step=1,value,fmt=(v)=>v,oninput}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`<label>${label}<span class="val"></span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${value}">`;
+    const inp=w.querySelector('input'), val=w.querySelector('.val'); const upd=()=>val.textContent=fmt(+inp.value); upd();
+    inp.addEventListener('input',()=>{ upd(); oninput(+inp.value); }); w.get=()=>+inp.value; w.set=(v)=>{inp.value=v;upd();}; w.setFmt=(f)=>{w._f=f;}; return w; },
+  text({label,value,hint,onchange,mono=true}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`<label>${label}</label><input type="text" value="${value}">${hint?`<span class="hint">${hint}</span>`:''}`;
+    const inp=w.querySelector('input'); if(!mono)inp.style.fontFamily='var(--body)';
+    inp.addEventListener('input',()=>onchange(inp.value)); inp.addEventListener('change',()=>onchange(inp.value));
+    w.get=()=>inp.value; w.set=(v)=>inp.value=v; w.input=inp; return w; },
+  number({label,value,step='any',min,max,hint,onchange}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`<label>${label}</label><input type="number" value="${value}" step="${step}" ${min!=null?`min="${min}"`:''} ${max!=null?`max="${max}"`:''}>${hint?`<span class="hint">${hint}</span>`:''}`;
+    const inp=w.querySelector('input'); inp.addEventListener('input',()=>onchange(+inp.value)); w.get=()=>+inp.value; w.set=(v)=>inp.value=v; return w; },
+  textarea({label,value,hint,onchange}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`<label>${label}</label><textarea>${value}</textarea>${hint?`<span class="hint">${hint}</span>`:''}`;
+    const t=w.querySelector('textarea'); t.addEventListener('input',()=>onchange(t.value)); w.get=()=>t.value; w.set=(v)=>t.value=v; return w; },
+  seg({label,options,value,onchange}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`${label?`<label>${label}</label>`:''}<div class="seg"></div>`; const seg=w.querySelector('.seg');
+    options.forEach(o=>{ const b=document.createElement('button'); b.textContent=o.label; b.className=o.value===value?'on':''; b.onclick=()=>{ seg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); w._v=o.value; onchange(o.value); }; seg.appendChild(b); }); w._v=value; w.get=()=>w._v; w.set=(v)=>{ w._v=v; [...seg.children].forEach((b,idx)=>b.classList.toggle('on',options[idx].value===v)); }; return w; },
+  select({label,options,value,onchange}){ const w=document.createElement('div'); w.className='ctrl';
+    w.innerHTML=`<label>${label}</label><select>${options.map(o=>`<option value="${o.value}" ${o.value===value?'selected':''}>${o.label}</option>`).join('')}</select>`;
+    const s=w.querySelector('select'); s.addEventListener('change',()=>onchange(s.value)); w.get=()=>s.value; w.set=(v)=>s.value=v; return w; },
+  buttons(list){ const w=document.createElement('div'); w.className='ctrl'; const row=document.createElement('div'); row.className='btnrow'; w.appendChild(row);
+    let primaryBtn=null;
+    list.forEach(b=>{ const btn=document.createElement('button'); btn.className='abtn'+(b.primary?' primary':''); btn.textContent=b.label; btn.onclick=b.onclick; b.ref&&b.ref(btn);
+      if(b.primary){ primaryBtn=btn; btn.title='Press Enter to run'; }
+      row.appendChild(btn); });
+    if(primaryBtn){ w._primaryBtn=primaryBtn; }
+    return w; },
+  statsBox(){ const w=document.createElement('div'); w.className='stats'; w.set=(arr)=>{ w.innerHTML=arr.map(s=>`<div class="stat"><div class="k">${s.k}</div><div class="v ${s.accent?'accent':''}">${s.v}</div></div>`).join(''); }; return w; },
+  plotCard(title,h=null){ const w=document.createElement('div'); w.className='plot-card';
+    w.innerHTML=`<div class="plot-title">${title}</div><div class="plotwrap"><canvas></canvas></div>`;
+    const cv=w.querySelector('canvas'); w.canvas=cv;
+    w.chart=(opts)=>new Chart(cv,Object.assign(h?{cssH:h}:{}, cv._zoomOn?{zoom:cv._zoom}:{}, opts||{}));
+    w.setTitle=(t)=>w.querySelector('.plot-title').textContent=t;
+    w.enableZoom=function(redraw){
+      cv._zoom={k:1,ox:0,oy:0}; cv._zoomOn=true;
+      const wrap=w.querySelector('.plotwrap'); wrap.style.position='relative'; cv.style.cursor='grab'; cv.style.touchAction='none';
+      const ov=document.createElement('div'); ov.className='zoom-ctl';
+      ov.innerHTML='<button title="zoom in">+</button><button title="zoom out">\u2212</button><button title="reset" style="font-size:.8rem">\u27f2</button>';
+      wrap.appendChild(ov);
+      function focusZoom(factor,fx,fy){ const ch=cv._chart; const z=cv._zoom; const k1=M.clamp(z.k*factor,0.2,60);
+        if(ch&&fx!=null&&ch._bx&&ch._by){ const sx=(fx-ch.xmin)/(ch.xmax-ch.xmin), sy=(fy-ch.ymin)/(ch.ymax-ch.ymin);
+          const[a,b]=ch._bx,[c,d]=ch._by; const hx=(b-a)/2/k1, hy=(d-c)/2/k1;
+          const nxmin=fx-sx*2*hx, nxc=nxmin+hx; const nymin=fy-sy*2*hy, nyc=nymin+hy;
+          z.ox=(nxc-(a+b)/2)/(b-a); z.oy=(nyc-(c+d)/2)/(d-c); }
+        z.k=k1; redraw(); }
+      cv.addEventListener('wheel',e=>{ e.preventDefault(); const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect();
+        focusZoom(e.deltaY<0?1.18:1/1.18, ch.ix(e.clientX-r.left), ch.iy(e.clientY-r.top)); },{passive:false});
+      let dr=false,lx,ly;
+      cv.addEventListener('pointerdown',e=>{ dr=true; lx=e.clientX; ly=e.clientY; cv.style.cursor='grabbing'; cv.setPointerCapture(e.pointerId); });
+      cv.addEventListener('pointermove',e=>{ if(!dr)return; const ch=cv._chart; if(!ch||!ch._bx)return; const r=cv.getBoundingClientRect();
+        const[a,b]=ch._bx,[c,d]=ch._by; cv._zoom.ox-=(e.clientX-lx)/r.width*(ch.xmax-ch.xmin)/(b-a); cv._zoom.oy+=(e.clientY-ly)/r.height*(ch.ymax-ch.ymin)/(d-c); lx=e.clientX; ly=e.clientY; redraw(); });
+      cv.addEventListener('pointerup',()=>{dr=false;cv.style.cursor='grab';});
+      cv.addEventListener('dblclick',()=>{ cv._zoom={k:1,ox:0,oy:0}; redraw(); });
+      const btns=ov.querySelectorAll('button');
+      btns[0].onclick=()=>focusZoom(1.3,null); btns[1].onclick=()=>focusZoom(1/1.3,null); btns[2].onclick=()=>{ cv._zoom={k:1,ox:0,oy:0}; redraw(); };
+      return w; };
+    return w; },
+  note(html){ const w=document.createElement('div'); w.className='note'; w.innerHTML=html; return w; },
+  formula(html){ const w=document.createElement('div'); w.className='formula'; w.innerHTML=html; w.set=(h)=>w.innerHTML=h; return w; }
+};
+
+/* helper: build a compiled function from a text input, with safe fallback + error display */
+function makeFnInput(label,initial,vars,onok,hint){
+  let current=null, ready=false;
+  const w=UI.text({label,value:initial,hint:hint||`use ${vars.join(', ')}; functions: sin, cos, exp, ln, sqrt, ^ for powers`,onchange:src=>tryCompile(src,true)});
+  const err=document.createElement('div'); err.className='hint'; err.style.color=COL.coral; w.appendChild(err);
+  function tryCompile(src,fire){ try{ const f=compileExpr(src,vars); current=f; err.textContent=''; w.input.style.borderColor=''; if(fire&&ready)onok(f); }
+    catch(e){ err.textContent='⚠ '+e.message; w.input.style.borderColor=COL.coral; } }
+  tryCompile(initial,false); // set current without firing render (caller renders explicitly)
+  ready=true;
+  w.fn=()=>current;
+  return w;
+}
+
+/* ===== shared symbolic engine (for Ch 7 step-by-step tools) ===== */
+/* ===== Sym: tiny symbolic engine (parse → tree, eval, diff, simplify, print) ===== */
+/* ===== Sym: tiny symbolic engine (parse → tree, eval, diff, simplify, print, compile) ===== */
+const Sym = (function(){
+  const U1=['asin','acos','atan','sinh','cosh','tanh','sin','cos','tan','sec','csc','cot','exp','ln','log','log10','sqrt','abs','sign','floor','ceil','round'];
+  function tokenize(s){ const t=[]; let i=0; s=s.replace(/\s+/g,'');
+    while(i<s.length){ const c=s[i];
+      if(/[0-9.]/.test(c)){ let j=i+1; while(j<s.length&&/[0-9.]/.test(s[j]))j++; t.push({t:'num',v:parseFloat(s.slice(i,j))}); i=j; }
+      else if(/[a-zA-Z]/.test(c)){ let j=i+1; while(j<s.length&&/[a-zA-Z0-9]/.test(s[j]))j++; t.push({t:'id',v:s.slice(i,j)}); i=j; }
+      else if('+-*/^(),'.includes(c)){ t.push({t:c}); i++; }
+      else throw new Error('bad char "'+c+'"'); }
+    return t; }
+  function parse(src, vars=['x']){ const tk=tokenize(src); let p=0;
+    const peek=()=>tk[p], next=()=>tk[p++];
+    function parseExpr(){ let a=parseTerm(); while(peek()&&(peek().t==='+'||peek().t==='-')){ const op=next().t; a={k:op,a,b:parseTerm()}; } return a; }
+    function startsFactor(){ const x=peek(); return x&&(x.t==='num'||x.t==='id'||x.t==='('); }
+    function parseTerm(){ let a=parseUnary(); while(peek()){ if(peek().t==='*'||peek().t==='/'){ const op=next().t; a={k:op,a,b:parseUnary()}; } else if(startsFactor()){ a={k:'*',a,b:parseUnary()}; } else break; } return a; }
+    function parseUnary(){ if(peek()&&peek().t==='-'){ next(); return {k:'neg',a:parseUnary()}; } if(peek()&&peek().t==='+'){ next(); return parseUnary(); } return parsePower(); }
+    function parsePower(){ let a=parseBase(); if(peek()&&peek().t==='^'){ next(); a={k:'^',a,b:parseUnary()}; } return a; }
+    function parseBase(){ const x=peek(); if(!x)throw new Error('unexpected end');
+      if(x.t==='num'){ next(); return {k:'n',v:x.v}; }
+      if(x.t==='('){ next(); const e=parseExpr(); if(!peek()||peek().t!==')')throw new Error('missing )'); next(); return e; }
+      if(x.t==='id'){ next();
+        if(x.v==='pi'){ return {k:'n',v:Math.PI}; }
+        if(x.v==='e'&&!(peek()&&peek().t==='(')){ return {k:'n',v:Math.E}; }
+        if(vars.includes(x.v)) return {k:'v',n:x.v};
+        if(U1.includes(x.v)){ if(!peek()||peek().t!=='(')throw new Error(x.v+' needs ()'); next(); const arg=parseExpr(); if(!peek()||peek().t!==')')throw new Error('missing )'); next(); return {k:'f',n:x.v,a:arg}; }
+        throw new Error('unknown name "'+x.v+'"'); }
+      throw new Error('unexpected token'); }
+    const r=parseExpr(); if(p<tk.length)throw new Error('trailing input'); return r; }
+  const FN={ sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,exp:Math.exp,ln:Math.log,log:Math.log,log10:Math.log10,sqrt:Math.sqrt,abs:Math.abs,sign:Math.sign,floor:Math.floor,ceil:Math.ceil,round:Math.round,sec:x=>1/Math.cos(x),csc:x=>1/Math.sin(x),cot:x=>1/Math.tan(x) };
+  function ev(tr,env){ const num=typeof env==='number'; const g=n=>num?env:env[n];
+    switch(tr.k){ case 'n':return tr.v; case 'v':return g(tr.n);
+      case '+':return ev(tr.a,env)+ev(tr.b,env); case '-':return ev(tr.a,env)-ev(tr.b,env);
+      case '*':return ev(tr.a,env)*ev(tr.b,env); case '/':return ev(tr.a,env)/ev(tr.b,env);
+      case '^':return Math.pow(ev(tr.a,env),ev(tr.b,env)); case 'neg':return -ev(tr.a,env);
+      case 'f':return FN[tr.n](ev(tr.a,env)); } }
+  const N=v=>({k:'n',v}), V=(n='x')=>({k:'v',n}), X=()=>({k:'v',n:'x'});
+  const add=(a,b)=>({k:'+',a,b}),sub=(a,b)=>({k:'-',a,b}),mul=(a,b)=>({k:'*',a,b}),div=(a,b)=>({k:'/',a,b}),pow=(a,b)=>({k:'^',a,b}),neg=a=>({k:'neg',a}),fn=(n,a)=>({k:'f',n,a});
+  function diff(tr,wrt='x'){ switch(tr.k){
+    case 'n':return N(0); case 'v':return N(tr.n===wrt?1:0);
+    case '+':return add(diff(tr.a,wrt),diff(tr.b,wrt)); case '-':return sub(diff(tr.a,wrt),diff(tr.b,wrt));
+    case 'neg':return neg(diff(tr.a,wrt));
+    case '*':return add(mul(diff(tr.a,wrt),tr.b),mul(tr.a,diff(tr.b,wrt)));
+    case '/':return div(sub(mul(diff(tr.a,wrt),tr.b),mul(tr.a,diff(tr.b,wrt))),pow(tr.b,N(2)));
+    case '^':{ if(tr.b.k==='n')return mul(mul(N(tr.b.v),pow(tr.a,N(tr.b.v-1))),diff(tr.a,wrt));
+      return mul(pow(tr.a,tr.b),add(mul(diff(tr.b,wrt),fn('ln',tr.a)),div(mul(tr.b,diff(tr.a,wrt)),tr.a))); }
+    case 'f':{ const g=tr.a,dg=diff(g,wrt); let o; switch(tr.n){
+      case 'sin':o=fn('cos',g);break; case 'cos':o=neg(fn('sin',g));break; case 'tan':o=pow(fn('sec',g),N(2));break;
+      case 'sec':o=mul(fn('sec',g),fn('tan',g));break; case 'csc':o=neg(mul(fn('csc',g),fn('cot',g)));break; case 'cot':o=neg(pow(fn('csc',g),N(2)));break;
+      case 'exp':o=fn('exp',g);break; case 'ln':case 'log':o=div(N(1),g);break; case 'sqrt':o=div(N(1),mul(N(2),fn('sqrt',g)));break;
+      case 'asin':o=div(N(1),fn('sqrt',sub(N(1),pow(g,N(2)))));break; case 'acos':o=neg(div(N(1),fn('sqrt',sub(N(1),pow(g,N(2))))));break;
+      case 'atan':o=div(N(1),add(N(1),pow(g,N(2))));break; case 'sinh':o=fn('cosh',g);break; case 'cosh':o=fn('sinh',g);break;
+      case 'tanh':o=pow(div(N(1),fn('cosh',g)),N(2));break; default:o=N(0); } return mul(o,dg); } } }
+  function isN(t,v){ return t.k==='n'&&(v===undefined||Math.abs(t.v-v)<1e-12); }
+  function eq(a,b){ if(a.k!==b.k)return false; if(a.k==='n')return Math.abs(a.v-b.v)<1e-12; if(a.k==='v')return a.n===b.n; if(a.k==='f')return a.n===b.n&&eq(a.a,b.a); if(a.k==='neg')return eq(a.a,b.a); return eq(a.a,b.a)&&eq(a.b,b.b); }
+  function simp(tr){ if(tr.k==='n'||tr.k==='v')return tr;
+    if(tr.k==='f')return fn(tr.n,simp(tr.a));
+    if(tr.k==='neg'){ const a=simp(tr.a); if(a.k==='n')return N(-a.v); if(a.k==='neg')return a.a; return neg(a); }
+    const a=simp(tr.a),b=simp(tr.b); const recip=(p,q)=>p.k==='/'&&isN(p.a,1)&&eq(p.b,q);
+    switch(tr.k){
+      case '+': if(isN(a,0))return b; if(isN(b,0))return a; if(a.k==='n'&&b.k==='n')return N(a.v+b.v); if(b.k==='neg')return simp(sub(a,b.a)); return add(a,b);
+      case '-': if(isN(b,0))return a; if(isN(a,0))return simp(neg(b)); if(a.k==='n'&&b.k==='n')return N(a.v-b.v); if(b.k==='neg')return simp(add(a,b.a)); return sub(a,b);
+      case '*': if(isN(a,0)||isN(b,0))return N(0); if(isN(a,1))return b; if(isN(b,1))return a; if(a.k==='n'&&b.k==='n')return N(a.v*b.v);
+        if(recip(a,b)||recip(b,a))return N(1); if(b.k==='n'&&a.k!=='n')return mul(b,a); if(a.k==='n'&&b.k==='*'&&b.a.k==='n')return mul(N(a.v*b.a.v),b.b); return mul(a,b);
+      case '/': if(isN(a,0))return N(0); if(isN(b,1))return a; if(eq(a,b))return N(1); if(a.k==='n'&&b.k==='n'&&b.v!==0)return N(a.v/b.v); return div(a,b);
+      case '^': if(isN(b,1))return a; if(isN(b,0))return N(1); if(isN(a,1))return N(1); if(a.k==='n'&&b.k==='n')return N(Math.pow(a.v,b.v)); return pow(a,b);
+    } return tr; }
+  function str(tr,parent=0,side='l'){ let s,prec=4;
+    switch(tr.k){
+      case 'n':{ let v=tr.v; s=(Math.abs(v-Math.round(v))<1e-10)?String(Math.round(v)):String(+v.toFixed(4)); if(v<0)prec=2; break; }
+      case 'v': s=tr.n; break;
+      case 'f': s=tr.n+'('+str(tr.a,0)+')'; break;
+      case 'neg': prec=2; s='−'+str(tr.a,2,'r'); break;
+      case '+': prec=1; s=str(tr.a,1)+' + '+str(tr.b,1,'r'); break;
+      case '-': prec=1; s=str(tr.a,1)+' − '+str(tr.b,1,'r'); break;
+      case '*': prec=2; s=str(tr.a,2)+'·'+str(tr.b,2,'r'); break;
+      case '/': prec=2; s=str(tr.a,2)+'/'+str(tr.b,2,'r'); break;
+      case '^': prec=3; s=str(tr.a,4)+'^'+str(tr.b,3,'r'); break; }
+    const needP=prec<parent||(prec===parent&&side==='r'&&(parent===1||parent===2)&&(tr.k==='-'||tr.k==='/'));
+    return needP?'('+s+')':s; }
+  function integrateSimple(tr){ tr=simp(tr);
+    if(tr.k==='n')return mul(tr,X());
+    if(tr.k==='v'&&tr.n==='x')return div(pow(X(),N(2)),N(2));
+    if(tr.k==='^'&&tr.a.k==='v'&&tr.a.n==='x'&&tr.b.k==='n'){ const c=tr.b.v; if(Math.abs(c+1)<1e-9)return fn('ln',fn('abs',X())); return div(pow(X(),N(c+1)),N(c+1)); }
+    if(tr.k==='*'){ if(tr.a.k==='n'){ const r=integrateSimple(tr.b); return r?simp(mul(tr.a,r)):null; } if(tr.b.k==='n'){ const r=integrateSimple(tr.a); return r?simp(mul(tr.b,r)):null; } return null; }
+    if(tr.k==='/'&&tr.b.k==='n'){ const r=integrateSimple(tr.a); return r?simp(div(r,tr.b)):null; }
+    if(tr.k==='f'){ const g=tr.a; const k=ev(diff(g),0); const lin=Math.abs(ev(diff(diff(g)),0))<1e-9&&Math.abs(ev(diff(diff(g)),1))<1e-9;
+      if(!lin||Math.abs(k)<1e-12){ if(tr.n==='exp'&&g.k==='v'&&g.n==='x')return fn('exp',X()); return null; }
+      switch(tr.n){ case 'exp':return simp(div(fn('exp',g),N(k))); case 'sin':return simp(div(neg(fn('cos',g)),N(k))); case 'cos':return simp(div(fn('sin',g),N(k))); default:return null; } }
+    return null; }
+  function compile(src, vars=['x']){ const lv=vars.map(v=>v.toLowerCase()); const t=parse((src||'').toLowerCase(), lv);
+    return function(){ const args=arguments; const env={}; lv.forEach((v,i)=>env[v]=args[i]); return ev(t,env); }; }
+  return { parse, ev, diff, simp, str, integrateSimple, compile, N,V,X,add,sub,mul,div,pow,neg,fn };
+})();
+
+function polyCoeffs(tree,maxDeg=8){ let c=[],d=tree,fact=1;
+  for(let k=0;k<=maxDeg;k++){ c.push(Sym.ev(d,0)/fact); d=Sym.simp(Sym.diff(d)); fact*=(k+1); }
+  let n=c.length-1; while(n>0&&Math.abs(c[n])<1e-9)n--; return c.slice(0,n+1); }
+function polyRealRoots(coeffs){ const n=coeffs.length-1; if(n<1)return []; const lead=coeffs[n]; const a=coeffs.map(v=>v/lead);
+  const P=z=>{ let re=0,im=0; for(let k=n;k>=0;k--){ const nre=re*z.re-im*z.im+a[k], nim=re*z.im+im*z.re; re=nre;im=nim; } return {re,im}; };
+  let z=[]; for(let i=0;i<n;i++){ const ang=2*Math.PI*i/n+0.5; z.push({re:0.7*Math.cos(ang),im:0.7*Math.sin(ang)}); }
+  for(let it=0;it<300;it++){ let md=0; for(let i=0;i<n;i++){ const pz=P(z[i]); let dre=1,dim=0;
+      for(let j=0;j<n;j++){ if(j===i)continue; const rre=z[i].re-z[j].re,rim=z[i].im-z[j].im,nre=dre*rre-dim*rim,nim=dre*rim+dim*rre; dre=nre;dim=nim; }
+      const den=dre*dre+dim*dim||1e-12; const qre=(pz.re*dre+pz.im*dim)/den, qim=(pz.im*dre-pz.re*dim)/den;
+      z[i]={re:z[i].re-qre,im:z[i].im-qim}; md=Math.max(md,Math.hypot(qre,qim)); } if(md<1e-12)break; }
+  return z.filter(r=>Math.abs(r.im)<1e-5).map(r=>r.re).sort((p,q)=>p-q); }
+
+
+
+/* =====================================================================
+   ODE numerical engine + shared helpers
+   ===================================================================== */
+const ODE = {
+  rk4(f,t,y,h){ const k1=f(t,y),k2=f(t+h/2,y+h/2*k1),k3=f(t+h/2,y+h/2*k2),k4=f(t+h,y+h*k3); return y+h/6*(k1+2*k2+2*k3+k4); },
+  curve(f,t0,y0,tmin,tmax,h){ h=h||(tmax-tmin)/700; const fwd=[[t0,y0]],bwd=[]; let t=t0,y=y0;
+    while(t<tmax){ y=ODE.rk4(f,t,y,h); t+=h; if(!isFinite(y)||Math.abs(y)>1e7)break; fwd.push([t,y]); }
+    t=t0;y=y0; while(t>tmin){ y=ODE.rk4(f,t,y,-h); t-=h; if(!isFinite(y)||Math.abs(y)>1e7)break; bwd.push([t,y]); }
+    bwd.reverse(); const p=bwd.concat(fwd); return {ts:p.map(q=>q[0]),ys:p.map(q=>q[1])}; },
+  rk4sys(F,t,p,h){ const k1=F(t,p), p2=[p[0]+h/2*k1[0],p[1]+h/2*k1[1]], k2=F(t+h/2,p2),
+    p3=[p[0]+h/2*k2[0],p[1]+h/2*k2[1]], k3=F(t+h/2,p3), p4=[p[0]+h*k3[0],p[1]+h*k3[1]], k4=F(t+h,p4);
+    return [p[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]), p[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1])]; },
+  flow(F,p0,t0,t1,n){ const h=(t1-t0)/n; let p=p0.slice(),t=t0; const out=[[t,...p]];
+    for(let i=0;i<n;i++){ p=ODE.rk4sys(F,t,p,h); t+=h; if(!isFinite(p[0])||!isFinite(p[1]))break; out.push([t,...p]); } return out; },
+  traj(F,p0,T,h){ h=h||0.02; const fwd=[p0.slice()],bwd=[]; let p=p0.slice(),t=0;
+    while(t<T){ p=ODE.rk4sys(F,t,p,h); t+=h; if(!isFinite(p[0])||!isFinite(p[1])||Math.hypot(p[0],p[1])>1e6)break; fwd.push(p.slice()); }
+    p=p0.slice();t=0; while(t<T){ p=ODE.rk4sys(F,t,p,-h); t+=h; if(!isFinite(p[0])||!isFinite(p[1])||Math.hypot(p[0],p[1])>1e6)break; bwd.push(p.slice()); }
+    bwd.reverse(); return bwd.concat(fwd); },
+  eig2(a,b,c,d){ const tr=a+d, det=a*d-b*c, disc=tr*tr-4*det;
+    if(disc>=-1e-12){ const s=Math.sqrt(Math.max(0,disc)), l1=(tr+s)/2, l2=(tr-s)/2;
+      const ev=l=>{ if(Math.abs(b)>1e-9)return [b,l-a]; if(Math.abs(c)>1e-9)return [l-d,c]; return Math.abs(a-l)<1e-9?[1,0]:[0,1]; };
+      return {real:true,l1,l2,v1:ev(l1),v2:ev(l2),tr,det,disc}; }
+    return {real:false,re:tr/2,im:Math.sqrt(-disc)/2,tr,det,disc}; },
+  charRoots(a,b,c){ const disc=b*b-4*a*c; if(Math.abs(disc)<1e-10)return {kind:'repeated',r:-b/(2*a),disc:0};
+    if(disc>0){ const s=Math.sqrt(disc); return {kind:'real',r1:(-b+s)/(2*a),r2:(-b-s)/(2*a),disc}; }
+    return {kind:'complex',re:-b/(2*a),im:Math.sqrt(-disc)/(2*a),disc}; },
+  equilibria(f,lo,hi,N=400){ const roots=[]; let prev=f(lo),pv=lo;
+    for(let i=1;i<=N;i++){ const y=lo+(hi-lo)*i/N, cur=f(y);
+      if(isFinite(prev)&&isFinite(cur)&&prev*cur<0){ let a=pv,b=y; for(let k=0;k<60;k++){ const m=(a+b)/2; (f(a)*f(m)<=0)?b=m:a=m; } roots.push((a+b)/2); }
+      prev=cur;pv=y; }
+    return roots; }
+};
+function drawSlopeField(ch,f,col,nx,ny){ nx=nx||22; ny=ny||15; const ctx=ch.ctx; ctx.save(); ctx.strokeStyle=col||hexA(COL.slate,.45); ctx.lineWidth=1.2;
+  for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++){ const t=ch.xmin+(ch.xmax-ch.xmin)*i/nx, y=ch.ymin+(ch.ymax-ch.ymin)*j/ny; const m=f(t,y); if(!isFinite(m))continue;
+    const px=ch.X(t),py=ch.Y(y); let dx=ch.X(t+1)-ch.X(t), dy=ch.Y(y+m)-ch.Y(y); const L=Math.hypot(dx,dy)||1, s=8/L; dx*=s; dy*=s;
+    ctx.beginPath(); ctx.moveTo(px-dx,py-dy); ctx.lineTo(px+dx,py+dy); ctx.stroke(); } ctx.restore(); }
+function drawSolCurve(ch,f,t0,y0,col,w){ const c=ODE.curve(f,t0,y0,ch.xmin,ch.xmax,(ch.xmax-ch.xmin)/700);
+  const xs=[],ys=[]; const pad=(ch.ymax-ch.ymin)*4; for(let i=0;i<c.ts.length;i++){ const Y=c.ys[i]; if(Y<ch.ymin-pad||Y>ch.ymax+pad){ if(xs.length){ch.pline(xs.slice(),ys.slice(),col,w||2.4); xs.length=0;ys.length=0;} continue; } xs.push(ch.X(c.ts[i])); ys.push(ch.Y(Y)); }
+  if(xs.length)ch.pline(xs,ys,col,w||2.4); }
+function parseAB(s){ const p=(s||'').split(/[\s,]+/).map(Number).filter(x=>!isNaN(x)); return p.length>=2?[p[0],p[1]]:null; }
+
+/* =====================================================================
+   CHAPTERS 1–2 · FIRST-ORDER ODEs
+   ===================================================================== */
+
+add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields & Solution Curves', diff:'intro', ch:'Ch 1.1 / 2',
+  questions:['A solution curve must stay tangent to the slope marks everywhere — why does that pin it down once you fix one point?','Where the field is flat (slope 0), what is special about those y-values?','Two solution curves of the same equation can never cross. Can you see why from the field?'],
+  blurb:'Type any first-order ODE y′ = f(t, y). See its slope field, then click anywhere on the plot to drop an initial condition and watch the solution thread through it.',
+  build(host){
+    let ics=[[0,0.2],[0,1.6],[0,2.6]];
+    const fin=makeFnInput('y′ = f(t, y)','y*(1 - y)',['t','y'],()=>{render();},'use t and y, e.g. y - t, y*(1-y), sin(t)-y');
+    const tr=UI.text({label:'t-window  [t₀, t₁]',value:'-1, 6',hint:'two numbers',onchange:render});
+    const yr=UI.text({label:'y-window  [y₀, y₁]',value:'-1.5, 3',hint:'two numbers',onchange:render});
+    const clr=document.createElement('button'); clr.className='abtn'; clr.textContent='Clear curves'; clr.onclick=()=>{ics=[];render();};
+    const plot=UI.plotCard('slope field · click to drop an initial condition',420);
+    host.appendChild(UI.appGrid([fin,tr,yr,clr,UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. <b>Click the plot</b> to drop initial conditions; scroll to zoom.')],[plot]));
+    plot.enableZoom(render);
+    const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
+    cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect(); ics.push([ch.ix(e.clientX-r.left),ch.iy(e.clientY-r.top)]); render(); });
+    function render(){ const f=fin.fn(); if(!f)return; const tp=parseAB(tr.get()),yp=parseAB(yr.get()); if(!tp||!yp)return;
+      const ch=plot.chart(); ch.setX(tp[0],tp[1]).setY(yp[0],yp[1]); ch.clear();
+      ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      drawSlopeField(ch,f);
+      ics.forEach((ic,k)=>{ drawSolCurve(ch,f,ic[0],ic[1],[COL.calc1,COL.coral,COL.calc3,COL.amber,COL.green][k%5],2.6); ch.dot(ic[0],ic[1],COL.ink,4); });
+      ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff:'inter', ch:'Ch 2.2',
+  questions:['Why are you allowed to treat dy/dt like a fraction and move dt to the other side here?','After integrating, why does a single +C absorb the constants from both sides?','How does the initial condition pick out one curve from the whole family?'],
+  blurb:'For y′ = g(t)·p(y), separate the variables, integrate both sides, apply the initial condition, and see the solution drawn over the slope field.',
+  build(host){
+    const gin=makeFnInput('g(t)','1',['t'],()=>render(),'the t-part, e.g. 1, t, cos(t)');
+    const pin=makeFnInput('p(y)','y*(1 - y)',['y'],()=>render(),'the y-part, e.g. y, 1-y, y*(1-y)');
+    const ic=UI.text({label:'initial condition  y(t₀)=y₀',value:'0, 0.3',hint:'t₀, y₀',onchange:render});
+    const win=UI.text({label:'t-window',value:'-1, 6',onchange:render});
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const plot=UI.plotCard('slope field of y′ = g(t)·p(y) with the solution through (t₀, y₀)',360);
+    host.appendChild(UI.appGrid([gin,pin,ic,win,steps,UI.note('Separate: dy/p(y) = g(t) dt. Integrate both sides, then use y(t₀)=y₀ to fix the constant. The curve is computed numerically (RK4) so it is exact even when the integrals have no elementary form.')],[plot]));
+    plot.enableZoom(render);
+    function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
+    function render(){ const g=gin.fn(), p=pin.fn(); if(!g||!p)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
+      const f=(t,y)=>g(t)*p(y); const [t0,y0]=icp;
+      const Gi=tryInt(gin.get(),'t'); const Hi=tryInt('1/('+pin.get()+')','y');
+      let html=`<b>1.</b> separate:&nbsp; dy / (${pin.get()}) = (${gin.get()}) dt<br>`;
+      html+=`<b>2.</b> integrate:&nbsp; ${Hi?('∫ dy/p = '+Hi):'∫ dy/p(y)'} = ${Gi?('∫ g dt = '+Gi):'∫ g(t) dt'} + C<br>`;
+      html+=`<b>3.</b> apply y(${M.round(t0,2)}) = ${M.round(y0,2)} to find C, then solve for y.`;
+      steps.innerHTML=html;
+      const ch=plot.chart(); ch.setX(wp[0],wp[1]); let ys=[]; for(let i=0;i<=40;i++){const c=ODE.curve(f,t0,y0,wp[0],wp[1]); ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);} let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      drawSlopeField(ch,f); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
+      ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linear: Integrating Factor', diff:'inter', ch:'Ch 2.1',
+  questions:['Why does multiplying by μ = e^∫p dt turn the left side into a single derivative (μy)′?','What role does the constant C play, and how does the initial condition fix it?','As t grows, which term dominates — the transient or the steady part?'],
+  blurb:'For y′ + p(t)y = g(t): build the integrating factor μ = e^∫p dt, collapse the left side to (μy)′, integrate, and plot the solution.',
+  build(host){
+    const pin=makeFnInput('p(t)','1',['t'],()=>render(),'coefficient of y, e.g. 1, 2/t, cos(t)');
+    const gin=makeFnInput('g(t)','t',['t'],()=>render(),'right-hand side, e.g. t, exp(-t), sin(t)');
+    const ic=UI.text({label:'initial condition  y(t₀)=y₀',value:'0, 1',hint:'t₀, y₀',onchange:render});
+    const win=UI.text({label:'t-window',value:'0, 6',onchange:render});
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const plot=UI.plotCard('solution through the initial point, over the slope field',360);
+    host.appendChild(UI.appGrid([pin,gin,ic,win,steps,UI.note('The trick: μ(t)=e^{∫p dt} is chosen so that (μy)′ = μy′ + μp y = μg. Then μy = ∫ μg dt + C, so y = (∫ μg dt + C)/μ. The constant is set by the initial condition.')],[plot]));
+    plot.enableZoom(render);
+    function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
+    function render(){ const p=pin.fn(), g=gin.fn(); if(!p||!g)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
+      const f=(t,y)=>g(t)-p(t)*y; const [t0,y0]=icp;
+      const Pi=tryInt(pin.get(),'t');
+      let html=`<b>1.</b> integrating factor:&nbsp; μ = e^{∫(${pin.get()})dt}${Pi?(' = e^{'+Pi+'}'):''}<br>`;
+      html+=`<b>2.</b> rewrite:&nbsp; (μ·y)′ = μ·(${gin.get()})<br>`;
+      html+=`<b>3.</b> integrate &amp; divide:&nbsp; y = ( ∫ μ·g dt + C ) / μ,&nbsp; then use y(${M.round(t0,2)})=${M.round(y0,2)}.`;
+      steps.innerHTML=html;
+      const ch=plot.chart(); ch.setX(wp[0],wp[1]); const c=ODE.curve(f,t0,y0,wp[0],wp[1]); const ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);
+      let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      drawSlopeField(ch,f); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
+      ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", diff:'inter', ch:'Ch 2.7',
+  questions:['Each Euler step follows the tangent line for a while — why does that drift away from the true curve?','When you halve the step size h, roughly what happens to the error?','Why does the error tend to build up fastest where the solution curves most sharply?'],
+  blurb:'Approximate y′ = f(t, y) by stepping along tangent lines. Compare the Euler polygon to the true curve and watch the error shrink as the step size drops.',
+  build(host){
+    const fin=makeFnInput('y′ = f(t, y)','y - t^2 + 1',['t','y'],()=>render(),'use t and y');
+    const ic=UI.text({label:'initial condition  y(t₀)=y₀',value:'0, 0.5',hint:'t₀, y₀',onchange:render});
+    const tend=UI.number({label:'integrate to t =',value:4,step:'any',onchange:render});
+    const hS=UI.slider({label:'step size h',min:0.05,max:1,step:0.05,value:0.5,fmt:v=>v.toFixed(2),oninput:render});
+    const stats=UI.statsBox();
+    const plot=UI.plotCard('Euler polygon (coral) vs. true RK4 curve (blue)',360);
+    host.appendChild(UI.appGrid([fin,ic,tend,hS,stats,UI.note('Euler: yₙ₊₁ = yₙ + h·f(tₙ, yₙ). Each step trusts the current slope across the whole interval h, so it lags on curved solutions. Smaller h means more, shorter steps — and less error (the error is roughly proportional to h).')],[plot]));
+    plot.enableZoom(render);
+    function render(){ const f=fin.fn(); if(!f)return; const icp=parseAB(ic.get()); if(!icp)return; const [t0,y0]=icp; const t1=tend.get(), h=hS.get();
+      const E=[[t0,y0]]; let t=t0,y=y0; let guard=0; while(t<t1-1e-9&&guard++<5000){ const hh=Math.min(h,t1-t); y=y+hh*f(t,y); t+=hh; E.push([t,y]); }
+      const c=ODE.curve(f,t0,y0,t0,t1,(t1-t0)/800); const trueEnd=c.ys[c.ys.length-1]; const eulEnd=E[E.length-1][1];
+      stats.set([{k:'step size h',v:h.toFixed(2)},{k:'steps',v:E.length-1},{k:'Euler y('+M.round(t1,1)+')',v:M.round(eulEnd,4),accent:1},{k:'true y('+M.round(t1,1)+')',v:M.round(trueEnd,4),accent:1},{k:'error',v:M.round(Math.abs(eulEnd-trueEnd),4)}]);
+      const ch=plot.chart(); ch.setX(t0-(t1-t0)*.03,t1+(t1-t0)*.03); const all=c.ys.concat(E.map(p=>p[1])).filter(v=>isFinite(v)); let ylo=M.min(all),yhi=M.max(all); const pad=(yhi-ylo)*.15||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); drawSlopeField(ch,f,hexA(COL.slate,.25),16,11);
+      drawSolCurve(ch,f,t0,y0,COL.calc1,2.6);
+      ch.pline(E.map(p=>ch.X(p[0])),E.map(p=>ch.Y(p[1])),COL.coral,2.4); E.forEach(p=>ch.dot(p[0],p[1],COL.coral,3));
+      ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'autonomous', cat:'c1', tag:'interactive', title:'Autonomous Equations & the Phase Line', diff:'inter', ch:'Ch 2.5',
+  questions:['Equilibria are the zeros of f(y). Why is the sign of f between them all you need to know the flow?','A stable equilibrium pulls nearby solutions in; an unstable one pushes them away. How do you tell which from the graph of f?','In the logistic model y′ = r y(1 − y/K), what is the long-run population for any positive start?'],
+  blurb:'For y′ = f(y): find the equilibria, read their stability off the phase line, and watch every starting population settle (or run away) accordingly.',
+  build(host){
+    const fin=makeFnInput('y′ = f(y)','0.8*y*(1 - y/4)',['y'],()=>render(),'a function of y only, e.g. y*(1-y), y^2-1');
+    const yr=UI.text({label:'y-range',value:'-1, 6',onchange:render});
+    const stats=UI.statsBox();
+    const left=UI.plotCard('phase line: f(y) vs y (arrows show the flow)',330);
+    const right=UI.plotCard('solutions y(t) for several starting values',330);
+    host.appendChild(UI.appGrid([fin,yr,stats,UI.note('An equilibrium ŷ has f(ŷ)=0 (a horizontal solution). Where f>0 the population rises (arrow up); where f<0 it falls (arrow down). An equilibrium is <b>stable</b> if arrows point toward it on both sides, <b>unstable</b> if away.')],[left,right]));
+    left.enableZoom(render);
+    function render(){ const f=fin.fn(); if(!f)return; const yp=parseAB(yr.get()); if(!yp)return; let[ylo,yhi]=yp;
+      const eq=ODE.equilibria(f,ylo,yhi); const cls=eq.map(r=>{ const d=(f(r+1e-3)-f(r-1e-3))/2e-3; return d<-1e-6?'stable':d>1e-6?'unstable':'semi'; });
+      stats.set([{k:'equilibria',v:eq.length?eq.map(r=>M.round(r,2)).join(', '):'none',accent:1}].concat(eq.map((r,i)=>({k:'ŷ = '+M.round(r,2),v:cls[i]}))));
+      // left: f(y) vs y (y on horizontal)
+      const L=left.chart(); L.setX(ylo,yhi); let fs=[]; for(let i=0;i<=120;i++){const y=ylo+(yhi-ylo)*i/120,v=f(y); if(isFinite(v))fs.push(v);} let flo=Math.min(0,M.min(fs)),fhi=Math.max(0,M.max(fs)); const fp=(fhi-flo)*.15||1; L.setY(flo-fp,fhi+fp);
+      L.clear(); L.gridlines(niceTicks(L.xmin,L.xmax,6),niceTicks(L.ymin,L.ymax,5)); L.axes(); L.curve(f,COL.calc1,2.6);
+      // flow arrows along the y-axis line (at f=0 level)
+      const ctx=L.ctx; const y0px=L.Y(0); for(let i=0;i<=24;i++){ const y=ylo+(yhi-ylo)*i/24, v=f(y); if(!isFinite(v)||Math.abs(v)<1e-6)continue; const dir=v>0?1:-1; const x=L.X(y); ctx.strokeStyle=hexA(v>0?COL.green:COL.coral,.8); ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(x-6*dir,y0px); ctx.lineTo(x+6*dir,y0px); ctx.lineTo(x+2*dir,y0px-4); ctx.moveTo(x+6*dir,y0px); ctx.lineTo(x+2*dir,y0px+4); ctx.stroke(); }
+      eq.forEach((r,i)=>{ L.dot(r,0,cls[i]==='stable'?COL.green:cls[i]==='unstable'?COL.coral:COL.amber,6); });
+      L.axisX(niceTicks(L.xmin,L.xmax,6)); L.axisY(niceTicks(L.ymin,L.ymax,5));
+      // right: y(t) curves
+      const R=right.chart(); R.setX(0,8).setY(ylo,yhi); R.clear(); R.gridlines(niceTicks(0,8,6),niceTicks(ylo,yhi,6)); R.axes();
+      eq.forEach((r,i)=>R.line(0,r,8,r,hexA(cls[i]==='stable'?COL.green:cls[i]==='unstable'?COL.coral:COL.amber,.5),1.4,[5,4]));
+      const F=(t,y)=>f(y); for(let k=0;k<=10;k++){ const y0=ylo+(yhi-ylo)*k/10; drawSolCurve(R,F,0,y0,hexA(COL.calc1,.7),1.8); }
+      R.axisX(niceTicks(0,8,6)); R.axisY(niceTicks(ylo,yhi,6));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   CHAPTERS 3–4 · HIGHER-ORDER LINEAR ODEs
+   ===================================================================== */
+
+add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant Coefficients', diff:'inter', ch:'Ch 3.1–3.4',
+  questions:['Why does guessing y = e^{rt} turn the differential equation into the algebraic equation ar²+br+c=0?','Real, repeated, or complex roots give three very different-looking solutions — what causes each case?','For complex roots α ± βi, where do the oscillation rate and the decay rate come from?'],
+  blurb:'Solve a y″ + b y′ + c y = 0 the way the book does: form the characteristic equation, find its roots, read off the general solution, and fit the initial conditions.',
+  build(host){
+    const aN=UI.number({label:'a (coeff of y″)',value:1,step:'any',onchange:render});
+    const bN=UI.number({label:'b (coeff of y′)',value:2,step:'any',onchange:render});
+    const cN=UI.number({label:'c (coeff of y)',value:5,step:'any',onchange:render});
+    const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'1, 0',hint:'two numbers',onchange:render});
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
+    const plot=UI.plotCard('the solution y(t)',360);
+    host.appendChild(UI.appGrid([aN,bN,cN,ic,steps,UI.note('Substituting y=e^{rt} gives the characteristic equation. <b>Real distinct</b> roots → C₁e^{r₁t}+C₂e^{r₂t}. <b>Repeated</b> root → (C₁+C₂t)e^{rt}. <b>Complex</b> α±βi → e^{αt}(C₁cos βt + C₂sin βt): α sets growth/decay, β sets the oscillation.')],[plot]));
+    plot.enableZoom(render);
+    function render(){ const a=aN.get(),b=bN.get(),c=cN.get(); if(Math.abs(a)<1e-9)return; const icp=parseAB(ic.get()); if(!icp)return; const [y0,v0]=icp;
+      const R=ODE.charRoots(a,b,c); let sol, gen, rootStr;
+      if(R.kind==='real'){ const {r1,r2}=R; const C2=(v0-r1*y0)/(r2-r1), C1=y0-C2; sol=t=>C1*Math.exp(r1*t)+C2*Math.exp(r2*t);
+        rootStr=`real &amp; distinct:&nbsp; r₁=${M.round(r1,3)}, r₂=${M.round(r2,3)}`; gen=`y = ${M.round(C1,3)} e^{${M.round(r1,3)}t} + ${M.round(C2,3)} e^{${M.round(r2,3)}t}`; }
+      else if(R.kind==='repeated'){ const r=R.r; const C1=y0, C2=v0-r*y0; sol=t=>(C1+C2*t)*Math.exp(r*t);
+        rootStr=`repeated root:&nbsp; r=${M.round(r,3)}`; gen=`y = (${M.round(C1,3)} + ${M.round(C2,3)} t) e^{${M.round(r,3)}t}`; }
+      else { const {re,im}=R; const C1=y0, C2=(v0-re*y0)/im; sol=t=>Math.exp(re*t)*(C1*Math.cos(im*t)+C2*Math.sin(im*t));
+        rootStr=`complex:&nbsp; r = ${M.round(re,3)} ± ${M.round(im,3)} i`; gen=`y = e^{${M.round(re,3)}t}( ${M.round(C1,3)} cos ${M.round(im,3)}t + ${M.round(C2,3)} sin ${M.round(im,3)}t )`; }
+      steps.innerHTML=`<b>1.</b> characteristic equation:&nbsp; ${M.round(a,2)}r² + ${M.round(b,2)}r + ${M.round(c,2)} = 0<br><b>2.</b> roots:&nbsp; ${rootStr}<br><b>3.</b> fit y(0)=${M.round(y0,2)}, y′(0)=${M.round(v0,2)}:<br>&nbsp;&nbsp;<b style="color:var(--c-calc2)">${gen}</b>`;
+      const ch=plot.chart(); let T=10; ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){const y=sol(T*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(0,M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); ch.curve(sol,COL.calc2,2.8); ch.dot(0,y0,COL.coral,5);
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations & Resonance', diff:'inter', ch:'Ch 3.7 · application',
+  questions:['With no forcing, the damping ratio decides everything: under-, over-, or critically damped. Which dies out fastest without oscillating?','When you drive the system near its natural frequency ω₀, why does the amplitude blow up?','A car suspension is tuned to be (nearly) critically damped — why is that the comfortable choice?'],
+  blurb:'A spring–mass–damper m y″ + γ y′ + k y = F₀cos(ωt). Tune the mass, damping, stiffness, and a driving force, and watch free decay turn into resonance.',
+  build(host){
+    const mS=UI.slider({label:'mass m',min:0.2,max:4,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:render});
+    const gS=UI.slider({label:'damping γ',min:0,max:4,step:0.1,value:0.3,fmt:v=>v.toFixed(1),oninput:render});
+    const kS=UI.slider({label:'stiffness k',min:0.2,max:8,step:0.1,value:4,fmt:v=>v.toFixed(1),oninput:render});
+    const fS=UI.slider({label:'forcing amplitude F₀',min:0,max:4,step:0.1,value:0,fmt:v=>v.toFixed(1),oninput:render});
+    const wS=UI.slider({label:'forcing frequency ω',min:0.1,max:5,step:0.1,value:2,fmt:v=>v.toFixed(1),oninput:render});
+    const stats=UI.statsBox();
+    const plot=UI.plotCard('displacement y(t)',360);
+    host.appendChild(UI.appGrid([mS,gS,kS,fS,wS,stats,UI.note('Natural frequency ω₀=√(k/m). The free response is <b>under-damped</b> (oscillates, γ²&lt;4mk), <b>critically damped</b> (γ²=4mk), or <b>over-damped</b> (γ²&gt;4mk). With forcing F₀cos(ωt), the steady amplitude peaks when ω≈ω₀ — that is resonance, and weak damping makes the peak huge.')],[plot]));
+    plot.enableZoom(render);
+    function render(){ const m=mS.get(),g=gS.get(),k=kS.get(),F0=fS.get(),w=wS.get();
+      const w0=Math.sqrt(k/m); const disc=g*g-4*m*k; const regime=Math.abs(disc)<1e-6?'critically damped':disc>0?'over-damped':'under-damped';
+      const F=(t,p)=>[p[1],(F0*Math.cos(w*t)-g*p[1]-k*p[0])/m];
+      const data=ODE.flow(F,[1,0],0,28,1400);
+      const ys=data.map(d=>d[1]).filter(isFinite);
+      stats.set([{k:'natural ω₀',v:M.round(w0,3),accent:1},{k:'regime',v:regime,accent:1},{k:'damping ratio ζ',v:M.round(g/(2*Math.sqrt(m*k)),3)},{k:'forced?',v:F0>0?('yes, ω='+w.toFixed(1)):'free'}].concat(F0>0?[{k:'resonance near',v:M.round(w0,2),accent:Math.abs(w-w0)<0.3?1:0}]:[]));
+      const ch=plot.chart(); ch.setX(0,28); let ylo=M.min(ys),yhi=M.max(ys); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,28,8),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      ch.pline(data.map(d=>ch.X(d[0])),data.map(d=>ch.Y(d[1])),COL.calc2,2.4);
+      ch.axisX(niceTicks(0,28,8)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   CHAPTER 6 · THE LAPLACE TRANSFORM
+   ===================================================================== */
+
+add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff:'inter', ch:'Ch 6.1 / 6.2',
+  questions:['The transform trades a function of t for a function of s. Why does that make derivatives become multiplication by s?','Why must s be large enough (s > a for e^{at}) for the defining integral to converge?','How does a sharp feature in t (a spike, a switch) show up in the s-domain?'],
+  blurb:'Pick a function f(t), see its Laplace transform F(s) = ∫₀^∞ e^{−st} f(t) dt — both the closed-form pair and a numerical check — and the s-domain picture.',
+  build(host){
+    const sel=UI.select({label:'f(t)',options:[
+      {label:'1  (constant)',value:'one'},{label:'t',value:'t'},{label:'t²',value:'t2'},
+      {label:'e^{a t}',value:'exp'},{label:'sin(b t)',value:'sin'},{label:'cos(b t)',value:'cos'},
+      {label:'e^{a t} sin(b t)',value:'expsin'},{label:'unit step at t=c',value:'step'}],value:'sin',onchange:render});
+    const aS=UI.slider({label:'a',min:-1.5,max:1.5,step:0.1,value:-0.5,fmt:v=>v.toFixed(1),oninput:render});
+    const bS=UI.slider({label:'b',min:0.5,max:5,step:0.5,value:2,fmt:v=>v.toFixed(1),oninput:render});
+    const cS=UI.slider({label:'c (step location)',min:0,max:5,step:0.5,value:2,fmt:v=>v.toFixed(1),oninput:render});
+    const sS=UI.slider({label:'check at s =',min:0.5,max:6,step:0.5,value:3,fmt:v=>v.toFixed(1),oninput:render});
+    const pair=document.createElement('div'); pair.className='formula'; pair.style.fontSize='1rem';
+    const stats=UI.statsBox();
+    const ft=UI.plotCard('f(t) in the time domain',230);
+    const Fs=UI.plotCard('F(s) in the s-domain',230);
+    host.appendChild(UI.appGrid([sel,aS,bS,cS,sS,pair,stats,UI.note('The Laplace transform F(s)=∫₀^∞ e^{−st}f(t)dt converts an IVP into an algebra problem: L{y′}=sY−y(0), L{y″}=s²Y−sy(0)−y′(0). Solve for Y(s), then invert. The number below checks the closed form against the actual integral.')],[ft,Fs]));
+    function defs(){ const a=aS.get(),b=bS.get(),c=cS.get();
+      switch(sel.get()){
+        case 'one': return {f:t=>1, F:s=>1/s, ft:'1', Fs:'1 / s', cond:'s > 0'};
+        case 't': return {f:t=>t, F:s=>1/(s*s), ft:'t', Fs:'1 / s²', cond:'s > 0'};
+        case 't2': return {f:t=>t*t, F:s=>2/(s*s*s), ft:'t²', Fs:'2 / s³', cond:'s > 0'};
+        case 'exp': return {f:t=>Math.exp(a*t), F:s=>1/(s-a), ft:`e^{${a.toFixed(1)}t}`, Fs:`1 / (s − ${a.toFixed(1)})`, cond:`s > ${a.toFixed(1)}`};
+        case 'sin': return {f:t=>Math.sin(b*t), F:s=>b/(s*s+b*b), ft:`sin(${b.toFixed(1)}t)`, Fs:`${b.toFixed(1)} / (s² + ${(b*b).toFixed(2)})`, cond:'s > 0'};
+        case 'cos': return {f:t=>Math.cos(b*t), F:s=>s/(s*s+b*b), ft:`cos(${b.toFixed(1)}t)`, Fs:`s / (s² + ${(b*b).toFixed(2)})`, cond:'s > 0'};
+        case 'expsin': return {f:t=>Math.exp(a*t)*Math.sin(b*t), F:s=>b/((s-a)*(s-a)+b*b), ft:`e^{${a.toFixed(1)}t} sin(${b.toFixed(1)}t)`, Fs:`${b.toFixed(1)} / ((s−${a.toFixed(1)})² + ${(b*b).toFixed(2)})`, cond:`s > ${a.toFixed(1)}`};
+        case 'step': return {f:t=>t>=c?1:0, F:s=>Math.exp(-c*s)/s, ft:`u(t − ${c.toFixed(1)})`, Fs:`e^{−${c.toFixed(1)}s} / s`, cond:'s > 0'};
+      }
+    }
+    function render(){ const D=defs(); const sCheck=sS.get();
+      const numeric=M.integrate(t=>Math.exp(-sCheck*t)*D.f(t),0,60,6000);
+      pair.innerHTML=`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><span>L{ <b>${D.ft}</b> }(s) =</span><b style="font-size:1.15rem;color:var(--c-calc3)">${D.Fs}</b><span style="color:var(--ink-soft)">,&nbsp; ${D.cond}</span></div>`;
+      stats.set([{k:'F('+sCheck.toFixed(1)+') formula',v:M.round(D.F(sCheck),4),accent:1},{k:'∫ numeric check',v:M.round(numeric,4),accent:1}]);
+      const c1=ft.chart(); c1.setX(0,8); let ys=[]; for(let i=0;i<=200;i++){const v=D.f(8*i/200); if(isFinite(v))ys.push(v);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(1,M.max(ys)); c1.setY(ylo-.2,yhi+.3);
+      c1.clear(); c1.gridlines(niceTicks(0,8,6),niceTicks(c1.ymin,c1.ymax,5)); c1.axes(); c1.curve(D.f,COL.calc1,2.6); c1.axisX(niceTicks(0,8,6)); c1.axisY(niceTicks(c1.ymin,c1.ymax,5));
+      const c2=Fs.chart(); const smin=Math.max(0.2,(sel.get()==='exp'||sel.get()==='expsin')?aS.get()+0.2:0.2); c2.setX(smin,8); let Fy=[]; for(let i=0;i<=200;i++){const s=smin+(8-smin)*i/200,v=D.F(s); if(isFinite(v)&&Math.abs(v)<1e3)Fy.push(v);} let Flo=Math.min(0,M.min(Fy)),Fhi=M.max(Fy); c2.setY(Flo-.1,Fhi*1.1+.1);
+      c2.clear(); c2.gridlines(niceTicks(c2.xmin,c2.xmax,6),niceTicks(c2.ymin,c2.ymax,5)); c2.axes(); c2.curve(D.F,COL.calc3,2.6); c2.dot(sCheck,D.F(sCheck),COL.coral,5); c2.axisX(niceTicks(c2.xmin,c2.xmax,6)); c2.axisY(niceTicks(c2.ymin,c2.ymax,5));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   CHAPTER 7 · SYSTEMS OF FIRST-ORDER LINEAR EQUATIONS
+   ===================================================================== */
+
+add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of  x′ = A x', diff:'adv', ch:'Ch 7.5–7.8',
+  questions:['The eigenvalues of A decide the whole picture. Which signs give a saddle, which give a spiral?','For real eigenvalues, trajectories hug the eigenvector directions — why those lines in particular?','A purely imaginary pair gives closed loops (a center). What does adding a little damping do to them?'],
+  blurb:'Enter a 2×2 matrix A. The tool finds the eigenvalues and eigenvectors, classifies the equilibrium, and draws the flow. Click anywhere to launch a trajectory.',
+  build(host){
+    let trajs=[[1,0.4],[-1,-0.4],[0.3,1],[-0.3,-1],[2,-1.5],[-2,1.5]];
+    const aN=UI.number({label:'a₁₁',value:0,step:'any',onchange:render}); const bN=UI.number({label:'a₁₂',value:1,step:'any',onchange:render});
+    const cN=UI.number({label:'a₂₁',value:-2,step:'any',onchange:render}); const dN=UI.number({label:'a₂₂',value:-0.4,step:'any',onchange:render});
+    const stats=UI.statsBox(); const verdict=UI.note('');
+    const clr=document.createElement('button'); clr.className='abtn'; clr.textContent='Clear trajectories'; clr.onclick=()=>{trajs=[];render();};
+    const plot=UI.plotCard('phase plane · vector field, trajectories, eigen-directions · click to add',440);
+    host.appendChild(UI.appGrid([aN,bN,cN,dN,clr,stats,verdict,UI.note('Write the system as x′ = A x. The eigenvalues λ of A classify the origin: real opposite signs → <b>saddle</b>; both negative → <b>stable node</b>; both positive → <b>unstable node</b>; complex with negative real part → <b>stable spiral</b>; purely imaginary → <b>center</b>. Real eigenvectors are the straight-line solutions.')],[plot]));
+    plot.enableZoom(render);
+    const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
+    cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect(); trajs.push([ch.ix(e.clientX-r.left),ch.iy(e.clientY-r.top)]); render(); });
+    function render(){ const a=aN.get(),b=bN.get(),c=cN.get(),d=dN.get(); const E=ODE.eig2(a,b,c,d);
+      let type,col;
+      if(E.real){ const {l1,l2}=E; if(l1*l2<0){type='saddle (unstable)';col=COL.coral;} else if(l1<0&&l2<0){type='stable node';col=COL.green;} else if(l1>0&&l2>0){type='unstable node';col=COL.coral;} else type='degenerate / line of equilibria',col=COL.amber;
+        stats.set([{k:'trace, det',v:`${M.round(E.tr,2)}, ${M.round(E.det,2)}`},{k:'λ₁, λ₂',v:`${M.round(l1,3)}, ${M.round(l2,3)}`,accent:1},{k:'v₁',v:`(${M.round(E.v1[0],2)}, ${M.round(E.v1[1],2)})`},{k:'v₂',v:`(${M.round(E.v2[0],2)}, ${M.round(E.v2[1],2)})`}]); }
+      else { const {re,im}=E; type=Math.abs(re)<1e-6?'center (closed orbits)':re<0?'stable spiral':'unstable spiral'; col=re<0?COL.green:Math.abs(re)<1e-6?COL.calc3:COL.coral;
+        stats.set([{k:'trace, det',v:`${M.round(E.tr,2)}, ${M.round(E.det,2)}`},{k:'λ',v:`${M.round(re,3)} ± ${M.round(im,3)} i`,accent:1},{k:'rotation rate',v:M.round(im,3)},{k:'growth rate',v:M.round(re,3)}]); }
+      verdict.innerHTML=`<b style="color:${col}">${type}</b>`; verdict.style.borderLeftColor=col;
+      const lim=4; const ch=plot.chart(); ch.setX(-lim,lim).setY(-lim,lim); ch.clear();
+      ch.gridlines(niceTicks(-lim,lim,8),niceTicks(-lim,lim,8)); ch.axes();
+      // vector field
+      const ctx=ch.ctx; const G=15; for(let i=0;i<=G;i++)for(let j=0;j<=G;j++){ const x=ch.xmin+(ch.xmax-ch.xmin)*i/G, y=ch.ymin+(ch.ymax-ch.ymin)*j/G; let vx=a*x+b*y, vy=c*x+d*y; const L=Math.hypot(vx,vy)||1; const px=ch.X(x),py=ch.Y(y); const s=9/L; const ex=px+vx*s*(ch.X(1)-ch.X(0)>0?1:1); 
+        ctx.strokeStyle=hexA(COL.slate,.4); ctx.lineWidth=1; const dpx=(ch.X(x+vx)-px), dpy=(ch.Y(y+vy)-py); const dl=Math.hypot(dpx,dpy)||1; const k=9/dl; ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+dpx*k,py+dpy*k); ctx.stroke(); ctx.fillStyle=hexA(COL.slate,.5); ctx.beginPath(); ctx.arc(px+dpx*k,py+dpy*k,1.3,0,M.TAU); ctx.fill(); }
+      // eigen-direction lines (real case)
+      if(E.real){ [E.v1,E.v2].forEach((v,idx)=>{ const n=Math.hypot(v[0],v[1])||1; const ux=v[0]/n,uy=v[1]/n; ch.line(-lim*ux,-lim*uy,lim*ux,lim*uy,hexA((idx? COL.calc3:COL.amber),.55),1.6,[6,4]); }); }
+      // trajectories
+      const F=(t,p)=>[a*p[0]+b*p[1], c*p[0]+d*p[1]];
+      trajs.forEach((p0,k)=>{ const pts=ODE.traj(F,p0,7,0.015); ch.pline(pts.map(p=>ch.X(p[0])),pts.map(p=>ch.Y(p[1])),[COL.calc1,COL.calc2,COL.coral,COL.calc3,COL.amber,COL.green][k%6],2.2); ch.dot(p0[0],p0[1],COL.ink,3.5); });
+      ch.dot(0,0,col,6);
+      ch.axisX(niceTicks(-lim,lim,8)); ch.axisY(niceTicks(-lim,lim,8));
+    }
+    render();
+  }
+});
+
+/* --------------------- (4) CATALOG RENDERING ------------------------ */
+const DIFF_LABEL={intro:'Intro',inter:'Intermediate',adv:'Advanced'};
+const DIFF_CLASS={intro:'diff-intro',inter:'diff-inter',adv:'diff-adv'};
+function renderCatalog(){
+  const root=document.getElementById('catalog'); root.innerHTML='';
+  const nav=document.getElementById('topnav'); nav.innerHTML='';
+  document.getElementById('appletCount').textContent=APPLETS.length;
+  Object.entries(CATS).forEach(([key,cat])=>{
+    const items=APPLETS.filter(a=>a.cat===key); if(!items.length)return;
+    const a=document.createElement('a'); a.href='#'+key; a.textContent=cat.name; nav.appendChild(a);
+    const sec=document.createElement('section'); sec.className='section'; sec.id='sec-'+key; sec.style.setProperty('--cat',cat.color);
+    const head=document.createElement('div'); head.className='sec-head';
+    head.innerHTML=`<span class="num">${cat.n}</span><h2>${cat.name}</h2><span class="desc">${cat.desc}</span>`;
+    let enrich=null;
+    if(cat.facts&&cat.facts.length){ enrich=document.createElement('div'); enrich.className='enrich'; enrich.style.setProperty('--cat',cat.color);
+      let fi=Math.floor(Math.random()*cat.facts.length);
+      const paint=()=>{ const f=cat.facts[fi]; enrich.innerHTML=`<span class="etag">${f.t==='use'?'✦ Application':'✨ Did you know'}</span><span class="etext">${f.s}</span><button title="another">↻</button>`;
+        enrich.querySelector('button').onclick=()=>{ fi=(fi+1)%cat.facts.length; paint(); }; };
+      paint();
+    }
+    const grid=document.createElement('div'); grid.className='grid'; grid.id='grid-'+key;
+    items.forEach(ap=>{
+      const dc=DIFF_CLASS[ap.diff||'intro']||'diff-intro';
+      const dl=DIFF_LABEL[ap.diff||'intro']||'Intro';
+      const card=document.createElement('button'); card.className='card';
+      card.dataset.title=(ap.title+' '+ap.blurb+' '+ap.tag+' '+(ap.ch||'')).toLowerCase();
+      card.dataset.cat=key;
+      card.style.setProperty('--cat',cat.color);
+      card.innerHTML=`<div style="display:flex;align-items:center;gap:6px;"><span class="tag">${ap.tag}</span><span class="diff ${dc}">${dl}</span></div>
+        <span class="ttl">${ap.title}</span><span class="blurb">${ap.blurb}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px;"><span class="ch">${ap.ch||''}</span></div>
+        <svg class="go" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+      card.onclick=()=>goApplet(ap.id); grid.appendChild(card);
+    });
+    sec.append(head); if(enrich)sec.append(enrich); sec.append(grid); root.appendChild(sec);
+  });
+}
+function filterCatalog(q){
+  q=q.toLowerCase().trim();
+  let anyVisible=false;
+  document.querySelectorAll('#catalog .card').forEach(card=>{
+    const match=!q||card.dataset.title.includes(q);
+    card.style.display=match?'':'none';
+    if(match)anyVisible=true;
+  });
+  document.querySelectorAll('#catalog .section').forEach(sec=>{
+    const key=sec.id.replace('sec-','');
+    const grid=document.getElementById('grid-'+key);
+    const hasVisible=grid&&[...grid.querySelectorAll('.card')].some(c=>c.style.display!=='none');
+    sec.style.display=hasVisible?'':'none';
+  });
+  document.getElementById('searchEmpty').style.display=anyVisible?'none':'block';
+}
+
+/* ------------------------- (5) ROUTER ------------------------------- */
+const homeEl=document.getElementById('home'), viewEl=document.getElementById('appletView');
+function goHome(){ location.hash=''; showHome(); }
+function showHome(){ viewEl.style.display='none'; homeEl.style.display='block'; }
+function goApplet(id){ location.hash='/'+id; }
+
+let _dark=false;
+const darkStyle=document.createElement('style'); darkStyle.id='dark-override-style'; document.head.appendChild(darkStyle);
+function applyDark(d){
+  _dark=d; const icon=document.getElementById('darkIcon');
+  if(d){
+    darkStyle.textContent=`body.dark-override{--paper:#11161F;--paper-2:#1A2230;--ink:#EAF0F5;--ink-soft:#A8B4C2;--ink-faint:#65728200;--ink-faint:#6B7888;--line:#2A3340;--grid:#1B2330;--white:#1A2230;--shadow-sm:0 1px 2px rgba(0,0,0,.3);--shadow-md:0 4px 16px rgba(0,0,0,.4);--shadow-lg:0 12px 32px rgba(0,0,0,.5);}
+    body.dark-override{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);}
+    body.dark-override .topbar{background:rgba(17,22,31,.88);}
+    body.dark-override .ctrl input[type=number],body.dark-override .ctrl input[type=text],body.dark-override .ctrl select,body.dark-override .ctrl textarea{background:var(--paper-2);border-color:var(--line);color:var(--ink);}
+    body.dark-override .abtn{background:var(--paper-2);color:var(--ink);}
+    body.dark-override .back{background:var(--paper-2);}
+    body.dark-override .search-box{background:var(--paper-2);}
+    body.dark-override .formula{background:var(--paper-2);}`;
+    icon.setAttribute('d','M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z');
+  } else { darkStyle.textContent=''; icon.setAttribute('d','M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'); }
+  document.body.classList.toggle('dark-override',d);
+  COL.paper = d? '#1A2230' : '#F7FAFA'; COL.grid=d?'#1B2330':'#E4ECEC'; COL.line=d?'#2A3340':'#D8E3E3';
+  COL.ink=d?'#EAF0F5':'#15233A'; COL.soft=d?'#A8B4C2':'#445268'; COL.faint=d?'#6B7888':'#82909F';
+  if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); }
+  else heroAnim();
+}
+function toggleDark(){ _dark=!_dark; try{localStorage.setItem('cl-dark',_dark?'1':'0');}catch(e){} applyDark(_dark); }
+
+function shareApplet(){
+  const btn=document.getElementById('shareBtn');
+  navigator.clipboard.writeText(location.href).then(()=>{
+    btn.textContent='✓ Link copied!'; btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent='Share ↗'; btn.classList.remove('copied'); },2000);
+  }).catch(()=>{ window.prompt('Copy this link:',location.href); });
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  if(e.key==='Escape'&&viewEl.style.display==='block') goHome();
+  if(e.key==='/'){ e.preventDefault(); document.getElementById('searchInput')?.focus(); goHome(); }
+});
+
+function openApplet(id){
+  const ap=APPLETS.find(a=>a.id===id); if(!ap){ showHome(); return; }
+  const cat=CATS[ap.cat];
+  homeEl.style.display='none'; viewEl.style.display='block'; viewEl.style.setProperty('--accent',cat.color);
+  viewEl.innerHTML='';
+  const w=document.createElement('div'); w.className='wrap';
+  const top=document.createElement('div'); top.className='app-top';
+  top.innerHTML=`<button class="back" onclick="goHome()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All tools</button>
+    <span class="app-cat" style="background:${cat.color}">${cat.name}${ap.ch?' · '+ap.ch:''}</span>
+    <button class="share-btn" id="shareBtn" onclick="shareApplet()">Share ↗</button>
+    <span class="kbd" style="margin-left:auto"><kbd>Esc</kbd> to go back</span>`;
+  const head=document.createElement('div'); head.className='app-head';
+  const guidingHTML = ap.questions ? `<div class="guiding"><div class="q-title">🎯 Think about these as you explore</div><ol>${ap.questions.map(q=>`<li>${q}</li>`).join('')}</ol></div>` : '';
+  head.innerHTML=`<h2>${ap.title}</h2><p>${ap.blurb}</p>${guidingHTML}`;
+  const hostBox=document.createElement('div');
+  w.append(top,head,hostBox); viewEl.appendChild(w);
+  try{ ap.build(hostBox); }catch(e){ hostBox.innerHTML=`<div class="panel">This tool hit an error: <code>${e.message}</code></div>`; console.error(e); }
+  hostBox.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.tagName!=='BUTTON'&&e.target.tagName!=='TEXTAREA'){
+      const primaryBtns=hostBox.querySelectorAll('.abtn.primary');
+      if(primaryBtns.length===1){ e.preventDefault(); primaryBtns[0].click(); }
+    }
+  });
+  window.scrollTo(0,0);
+}
+function route(){ const h=location.hash; if(h.startsWith('#/')) openApplet(decodeURIComponent(h.slice(2))); else if(h&&document.getElementById('sec-'+h.slice(1))){ showHome(); } else showHome(); }
+window.addEventListener('hashchange',route);
+
+/* -------------------- (6) HERO ANIMATION ---------------------------- */
+function heroAnim(){
+  const cv=document.getElementById('heroCanvas'); if(!cv)return;
+  const ch=new Chart(cv,{cssH:300,m:{t:14,r:14,b:26,l:32}});
+  const f=(t,y)=>0.9*y*(1-y/2.2)+0.22*Math.sin(t*1.3); // logistic with a gentle wiggle
+  const tmin=-0.3,tmax=6,ymin=-0.3,ymax=3;
+  const sol=ODE.curve(f,0,0.22,tmin,tmax,(tmax-tmin)/420);
+  const i0=sol.ts.findIndex(t=>t>=0); let idx=i0<0?0:i0;
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function frame(){
+    ch.setX(tmin,tmax).setY(ymin,ymax); ch.clear();
+    ch.gridlines(niceTicks(tmin,tmax,6),niceTicks(ymin,ymax,5)); ch.axes();
+    drawSlopeField(ch,f,hexA(COL.slate,.4),20,12);
+    const xs=[],ys=[]; for(let i=0;i<=idx&&i<sol.ts.length;i++){ xs.push(ch.X(sol.ts[i])); ys.push(ch.Y(sol.ys[i])); }
+    if(xs.length>1) ch.pline(xs,ys,COL.calc1,2.8);
+    const i=Math.min(idx,sol.ts.length-1), t=sol.ts[i], y=sol.ys[i];
+    ch.dot(t,y,COL.coral,5);
+    document.getElementById('heroH').textContent=M.round(t,2);
+    document.getElementById('heroSlope').textContent=M.round(y,2);
+    document.getElementById('heroDeriv').textContent=M.round(f(t,y),2);
+    idx+=3; if(idx>sol.ts.length+24)idx=i0<0?0:i0;
+    if(!reduce) heroRAF=requestAnimationFrame(()=>setTimeout(frame,42));
+  }
+  if(window.heroRAF)cancelAnimationFrame(window.heroRAF);
+  if(reduce){ idx=sol.ts.length-1; frame(); } else frame();
+}
+
+/* ----------------------------- INIT --------------------------------- */
+renderCatalog();
+try{ if(localStorage.getItem('cl-dark')==='1'){ _dark=true; } }catch(e){}
+applyDark(_dark);
+heroAnim();
+route();
+let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>{ if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); } else heroAnim(); },180); });
+
+const searchWrap=document.querySelector('.search-wrap');
+if(searchWrap){
+  const hint=document.createElement('div'); hint.className='kbd'; hint.style.cssText='margin-top:8px;display:inline-flex;';
+  hint.innerHTML='<kbd>/</kbd> to search &nbsp; <kbd>Esc</kbd> to go back';
+  searchWrap.appendChild(hint);
+}
+</script>
+</body>
+</html>
