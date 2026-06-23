@@ -249,12 +249,12 @@ canvas{display:block;}
   <section class="hero">
     <div class="wrap hero-inner">
       <div>
-        <div class="eyebrow">Interactive Differential Equations · MATH 345 · Boyce &amp; DiPrima</div>
+        <div class="eyebrow">Interactive Differential Equations · slope fields to phase planes</div>
         <h1>See the <em>solution</em>.<br>Not just the symbols.</h1>
         <p class="lead">A hands-on collection for learning differential equations — sketch a slope field, drop initial conditions and watch solutions thread through, solve second-order systems with full steps, and read stability straight off a phase portrait. Built for the classroom.</p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="#c1">Explore the tools →</a>
-          <span class="hero-stat"><b id="appletCount">0</b> live tools · <b>Ch 1–7</b></span>
+          <span class="hero-stat"><b id="appletCount">0</b> live interactive tools</span>
         </div>
       </div>
       <div class="hero-canvas-card">
@@ -290,7 +290,7 @@ canvas{display:block;}
         <div style="margin-top:6px;max-width:52ch;">Free to use, remix, and share. Numerical methods are approximate — meant for intuition, not proof.</div>
       </div>
       <div style="text-align:right;font-family:var(--mono);font-size:.76rem;line-height:1.9;">
-        Dr. Wang · MATH 345.
+        Dr. Wang.
       </div>
     </div>
   </footer>
@@ -487,7 +487,7 @@ function niceTicks(min,max,n=6){ const span=max-min||1; const step0=span/n; cons
   const t=[]; let v=Math.ceil(min/step)*step; while(v<=max+1e-9){ t.push(M.round(v,6)); v+=step; } return t; }
 /* ----------------------- (3) UI + REGISTRY -------------------------- */
 const CATS = {
-  c1:{name:'First-Order ODEs', color:COL.calc1, n:'1–2', desc:'Direction fields, separable & linear equations, Euler\u2019s method, autonomous models. Boyce Ch 1–2.',
+  c1:{name:'First-Order ODEs', color:COL.calc1, n:'01', desc:'Direction fields, separable & linear equations, integrating factors, Euler\u2019s method, exactness, existence & uniqueness, and real-world models.',
     facts:[
       {t:'use',s:'Newton\u2019s law of cooling — a first-order ODE — is how forensic investigators estimate a time of death.'},
       {t:'fact',s:'A direction field lets you sketch every solution of an equation without ever solving it.'},
@@ -495,21 +495,21 @@ const CATS = {
       {t:'fact',s:'Verhulst wrote the logistic equation in 1838 — it predicted population saturation a century before ecologists measured it.'},
       {t:'use',s:'Mixing-tank problems (salt in, salt out) are the bread-and-butter first-order models behind chemical engineering.'}
     ]},
-  c2:{name:'Higher-Order Linear', color:COL.calc2, n:'3–4', desc:'Constant-coefficient equations, the three root cases, mechanical vibrations and resonance. Boyce Ch 3–4.',
+  c2:{name:'Higher-Order Linear', color:COL.calc2, n:'02', desc:'Constant-coefficient equations and the three root cases, undetermined coefficients, variation of parameters, mechanical vibrations and resonance.',
     facts:[
       {t:'use',s:'Every car suspension is a damped second-order system, tuned so you don\u2019t keep bouncing after a pothole.'},
       {t:'fact',s:'The Tacoma Narrows Bridge (1940) shook itself apart through resonance — a forced second-order ODE gone wrong.'},
       {t:'fact',s:'A repeated root forces a solution like t·e^{rt} — the only time t sneaks into the exponential family.'},
       {t:'use',s:'Pendulum clocks, guitar strings, and RLC radios are all governed by the same y″ + … = … template.'}
     ]},
-  c3:{name:'The Laplace Transform', color:COL.calc3, n:'6', desc:'Turning calculus into algebra: transforms, initial-value problems, step and impulse forcing. Boyce Ch 6.',
+  c3:{name:'The Laplace Transform', color:COL.calc3, n:'03', desc:'Turning calculus into algebra: transforms, step and impulse forcing, discontinuous inputs, and the convolution integral.',
     facts:[
       {t:'fact',s:'The Laplace transform turns differentiation into multiplication by s — calculus becomes algebra.'},
       {t:'use',s:'Control engineers design autopilots and cruise control almost entirely in the Laplace s-domain.'},
       {t:'fact',s:'The unit impulse δ(t) — an infinitely tall, infinitely thin spike — has Laplace transform exactly 1.'},
       {t:'use',s:'Laplace gracefully handles switches and hammer blows (discontinuous and impulse forcing) that stump other methods.'}
     ]},
-  c4:{name:'Systems & Phase Planes', color:COL.amber, n:'7', desc:'Matrices, eigenvalues, and the geometry of x′ = A x: nodes, saddles, spirals and centers. Boyce Ch 7.',
+  c4:{name:'Systems & Phase Planes', color:COL.amber, n:'04', desc:'Eigenvalues and the geometry of linear systems x′ = A x — nodes, saddles, spirals, centers — plus nonlinear phase planes and population models.',
     facts:[
       {t:'fact',s:'The eigenvalues of a 2×2 matrix decide everything: node, saddle, spiral, or center.'},
       {t:'use',s:'Predator–prey models (Lotka–Volterra) trace closed loops in the phase plane — boom-and-bust cycles.'},
@@ -601,7 +601,7 @@ function makeFnInput(label,initial,vars,onok,hint){
   return w;
 }
 
-/* ===== shared symbolic engine (for Ch 7 step-by-step tools) ===== */
+/* ===== shared symbolic engine ===== */
 /* ===== Sym: tiny symbolic engine (parse → tree, eval, diff, simplify, print) ===== */
 /* ===== Sym: tiny symbolic engine (parse → tree, eval, diff, simplify, print, compile) ===== */
 const Sym = (function(){
@@ -756,7 +756,7 @@ function parseAB(s){ const p=(s||'').split(/[\s,]+/).map(Number).filter(x=>!isNa
    CHAPTERS 1–2 · FIRST-ORDER ODEs
    ===================================================================== */
 
-add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields & Solution Curves', diff:'intro', ch:'Ch 1.1 / 2',
+add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields & Solution Curves', diff:'intro', ch:'Direction fields',
   questions:['A solution curve must stay tangent to the slope marks everywhere — why does that pin it down once you fix one point?','Where the field is flat (slope 0), what is special about those y-values?','Two solution curves of the same equation can never cross. Can you see why from the field?'],
   blurb:'Type any first-order ODE y′ = f(t, y). See its slope field, then click anywhere on the plot to drop an initial condition and watch the solution thread through it.',
   build(host){
@@ -782,7 +782,7 @@ add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields
   }
 });
 
-add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff:'inter', ch:'Ch 2.2',
+add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff:'inter', ch:'Separable',
   questions:['Why are you allowed to treat dy/dt like a fraction and move dt to the other side here?','After integrating, why does a single +C absorb the constants from both sides?','How does the initial condition pick out one curve from the whole family?'],
   blurb:'For y′ = g(t)·p(y), separate the variables, integrate both sides, apply the initial condition, and see the solution drawn over the slope field.',
   build(host){
@@ -811,7 +811,7 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
   }
 });
 
-add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linear: Integrating Factor', diff:'inter', ch:'Ch 2.1',
+add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linear: Integrating Factor', diff:'inter', ch:'Linear · integrating factor',
   questions:['Why does multiplying by μ = e^∫p dt turn the left side into a single derivative (μy)′?','What role does the constant C play, and how does the initial condition fix it?','As t grows, which term dominates — the transient or the steady part?'],
   blurb:'For y′ + p(t)y = g(t): build the integrating factor μ = e^∫p dt, collapse the left side to (μy)′, integrate, and plot the solution.',
   build(host){
@@ -841,7 +841,7 @@ add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linea
   }
 });
 
-add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", diff:'inter', ch:'Ch 2.7',
+add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", diff:'inter', ch:'Numerical · Euler',
   questions:['Each Euler step follows the tangent line for a while — why does that drift away from the true curve?','When you halve the step size h, roughly what happens to the error?','Why does the error tend to build up fastest where the solution curves most sharply?'],
   blurb:'Approximate y′ = f(t, y) by stepping along tangent lines. Compare the Euler polygon to the true curve and watch the error shrink as the step size drops.',
   build(host){
@@ -867,7 +867,7 @@ add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", di
   }
 });
 
-add({ id:'autonomous', cat:'c1', tag:'interactive', title:'Autonomous Equations & the Phase Line', diff:'inter', ch:'Ch 2.5',
+add({ id:'autonomous', cat:'c1', tag:'interactive', title:'Autonomous Equations & the Phase Line', diff:'inter', ch:'Autonomous · phase line',
   questions:['Equilibria are the zeros of f(y). Why is the sign of f between them all you need to know the flow?','A stable equilibrium pulls nearby solutions in; an unstable one pushes them away. How do you tell which from the graph of f?','In the logistic model y′ = r y(1 − y/K), what is the long-run population for any positive start?'],
   blurb:'For y′ = f(y): find the equilibria, read their stability off the phase line, and watch every starting population settle (or run away) accordingly.',
   build(host){
@@ -902,7 +902,7 @@ add({ id:'autonomous', cat:'c1', tag:'interactive', title:'Autonomous Equations 
    CHAPTERS 3–4 · HIGHER-ORDER LINEAR ODEs
    ===================================================================== */
 
-add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant Coefficients', diff:'inter', ch:'Ch 3.1–3.4',
+add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant Coefficients', diff:'inter', ch:'Constant coefficients',
   questions:['Why does guessing y = e^{rt} turn the differential equation into the algebraic equation ar²+br+c=0?','Real, repeated, or complex roots give three very different-looking solutions — what causes each case?','For complex roots α ± βi, where do the oscillation rate and the decay rate come from?'],
   blurb:'Solve a y″ + b y′ + c y = 0 the way the book does: form the characteristic equation, find its roots, read off the general solution, and fit the initial conditions.',
   build(host){
@@ -931,7 +931,7 @@ add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant C
   }
 });
 
-add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations & Resonance', diff:'inter', ch:'Ch 3.7 · application',
+add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations & Resonance', diff:'inter', ch:'Application · vibrations',
   questions:['With no forcing, the damping ratio decides everything: under-, over-, or critically damped. Which dies out fastest without oscillating?','When you drive the system near its natural frequency ω₀, why does the amplitude blow up?','A car suspension is tuned to be (nearly) critically damped — why is that the comfortable choice?'],
   blurb:'A spring–mass–damper m y″ + γ y′ + k y = F₀cos(ωt). Tune the mass, damping, stiffness, and a driving force, and watch free decay turn into resonance.',
   build(host){
@@ -963,7 +963,7 @@ add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations
    CHAPTER 6 · THE LAPLACE TRANSFORM
    ===================================================================== */
 
-add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff:'inter', ch:'Ch 6.1 / 6.2',
+add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff:'inter', ch:'Laplace transform',
   questions:['The transform trades a function of t for a function of s. Why does that make derivatives become multiplication by s?','Why must s be large enough (s > a for e^{at}) for the defining integral to converge?','How does a sharp feature in t (a spike, a switch) show up in the s-domain?'],
   blurb:'Pick a function f(t), see its Laplace transform F(s) = ∫₀^∞ e^{−st} f(t) dt — both the closed-form pair and a numerical check — and the s-domain picture.',
   build(host){
@@ -1009,7 +1009,7 @@ add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff
    CHAPTER 7 · SYSTEMS OF FIRST-ORDER LINEAR EQUATIONS
    ===================================================================== */
 
-add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of  x′ = A x', diff:'adv', ch:'Ch 7.5–7.8',
+add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of  x′ = A x', diff:'adv', ch:'Linear systems',
   questions:['The eigenvalues of A decide the whole picture. Which signs give a saddle, which give a spiral?','For real eigenvalues, trajectories hug the eigenvector directions — why those lines in particular?','A purely imaginary pair gives closed loops (a center). What does adding a little damping do to them?'],
   blurb:'Enter a 2×2 matrix A. The tool finds the eigenvalues and eigenvectors, classifies the equilibrium, and draws the flow. Click anywhere to launch a trajectory.',
   build(host){
@@ -1043,6 +1043,289 @@ add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of
       trajs.forEach((p0,k)=>{ const pts=ODE.traj(F,p0,7,0.015); ch.pline(pts.map(p=>ch.X(p[0])),pts.map(p=>ch.Y(p[1])),[COL.calc1,COL.calc2,COL.coral,COL.calc3,COL.amber,COL.green][k%6],2.2); ch.dot(p0[0],p0[1],COL.ink,3.5); });
       ch.dot(0,0,col,6);
       ch.axisX(niceTicks(-lim,lim,8)); ch.axisY(niceTicks(-lim,lim,8));
+    }
+    render();
+  }
+});
+
+/* contour / level-curve helper (marching squares, solid segments) */
+function drawLevel(ch,g,level,color,width,dash){ const ctx=ch.ctx; const NX=84,NY=84;
+  const xs=[],ys=[]; for(let i=0;i<=NX;i++)xs.push(ch.xmin+(ch.xmax-ch.xmin)*i/NX); for(let j=0;j<=NY;j++)ys.push(ch.ymin+(ch.ymax-ch.ymin)*j/NY);
+  const Z=ys.map(y=>xs.map(x=>g(x,y)));
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width||1.6; if(dash)ctx.setLineDash(dash); ctx.beginPath();
+  for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){ const C=[[xs[i],ys[j],Z[j][i]],[xs[i+1],ys[j],Z[j][i+1]],[xs[i+1],ys[j+1],Z[j+1][i+1]],[xs[i],ys[j+1],Z[j+1][i]]];
+    const pts=[]; for(let e=0;e<4;e++){ const p1=C[e],p2=C[(e+1)%4]; if(isFinite(p1[2])&&isFinite(p2[2])&&(p1[2]-level)*(p2[2]-level)<0){ const t=(level-p1[2])/(p2[2]-p1[2]); pts.push([p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])]); } }
+    if(pts.length>=2){ ctx.moveTo(ch.X(pts[0][0]),ch.Y(pts[0][1])); ctx.lineTo(ch.X(pts[1][0]),ch.Y(pts[1][1])); if(pts.length>=4){ ctx.moveTo(ch.X(pts[2][0]),ch.Y(pts[2][1])); ctx.lineTo(ch.X(pts[3][0]),ch.Y(pts[3][1])); } } }
+  ctx.stroke(); ctx.restore(); }
+
+/* =====================================================================
+   MORE · FIRST-ORDER
+   ===================================================================== */
+
+add({ id:'exact-equations', cat:'c1', tag:'explore', title:'Exact Equations', diff:'inter', ch:'Exact · potential function',
+  questions:['Why does ∂M/∂y = ∂N/∂x guarantee a potential function F with F_x=M and F_y=N exists?','Once you have F, why are the solution curves exactly the level sets F(x,y)=C?','If the equation is not exact, what is an integrating factor trying to fix?'],
+  blurb:'For M(x,y) dx + N(x,y) dy = 0, test exactness, recover the potential F(x,y), and draw its level curves — those level curves are the solutions.',
+  build(host){
+    const Min=makeFnInput('M(x, y)','2*x + y',['x','y'],()=>render(),'coefficient of dx');
+    const Nin=makeFnInput('N(x, y)','x + 2*y',['x','y'],()=>render(),'coefficient of dy');
+    const win=UI.text({label:'window  [−L, L]',value:'4',hint:'a single number',onchange:render});
+    const verdict=UI.note(''); const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.85';
+    const plot=UI.plotCard('level curves F(x,y)=C — the solution family',380);
+    host.appendChild(UI.appGrid([Min,Nin,win,verdict,steps,UI.note('Exactness test: ∂M/∂y must equal ∂N/∂x. Then a potential exists with F_x=M, F_y=N, built by F(x,y)=∫M dx (treating y as constant) + the missing y-only piece. Each solution is a level curve F=C.')],[plot]));
+    plot.enableZoom(render);
+    function pd(f,x,y,dir){ const h=1e-4; return dir==='x'?(f(x+h,y)-f(x-h,y))/(2*h):(f(x,y+h)-f(x,y-h))/(2*h); }
+    function render(){ const M_=Min.fn(), N_=Nin.fn(); if(!M_||!N_)return; const L=parseFloat(win.get())||4;
+      // exactness test over a few points
+      let maxd=0; for(const[x,y] of [[1,1],[-1,.5],[.3,-1],[2,1.5]]){ maxd=Math.max(maxd,Math.abs(pd(M_,x,y,'y')-pd(N_,x,y,'x'))); }
+      const exact=maxd<1e-3;
+      verdict.innerHTML=exact?`<b style="color:${COL.calc2}">Exact</b> — ∂M/∂y = ∂N/∂x. A potential F exists.`:`<b style="color:${COL.amber}">Not exact</b> — ∂M/∂y ≠ ∂N/∂x (off by ≈ ${M.round(maxd,3)}); an integrating factor would be needed.`;
+      verdict.style.borderLeftColor=exact?COL.calc2:COL.amber;
+      steps.innerHTML=`<b>1.</b> test:&nbsp; ∂M/∂y = ${M.round(pd(M_,1,1,'y'),3)} ,&nbsp; ∂N/∂x = ${M.round(pd(N_,1,1,'x'),3)} (at (1,1))<br><b>2.</b> potential:&nbsp; F(x,y) = ∫ M dx + h(y), with h′(y) chosen so F_y = N<br><b>3.</b> solutions:&nbsp; F(x,y) = C (drawn at right)`;
+      // potential by line integral from origin: F(x,y)=∫_0^x M(s,0)ds + ∫_0^y N(x,t)dt
+      const F=(x,y)=>{ let s=0; const n=60; for(let i=0;i<n;i++){ const a=x*i/n,b=x*(i+1)/n; s+=(M_(a,0)+M_(b,0))/2*(b-a); } for(let i=0;i<n;i++){ const a=y*i/n,b=y*(i+1)/n; s+=(N_(x,a)+N_(x,b))/2*(b-a); } return s; };
+      const ch=plot.chart(); ch.setX(-L,L).setY(-L,L); ch.clear(); ch.gridlines(niceTicks(-L,L,7),niceTicks(-L,L,7)); ch.axes();
+      let vals=[]; for(let i=0;i<=12;i++)for(let j=0;j<=12;j++)vals.push(F(-L+2*L*i/12,-L+2*L*j/12)); vals=vals.filter(isFinite);
+      const lo=M.min(vals),hi=M.max(vals); for(let k=1;k<14;k++){ drawLevel(ch,F,lo+(hi-lo)*k/14,hexA(exact?COL.calc1:COL.slate,.8),1.6); }
+      ch.axisX(niceTicks(-L,L,7)); ch.axisY(niceTicks(-L,L,7));
+    }
+    render();
+  }
+});
+
+add({ id:'existence-uniqueness', cat:'c1', tag:'interactive', title:'Existence & Uniqueness', diff:'inter', ch:'Existence & uniqueness',
+  questions:['The theorem needs f and ∂f/∂y continuous near the point. Which of those guarantees existence, and which guarantees uniqueness?','For y′ = y^{1/3} through (0,0), why do two different solutions share the same start?','Why can a guarantee be purely local — valid only in a small box around the initial point?'],
+  blurb:'Continuity of f and ∂f/∂y near a point guarantees exactly one solution through it. Probe a point — or load the classic example where uniqueness breaks.',
+  build(host){
+    const sel=UI.select({label:'example',options:[{label:'custom f(t,y)',value:'cust'},{label:'y′ = y^{1/3}  (uniqueness fails at 0)',value:'cube'},{label:'y′ = y²  (blows up in finite time)',value:'sq'}],value:'cube',onchange:v=>{ if(v==='cube'){fin.set('sign(y)*abs(y)^(1/3)');ic.set('0, 0');} else if(v==='sq'){fin.set('y^2');ic.set('0, 1');} fin.input.dispatchEvent(new Event('change')); }});
+    const fin=makeFnInput('y′ = f(t, y)','sign(y)*abs(y)^(1/3)',['t','y'],()=>render(),'use t and y');
+    const ic=UI.text({label:'initial point  (t₀, y₀)',value:'0, 0',hint:'t₀, y₀',onchange:render});
+    const win=UI.text({label:'t-window',value:'-3, 3',onchange:render});
+    const verdict=UI.note('');
+    const plot=UI.plotCard('slope field and the solution(s) through the point',360);
+    host.appendChild(UI.appGrid([sel,fin,ic,win,verdict,UI.note('Picard\u2019s theorem: if f and ∂f/∂y are continuous in a box around (t₀,y₀), exactly one solution passes through it. Where ∂f/∂y blows up (like y^{1/3} at y=0), uniqueness can fail — several solutions share the same start.')],[plot]));
+    plot.enableZoom(render);
+    function render(){ const f=fin.fn(); if(!f)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return; const [t0,y0]=icp;
+      const h=1e-4; const fy=(f(t0,y0+h)-f(t0,y0-h))/(2*h); const ok=isFinite(fy)&&Math.abs(fy)<1e3;
+      verdict.innerHTML=ok?`<b style="color:${COL.calc2}">Unique solution guaranteed near (${M.round(t0,2)}, ${M.round(y0,2)})</b> — ∂f/∂y ≈ ${M.round(fy,3)} is finite and continuous there.`:`<b style="color:${COL.coral}">Uniqueness may fail at (${M.round(t0,2)}, ${M.round(y0,2)})</b> — ∂f/∂y is unbounded, so the theorem\u2019s hypothesis breaks.`;
+      verdict.style.borderLeftColor=ok?COL.calc2:COL.coral;
+      const ch=plot.chart(); ch.setX(wp[0],wp[1]); const c=ODE.curve(f,t0,y0,wp[0],wp[1]); const ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<50);
+      let ylo=Math.min(y0-2,M.min(ys)),yhi=Math.max(y0+2,M.max(ys)); ch.setY(ylo,yhi);
+      ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); drawSlopeField(ch,f);
+      drawSolCurve(ch,f,t0,y0,COL.calc1,2.8);
+      // for the cube-root failure at (0,0): also show the flat solution y=0 and a shifted branch
+      if(!ok && Math.abs(y0)<1e-6){ ch.line(wp[0],0,wp[1],0,hexA(COL.coral,.85),2.4); }
+      ch.dot(t0,y0,COL.coral,5); ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'modeling', cat:'c1', tag:'interactive', title:'First-Order Models in the Wild', diff:'intro', ch:'Application · modeling',
+  questions:['Cooling coffee, a draining tank, and a charging capacitor all approach a steady value exponentially. What sets that final value?','In each model, which term is the "input" and which is the "leak"?','How does changing the rate constant reshape how fast the system settles?'],
+  blurb:'The same first-order machinery models cooling coffee, a mixing tank, an RC circuit, a falling skydiver, and a growing population. Pick a scenario and watch it evolve.',
+  build(host){
+    const scen={
+      cool:{name:'Newton cooling (coffee)', vars:['k (rate)',0.4,0.05,1.5,'env temp',20,0,100,'start temp',90,0,100], f:(p)=>(t,T)=>-p[0]*(T-p[1]), y0:p=>p[2], ylab:'temperature', steady:p=>p[1], eq:p=>`T′ = −${p[0].toFixed(2)}(T − ${p[1]})`},
+      tank:{name:'Mixing tank (salt)', vars:['inflow conc',1,0,3,'flow rate',2,0.2,5,'tank volume',10,1,30], f:(p)=>(t,Q)=>p[0]*p[1]-p[1]*Q/p[2], y0:p=>0, ylab:'salt amount Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = ${p[0]}·${p[1]} − ${p[1]}·Q/${p[2]}`},
+      rc:{name:'RC circuit (charge)', vars:['source V',5,0,12,'resistance R',1,0.2,5,'capacitance C',1,0.2,5], f:(p)=>(t,Q)=>(p[0]-Q/p[2])/p[1], y0:p=>0, ylab:'charge Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = (${p[0]} − Q/${p[2]})/${p[1]}`},
+      sky:{name:'Skydiver (terminal velocity)', vars:['gravity g',9.8,1,15,'drag c',0.25,0.02,1,'mass m',75,40,120], f:(p)=>(t,v)=>p[0]-p[1]/p[2]*v*v, y0:p=>0, ylab:'velocity v', steady:p=>Math.sqrt(p[0]*p[2]/p[1]), eq:p=>`v′ = ${p[0]} − (${p[1]}/${p[2]})v²`},
+      pop:{name:'Logistic population', vars:['rate r',0.8,0.1,2,'capacity K',10,1,20,'start P₀',1,0.1,20], f:(p)=>(t,P)=>p[0]*P*(1-P/p[1]), y0:p=>p[2], ylab:'population P', steady:p=>p[1], eq:p=>`P′ = ${p[0]}·P(1 − P/${p[1]})`}
+    };
+    let key='cool';
+    const sel=UI.select({label:'scenario',options:Object.keys(scen).map(k=>({label:scen[k].name,value:k})),value:key,onchange:v=>{key=v;buildSliders();render();}});
+    const sliderHost=document.createElement('div'); sliderHost.style.cssText='display:flex;flex-direction:column;gap:16px;';
+    const tEnd=UI.slider({label:'time horizon',min:2,max:40,step:1,value:14,fmt:v=>v,oninput:render});
+    const eqn=document.createElement('div'); eqn.className='formula'; eqn.style.fontSize='1rem';
+    const stats=UI.statsBox(); let sls=[];
+    const plot=UI.plotCard('the quantity over time, approaching its steady state',360);
+    host.appendChild(UI.appGrid([sel,sliderHost,tEnd,eqn,stats],[plot]));
+    plot.enableZoom(render);
+    function buildSliders(){ sliderHost.innerHTML=''; sls=[]; const v=scen[key].vars;
+      for(let i=0;i<v.length;i+=4){ const s=UI.slider({label:v[i],min:v[i+2],max:v[i+3],step:(v[i+3]-v[i+2])/100,value:v[i+1],fmt:x=>x.toFixed(2),oninput:render}); sliderHost.appendChild(s); sls.push(s); } }
+    buildSliders();
+    function render(){ const S=scen[key]; const p=sls.map(s=>s.get()); const f=S.f(p); const y0=S.y0(p); const T=tEnd.get();
+      const c=ODE.curve(f,0,y0,0,T,T/700); const yend=c.ys[c.ys.length-1];
+      eqn.innerHTML=`<b style="color:var(--c-calc1)">${S.eq(p)}</b>`;
+      stats.set([{k:S.ylab+' at t=0',v:M.round(y0,3)},{k:'at t='+T,v:M.round(yend,3),accent:1},{k:'steady state',v:M.round(S.steady(p),3),accent:1}]);
+      const ch=plot.chart(); ch.setX(0,T); const ys=c.ys.filter(isFinite); let ylo=Math.min(0,M.min(ys)),yhi=Math.max(S.steady(p),M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      ch.line(0,S.steady(p),T,S.steady(p),hexA(COL.coral,.6),1.6,[6,4]);
+      ch.pline(c.ts.map(t=>ch.X(t)),c.ys.map(y=>ch.Y(y)),COL.calc1,2.8); ch.dot(0,y0,COL.ink,4);
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   MORE · HIGHER-ORDER
+   ===================================================================== */
+
+add({ id:'undetermined-coefficients', cat:'c2', tag:'explore', title:'Method of Undetermined Coefficients', diff:'inter', ch:'Nonhomogeneous · guessing yₚ',
+  questions:['Why does a guess shaped like the forcing g(t) actually work for a particular solution?','What goes wrong when your guess is already a homogeneous solution — and how does multiplying by t fix it?','Once you have yₚ, why must you still add the full homogeneous part to match initial conditions?'],
+  blurb:'For a y″ + b y′ + c y = g(t): guess yₚ shaped like g, solve for its coefficients, then add the homogeneous solution and fit the initial conditions.',
+  build(host){
+    const aN=UI.number({label:'a',value:1,step:'any',onchange:render}); const bN=UI.number({label:'b',value:0,step:'any',onchange:render}); const cN=UI.number({label:'c',value:1,step:'any',onchange:render});
+    const gsel=UI.select({label:'forcing g(t)',options:[{label:'A·e^{k t}',value:'exp'},{label:'A·cos(ω t) + B·sin(ω t)',value:'trig'},{label:'polynomial p₀ + p₁ t',value:'poly'}],value:'trig',onchange:render});
+    const p1=UI.slider({label:'param 1',min:-3,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:render});
+    const p2=UI.slider({label:'param 2',min:-3,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:render});
+    const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'0, 0',onchange:render});
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const plot=UI.plotCard('full solution y = y_h + y_p (forced) vs. y_h alone (faint)',360);
+    host.appendChild(UI.appGrid([aN,bN,cN,gsel,p1,p2,ic,steps,UI.note('Guess a yₚ that looks like g(t): an exponential for an exponential, P cos + Q sin for a sinusoid, a polynomial for a polynomial. Plug in and match coefficients. If the guess collides with a homogeneous solution (resonance), multiply by t. The plot solves the full equation exactly.')],[plot]));
+    plot.enableZoom(render);
+    function relabel(){ const ty=gsel.get(); if(ty==='exp'){ lab(p1,'A'); lab(p2,'k'); } else if(ty==='trig'){ lab(p1,'A (cos)'); lab(p2,'B (sin) · ω=1.5'); } else { lab(p1,'p₀'); lab(p2,'p₁'); } }
+    function lab(sl,t){ sl.querySelector('label').firstChild.textContent=t; }
+    relabel();
+    function render(){ relabel(); const a=aN.get(),b=bN.get(),c=cN.get(); if(Math.abs(a)<1e-9)return; const icp=parseAB(ic.get()); if(!icp)return; const [y0,v0]=icp;
+      const ty=gsel.get(), A=p1.get(), B=p2.get(); let g, guess, ypInfo;
+      if(ty==='exp'){ const k=B; g=t=>A*Math.exp(k*t); const den=a*k*k+b*k+c;
+        if(Math.abs(den)>1e-6){ const C=A/den; guess=`C e^{${k.toFixed(1)}t}`; ypInfo=`C = A/(a k²+b k+c) = ${M.round(C,3)}`; }
+        else { const d2=2*a*k+b; if(Math.abs(d2)>1e-6){ guess=`C t e^{${k.toFixed(1)}t}`; ypInfo=`resonance: k is a root → C = A/(2ak+b) = ${M.round(A/d2,3)}`; } else { guess=`C t² e^{${k.toFixed(1)}t}`; ypInfo=`double-root resonance: C = A/(2a) = ${M.round(A/(2*a),3)}`; } } }
+      else if(ty==='trig'){ const w=1.5; g=t=>A*Math.cos(w*t)+B*Math.sin(w*t); const R=c-a*w*w, S=b*w, det=R*R+S*S;
+        if(det>1e-6){ const P=(A*R-S*B)/det, Q=(S*A+R*B)/det; guess=`P cos ${w}t + Q sin ${w}t`; ypInfo=`P = ${M.round(P,3)}, Q = ${M.round(Q,3)}`; }
+        else { guess=`t(P cos ${w}t + Q sin ${w}t)`; ypInfo=`resonance: ω matches the natural frequency → multiply by t`; } }
+      else { g=t=>A+B*t; if(Math.abs(c)>1e-6){ const P1=B/c, P0=(A-b*P1)/c; guess=`P₀ + P₁ t`; ypInfo=`P₁ = ${M.round(P1,3)}, P₀ = ${M.round(P0,3)}`; } else { guess=`t(P₀ + P₁ t)`; ypInfo=`c = 0 (resonance) → multiply by t`; } }
+      const roots=ODE.charRoots(a,b,c); const rstr=roots.kind==='real'?`r=${M.round(roots.r1,2)}, ${M.round(roots.r2,2)}`:roots.kind==='repeated'?`r=${M.round(roots.r,2)} (double)`:`r=${M.round(roots.re,2)}±${M.round(roots.im,2)}i`;
+      steps.innerHTML=`<b>1.</b> homogeneous roots:&nbsp; ${rstr}<br><b>2.</b> guess&nbsp; y_p = ${guess}<br><b>3.</b> match coefficients:&nbsp; <b style="color:var(--c-calc2)">${ypInfo}</b><br><b>4.</b> y = y_h + y_p, then fit y(0)=${M.round(y0,2)}, y′(0)=${M.round(v0,2)}`;
+      const F=(t,P)=>[P[1],(g(t)-b*P[1]-c*P[0])/a]; const full=ODE.flow(F,[y0,v0],0,14,1200);
+      const Fh=(t,P)=>[P[1],(-b*P[1]-c*P[0])/a]; const hom=ODE.flow(Fh,[y0,v0],0,14,1200);
+      const ch=plot.chart(); ch.setX(0,14); const ys=full.map(d=>d[1]).concat(hom.map(d=>d[1])).filter(isFinite); let ylo=M.min(ys),yhi=M.max(ys); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,14,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      ch.pline(hom.map(d=>ch.X(d[0])),hom.map(d=>ch.Y(d[1])),hexA(COL.slate,.5),1.6);
+      ch.pline(full.map(d=>ch.X(d[0])),full.map(d=>ch.Y(d[1])),COL.calc2,2.6);
+      ch.axisX(niceTicks(0,14,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+add({ id:'variation-of-parameters', cat:'c2', tag:'explore', title:'Variation of Parameters', diff:'adv', ch:'Variation of parameters',
+  questions:['Why does this method work for any forcing g(t), even ones with no nice "guess"?','What role does the Wronskian W play, and what would a zero Wronskian mean?','How does varying the "constants" of the homogeneous solution produce a particular one?'],
+  blurb:'When the forcing is messy, variation of parameters still delivers a particular solution — built from the two homogeneous solutions and their Wronskian.',
+  build(host){
+    const aN=UI.number({label:'a',value:1,step:'any',onchange:render}); const bN=UI.number({label:'b',value:0,step:'any',onchange:render}); const cN=UI.number({label:'c',value:1,step:'any',onchange:render});
+    const gin=makeFnInput('forcing g(t)','1/(1+t^2)',['t'],()=>render(),'any function, e.g. 1/(1+t^2), tan(t), exp(-t)');
+    const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'0, 0',onchange:render});
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const plot=UI.plotCard('particular solution y_p (teal) and the full solution (blue)',360);
+    host.appendChild(UI.appGrid([aN,bN,cN,gin,ic,steps,UI.note('With homogeneous solutions y₁, y₂ and Wronskian W=y₁y₂′−y₁′y₂, a particular solution is y_p = −y₁∫(y₂ g)/(aW) dt + y₂∫(y₁ g)/(aW) dt. No guessing — it works for any g. The integrals are evaluated numerically here.')],[plot]));
+    plot.enableZoom(render);
+    function render(){ const a=aN.get(),b=bN.get(),c=cN.get(); if(Math.abs(a)<1e-9)return; const g=gin.fn(); if(!g)return; const icp=parseAB(ic.get()); if(!icp)return; const [y0,v0]=icp;
+      const R=ODE.charRoots(a,b,c); let y1,y2,d1,d2;
+      if(R.kind==='real'){ y1=t=>Math.exp(R.r1*t); y2=t=>Math.exp(R.r2*t); d1=t=>R.r1*Math.exp(R.r1*t); d2=t=>R.r2*Math.exp(R.r2*t); }
+      else if(R.kind==='repeated'){ y1=t=>Math.exp(R.r*t); y2=t=>t*Math.exp(R.r*t); d1=t=>R.r*Math.exp(R.r*t); d2=t=>Math.exp(R.r*t)*(1+R.r*t); }
+      else { const al=R.re,be=R.im; y1=t=>Math.exp(al*t)*Math.cos(be*t); y2=t=>Math.exp(al*t)*Math.sin(be*t); d1=t=>Math.exp(al*t)*(al*Math.cos(be*t)-be*Math.sin(be*t)); d2=t=>Math.exp(al*t)*(al*Math.sin(be*t)+be*Math.cos(be*t)); }
+      const W=t=>y1(t)*d2(t)-d1(t)*y2(t);
+      // cumulative integrals u1=-∫ y2 g/(aW), u2=∫ y1 g/(aW)
+      const N=900, T=12, dt=T/N; const ts=[],yp=[]; let u1=0,u2=0;
+      // also build full solution via RK4 for the actual IVP
+      const Ffull=(t,P)=>[P[1],(g(t)-b*P[1]-c*P[0])/a]; const full=ODE.flow(Ffull,[y0,v0],0,T,1000);
+      for(let i=0;i<=N;i++){ const t=i*dt; const w=W(t)||1e-9; if(i>0){ const tm=(i-0.5)*dt; const wm=W(tm)||1e-9; u1+=-(y2(tm)*g(tm)/(a*wm))*dt; u2+=(y1(tm)*g(tm)/(a*wm))*dt; } ts.push(t); yp.push(y1(t)*u1+y2(t)*u2); }
+      const Wv=W(0.5);
+      steps.innerHTML=`<b>1.</b> homogeneous solutions y₁, y₂ from the roots; Wronskian W(0.5) ≈ <b>${M.round(Wv,3)}</b><br><b>2.</b> u₁′ = −y₂ g/(aW),&nbsp; u₂′ = y₁ g/(aW)&nbsp; (integrated numerically)<br><b>3.</b> <b style="color:var(--c-calc2)">y_p = y₁ u₁ + y₂ u₂</b>,&nbsp; then add y_h and fit the initial conditions.`;
+      const ch=plot.chart(); ch.setX(0,T); const ys=yp.concat(full.map(d=>d[1])).filter(v=>isFinite(v)&&Math.abs(v)<1e3); let ylo=M.min(ys),yhi=M.max(ys); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      ch.pline(ts.map(t=>ch.X(t)),yp.map(v=>ch.Y(v)),COL.calc2,2.2);
+      ch.pline(full.map(d=>ch.X(d[0])),full.map(d=>ch.Y(d[1])),COL.calc1,2.6);
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   MORE · LAPLACE
+   ===================================================================== */
+
+add({ id:'discontinuous-forcing', cat:'c3', tag:'interactive', title:'Step & Impulse Forcing', diff:'inter', ch:'Discontinuous & impulse inputs',
+  questions:['A switch that turns on at t=c is the step u_c(t). Why is its Laplace transform e^{−cs}/s?','An impulse is an infinitely tall, infinitely thin push. Why does the system respond with a sudden jump in velocity?','How does damping shape the response after the input arrives?'],
+  blurb:'Drive an oscillator with a switch that flips on at t=c, a finite pulse, or a sudden impulse — and see both the forcing and the response.',
+  build(host){
+    const fsel=UI.select({label:'forcing',options:[{label:'unit step  u(t−c)',value:'step'},{label:'pulse on [c, c+1]',value:'pulse'},{label:'impulse  δ(t−c)',value:'impulse'}],value:'step',onchange:render});
+    const cS=UI.slider({label:'arrival time c',min:0,max:8,step:0.5,value:3,fmt:v=>v.toFixed(1),oninput:render});
+    const gS=UI.slider({label:'damping',min:0,max:1.5,step:0.1,value:0.3,fmt:v=>v.toFixed(1),oninput:render});
+    const note2=document.createElement('div'); note2.className='formula'; note2.style.fontSize='.95rem';
+    const top=UI.plotCard('the forcing input',180); const bot=UI.plotCard('the response y(t) of  y″ + (damping) y′ + y = forcing',230);
+    host.appendChild(UI.appGrid([fsel,cS,gS,note2,UI.note('A step switches the input on permanently; a pulse is on for a finite window; an impulse is a sudden kick. Transforms: L{u_c}=e^{−cs}/s, L{δ_c}=e^{−cs}. Before t=c the system rests; after, it rings down at a rate set by the damping.')],[top,bot]));
+    top.enableZoom(render); bot.enableZoom(render);
+    function render(){ const kind=fsel.get(), c=cS.get(), g=gS.get(); const dt=0.02;
+      const force=t=> kind==='step'?(t>=c?1:0) : kind==='pulse'?((t>=c&&t<=c+1)?1:0) : ((t>=c&&t<c+dt)?1/dt:0);
+      note2.innerHTML= kind==='step'?`forcing = u(t − ${c.toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = e^{−${c.toFixed(1)}s}/s</b>` : kind==='pulse'?`forcing = u(t−${c.toFixed(1)}) − u(t−${(c+1).toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = (e^{−${c.toFixed(1)}s} − e^{−${(c+1).toFixed(1)}s})/s</b>` : `forcing = δ(t − ${c.toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = e^{−${c.toFixed(1)}s}</b>`;
+      const F=(t,P)=>[P[1], force(t)-g*P[1]-P[0]]; const sol=ODE.flow(F,[0,0],0,16,1600);
+      const T=top.chart(); T.setX(0,16).setY(-0.3, kind==='impulse'?1.4:1.4); T.clear(); T.gridlines(niceTicks(0,16,8),niceTicks(T.ymin,T.ymax,4)); T.axes();
+      const fxs=[],fys=[]; for(let i=0;i<=400;i++){ const t=16*i/400; let v=force(t); if(kind==='impulse')v=(t>=c&&t<c+0.12)?1:0; fxs.push(T.X(t)); fys.push(T.Y(v)); }
+      T.pline(fxs,fys,COL.amber,2.4); T.axisX(niceTicks(0,16,8));
+      const B=bot.chart(); B.setX(0,16); const ys=sol.map(d=>d[1]).filter(isFinite); let ylo=Math.min(0,M.min(ys)),yhi=Math.max(0,M.max(ys)); const pad=(yhi-ylo)*.15||.5; B.setY(ylo-pad,yhi+pad);
+      B.clear(); B.gridlines(niceTicks(0,16,8),niceTicks(B.ymin,B.ymax,5)); B.axes(); B.vline(c,hexA(COL.amber,.6),1.4,[4,3]);
+      B.pline(sol.map(d=>B.X(d[0])),sol.map(d=>B.Y(d[1])),COL.calc3,2.6); B.axisX(niceTicks(0,16,8)); B.axisY(niceTicks(B.ymin,B.ymax,5));
+    }
+    render();
+  }
+});
+
+add({ id:'convolution', cat:'c3', tag:'interactive', title:'The Convolution Integral', diff:'inter', ch:'Convolution',
+  questions:['Why is convolution described as "flip, shift, multiply, and add"?','The transform of a convolution is just the product F(s)G(s). Why is that so useful for solving ODEs?','How does the overlap of the two graphs at a given t become the value of (f*g)(t)?'],
+  blurb:'(f * g)(t) = ∫₀ᵗ f(τ) g(t−τ) dτ. Slide the flipped copy of g across f and watch the shaded overlap trace out the convolution.',
+  build(host){
+    const opts=[{label:'box on [0,1]',value:'box'},{label:'e^{−τ}',value:'exp'},{label:'sin τ',value:'sin'},{label:'triangle',value:'tri'}];
+    const fsel=UI.select({label:'f(τ)',options:opts,value:'box',onchange:render});
+    const gsel=UI.select({label:'g(τ)',options:opts,value:'exp',onchange:render});
+    const tS=UI.slider({label:'shift t',min:0,max:8,step:0.1,value:2.5,fmt:v=>v.toFixed(1),oninput:render});
+    const top=UI.plotCard('f(τ) and the flipped, shifted g(t−τ) — overlap shaded',230);
+    const bot=UI.plotCard('the convolution (f * g)(t)',200);
+    host.appendChild(UI.appGrid([fsel,gsel,tS,UI.note('Convolution flips one signal, slides it by t, and measures the overlapping area. It is exactly how a system\u2019s impulse response builds the output from an input — and L{f*g}=F(s)·G(s) turns that into simple multiplication.')],[top,bot]));
+    top.enableZoom(render); bot.enableZoom(render);
+    const FN={ box:x=>(x>=0&&x<=1)?1:0, exp:x=>x>=0?Math.exp(-x):0, sin:x=>x>=0?Math.sin(x):0, tri:x=>(x>=0&&x<=2)?(1-Math.abs(x-1)):0 };
+    function render(){ const f=FN[fsel.get()], g=FN[gsel.get()]; const t=tS.get();
+      const conv=tt=>{ let s=0,n=200; for(let i=0;i<n;i++){ const tau=tt*(i+0.5)/n; s+=f(tau)*g(tt-tau); } return s*tt/n; };
+      const T=top.chart(); T.setX(-1,8).setY(-0.4,1.4); T.clear(); T.gridlines(niceTicks(-1,8,7),niceTicks(-0.4,1.4,4)); T.axes();
+      T.curve(f,COL.calc1,2.4); T.curve(x=>g(t-x),COL.coral,2.4);
+      const ctx=T.ctx; ctx.fillStyle=hexA(COL.calc3,.25); for(let i=0;i<160;i++){ const x=-1+9*i/160, ov=Math.min(f(x),g(t-x)); if(ov>0&&f(x)>0&&g(t-x)>0){ const h=Math.min(f(x),g(t-x)); ctx.fillRect(T.X(x),T.Y(h),Math.max(1,T.X(x+9/160)-T.X(x)),T.Y(0)-T.Y(h)); } }
+      T.vline(t,hexA(COL.amber,.6),1.4,[4,3]); T.axisX(niceTicks(-1,8,7));
+      const B=bot.chart(); B.setX(0,8); let cs=[]; for(let i=0;i<=120;i++)cs.push(conv(8*i/120)); let lo=Math.min(0,M.min(cs)),hi=Math.max(0.1,M.max(cs)); B.setY(lo-.1,hi*1.1);
+      B.clear(); B.gridlines(niceTicks(0,8,7),niceTicks(B.ymin,B.ymax,5)); B.axes(); B.curve(conv,COL.calc3,2.6); B.dot(t,conv(t),COL.coral,5); B.axisX(niceTicks(0,8,7)); B.axisY(niceTicks(B.ymin,B.ymax,5));
+    }
+    render();
+  }
+});
+
+/* =====================================================================
+   MORE · SYSTEMS
+   ===================================================================== */
+
+add({ id:'nonlinear-systems', cat:'c4', tag:'interactive', title:'Nonlinear Systems & Phase Planes', diff:'adv', ch:'Nonlinear systems',
+  questions:['Equilibria sit where the two nullclines (f=0 and g=0) cross. Why must both be zero at once?','Predator–prey orbits are closed loops. What does a closed orbit say about the long-run behavior?','Near an equilibrium, the nonlinear flow looks like a linear one. How would you find that linear picture?'],
+  blurb:'Enter x′ = f(x,y), y′ = g(x,y). See the vector field, the nullclines, the equilibria where they cross, and trajectories — including the closed loops of predator and prey.',
+  build(host){
+    const presets={ lv:['x*(1 - y)','-y*(1 - x)','0,4,0,4'], comp:['x*(3 - x - 2*y)','y*(2 - y - x)','0,4,0,4'], pend:['y','-sin(x) - 0.3*y','-3.2,3.2,-3,3'], vdp:['y','(1 - x^2)*y - x','-3,3,-3,3'] };
+    let trajs=[[2,2.5],[2,3.2]];
+    const psel=UI.select({label:'preset',options:[{label:'predator–prey (Lotka–Volterra)',value:'lv'},{label:'competing species',value:'comp'},{label:'damped pendulum',value:'pend'},{label:'Van der Pol oscillator',value:'vdp'}],value:'lv',onchange:v=>{ const P=presets[v]; fin.set(P[0]); gin.set(P[1]); win.set(P[2]); const wv=P[2].split(',').map(Number); trajs=[[wv[0]+(wv[1]-wv[0])*0.5,wv[2]+(wv[3]-wv[2])*0.62],[wv[0]+(wv[1]-wv[0])*0.5,wv[2]+(wv[3]-wv[2])*0.8]]; fin.input.dispatchEvent(new Event('change')); gin.input.dispatchEvent(new Event('change')); }});
+    const fin=makeFnInput('x′ = f(x, y)','x*(1 - y)',['x','y'],()=>render(),'use x and y');
+    const gin=makeFnInput('y′ = g(x, y)','-y*(1 - x)',['x','y'],()=>render(),'use x and y');
+    const win=UI.text({label:'window  x₀,x₁,y₀,y₁',value:'0,4,0,4',onchange:render});
+    const clr=document.createElement('button'); clr.className='abtn'; clr.textContent='Clear trajectories'; clr.onclick=()=>{trajs=[];render();};
+    const plot=UI.plotCard('phase plane · nullclines (dashed), equilibria (dots), trajectories · click to add',440);
+    host.appendChild(UI.appGrid([psel,fin,gin,win,clr,UI.note('The <b>x-nullcline</b> (f=0, blue dashes) is where x stops changing; the <b>y-nullcline</b> (g=0, coral dashes) is where y stops. They cross at equilibria. Trajectories follow the arrows — click to launch one. Lotka–Volterra gives closed boom-and-bust loops.')],[plot]));
+    plot.enableZoom(render);
+    const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
+    cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect(); trajs.push([ch.ix(e.clientX-r.left),ch.iy(e.clientY-r.top)]); render(); });
+    function render(){ const f=fin.fn(), g=gin.fn(); if(!f||!g)return; const w=(win.get()||'').split(/[\s,]+/).map(Number); if(w.length<4)return; const [x0,x1,y0,y1]=w;
+      const ch=plot.chart(); ch.setX(x0,x1).setY(y0,y1); ch.clear(); ch.gridlines(niceTicks(x0,x1,7),niceTicks(y0,y1,7)); ch.axes();
+      // vector field
+      const ctx=ch.ctx; const G=16; for(let i=0;i<=G;i++)for(let j=0;j<=G;j++){ const x=x0+(x1-x0)*i/G, y=y0+(y1-y0)*j/G; const vx=f(x,y),vy=g(x,y); if(!isFinite(vx)||!isFinite(vy))continue; const px=ch.X(x),py=ch.Y(y); const dpx=ch.X(x+vx)-px,dpy=ch.Y(y+vy)-py; const dl=Math.hypot(dpx,dpy)||1, k=9/dl; ctx.strokeStyle=hexA(COL.slate,.4); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+dpx*k,py+dpy*k); ctx.stroke(); ctx.fillStyle=hexA(COL.slate,.5); ctx.beginPath(); ctx.arc(px+dpx*k,py+dpy*k,1.3,0,M.TAU); ctx.fill(); }
+      // nullclines
+      drawLevel(ch,f,0,hexA(COL.calc1,.8),2,[5,4]); drawLevel(ch,g,0,hexA(COL.coral,.8),2,[5,4]);
+      // equilibria: coarse search for minima of f^2+g^2
+      const eqs=[]; const NN=40; for(let i=1;i<NN;i++)for(let j=1;j<NN;j++){ const x=x0+(x1-x0)*i/NN, y=y0+(y1-y0)*j/NN; const val=f(x,y)**2+g(x,y)**2;
+        let isMin=true; for(let di=-1;di<=1&&isMin;di++)for(let dj=-1;dj<=1;dj++){ if(!di&&!dj)continue; const xx=x+(x1-x0)/NN*di, yy=y+(y1-y0)/NN*dj; if(f(xx,yy)**2+g(xx,yy)**2<val){isMin=false;break;} }
+        if(isMin&&val<0.05){ if(!eqs.some(e=>Math.hypot(e[0]-x,e[1]-y)<(x1-x0)/15)) eqs.push([x,y]); } }
+      eqs.forEach(e=>ch.dot(e[0],e[1],COL.ink,6));
+      // trajectories
+      const F=(t,p)=>[f(p[0],p[1]),g(p[0],p[1])];
+      trajs.forEach((p0,k)=>{ const pts=ODE.traj(F,p0,12,0.012).filter(p=>p[0]>=x0-1&&p[0]<=x1+1&&p[1]>=y0-1&&p[1]<=y1+1); if(pts.length>1)ch.pline(pts.map(p=>ch.X(p[0])),pts.map(p=>ch.Y(p[1])),[COL.calc1,COL.calc2,COL.calc3,COL.amber,COL.green][k%5],2.2); ch.dot(p0[0],p0[1],COL.coral,3.5); });
+      ch.axisX(niceTicks(x0,x1,7)); ch.axisY(niceTicks(y0,y1,7));
     }
     render();
   }
