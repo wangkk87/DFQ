@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
 :root{
   --paper:#F7FAFA;
@@ -192,6 +194,26 @@ canvas{display:block;}
 
 .kbd{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.68rem;color:var(--ink-faint);}
 .kbd kbd{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:.68rem;}
+
+/* ---------- Practice & Test ---------- */
+.pq{background:var(--white);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:var(--r-md);padding:16px 18px;margin-bottom:14px;transition:.15s;}
+.pq .pq-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.pq .pq-n{font-family:var(--mono);font-size:.72rem;color:var(--ink-faint);font-weight:600;}
+.pq .pq-topic{font-family:var(--mono);font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-left:auto;}
+.pq .pq-prompt{font-size:.98rem;line-height:1.6;margin-bottom:12px;}
+.pq .pq-prompt .katex-display{margin:.6em 0;}
+.pq .pq-answer-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.pq .pq-answer-row input{font-family:var(--mono);font-size:.92rem;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);width:180px;}
+.pq .pq-verdict{font-family:var(--mono);font-size:.8rem;font-weight:700;}
+.pq.pq-correct{border-left-color:#16A34A;}
+.pq.pq-correct .pq-answer-row input{border-color:#16A34A;}
+.pq.pq-wrong{border-left-color:#E11D48;}
+.pq.pq-wrong .pq-answer-row input{border-color:#E11D48;}
+.pq .pq-explain{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--ink-soft);line-height:1.6;}
+.pq.pq-wrong .pq-explain{display:block;}
+.pq-scorebar{position:sticky;top:70px;z-index:10;display:flex;align-items:center;gap:16px;background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 18px;margin-bottom:18px;box-shadow:var(--shadow-md);flex-wrap:wrap;}
+.pq-score-num{font-family:var(--display);font-weight:600;font-size:1.6rem;}
+.pq-score-label{font-family:var(--mono);font-size:.7rem;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
 
 .share-btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.72rem;font-weight:600;background:var(--paper-2);border:1px solid var(--line);border-radius:99px;padding:6px 13px;cursor:pointer;color:var(--ink-soft);transition:.15s;}
 .share-btn:hover{color:var(--ink);border-color:var(--ink-soft);}
@@ -516,6 +538,7 @@ const CATS = {
       {t:'fact',s:'A complex eigenvalue pair always means rotation: spirals if it grows or decays, centers if it is purely imaginary.'},
       {t:'use',s:'Coupled tanks, multi-loop circuits, and competing species all collapse into a single system x′ = A x.'}
     ]},
+  c5:{name:'Practice & Test', color:COL.rose, n:'05', desc:'15 randomized problems drawn from a bank spanning every topic above — check your work and get a worked explanation for anything you miss.'},
 };
 const APPLETS = [];
 const add = (a)=>APPLETS.push(a);
@@ -1328,6 +1351,213 @@ add({ id:'nonlinear-systems', cat:'c4', tag:'interactive', title:'Nonlinear Syst
       ch.axisX(niceTicks(x0,x1,7)); ch.axisY(niceTicks(y0,y1,7));
     }
     render();
+  }
+});
+
+/* ===================== PRACTICE & TEST QUESTION BANK ================
+   Each entry is a *generator*: called fresh every quiz/reset, it rolls
+   new random parameters and returns {cat, topic, promptHTML, answer,
+   tol, explainHTML}. This gives effectively unlimited problem instances
+   across ~33 hand-built templates spanning all four topic areas, rather
+   than a fixed static list that would eventually repeat verbatim.
+   ===================================================================== */
+function tex(latex,display){ try{ return katex.renderToString(latex,{throwOnError:false,displayMode:!!display,strict:false}); }catch(e){ return '<code>'+latex+'</code>'; } }
+function dtex(l){ return tex(l,true); }
+function itex(l){ return tex(l,false); }
+function ri(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }
+function nz(a,b){ let x; do{ x=ri(a,b); }while(x===0); return x; }
+function fmtSigned(n){ return (n>=0?'+':'')+n; }
+function parseAnswer(str){
+  str=(str||'').trim(); if(!str) return null;
+  try{ const f=compileExpr(str,[]); const v=f(); return isFinite(v)?v:null; }catch(e){ return null; }
+}
+const PBANK = [
+  // ---- c1 : first-order ----
+  function(){ const k=nz(-3,3), y0=ri(1,6), t1=ri(1,3), ans=y0*Math.exp(k*t1);
+    return {cat:'c1',topic:'Separable / growth-decay',
+      promptHTML:`Solve the IVP ${dtex(`y' = ${k}y,\\qquad y(0)=${y0}`)} Find ${itex(`y(${t1})`)}.`,
+      answer:ans, explainHTML:`Separating variables and integrating gives ${itex(`y=${y0}e^{${k}t}`)}. So ${dtex(`y(${t1})=${y0}e^{${k*t1}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const a=nz(-3,3), b=ri(-5,5), y0=ri(-3,5), t1=ri(1,2), ss=b/a, ans=(y0-ss)*Math.exp(-a*t1)+ss;
+    return {cat:'c1',topic:'Linear, constant coefficients',
+      promptHTML:`Solve ${dtex(`y' + (${a})y = ${b},\\qquad y(0)=${y0}`)} Find ${itex(`y(${t1})`)}.`,
+      answer:ans, explainHTML:`The steady state is ${itex(`b/a=${ss}`)}, so ${itex(`y=(y_0-b/a)e^{-at}+b/a`)}. Then ${dtex(`y(${t1})=(${y0-ss})e^{${-a*t1}}+${ss}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const Ts=ri(0,20), T0=ri(60,100), k=ri(1,5)/10, t1=ri(1,5), ans=Ts+(T0-Ts)*Math.exp(-k*t1);
+    return {cat:'c1',topic:'Newton\u2019s law of cooling',
+      promptHTML:`${dtex(`T' = -${k}(T-${Ts}),\\qquad T(0)=${T0}`)} Find ${itex(`T(${t1})`)}.`,
+      answer:ans, explainHTML:`${itex(`T(t)=T_s+(T_0-T_s)e^{-kt}`)} gives ${dtex(`T(${t1})=${Ts}+${T0-Ts}e^{-${k*t1}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const t0=ri(0,3), y0=ri(-3,5), h=[0.1,0.2,0.5][ri(0,2)], f0=t0-y0, ans=y0+h*f0;
+    return {cat:'c1',topic:'Euler\u2019s method',
+      promptHTML:`For ${itex(`y'=f(t,y)=t-y`)}, starting at ${itex(`(t_0,y_0)=(${t0},${y0})`)} with step ${itex(`h=${h}`)}, find the Euler estimate ${itex('y_1')}.`,
+      answer:ans, explainHTML:`${itex(`y_1=y_0+h\\,f(t_0,y_0)=${y0}+${h}(${t0}-${y0})=${ans.toFixed(3)}`)}`}; },
+  function(){ const r=ri(1,5), K=ri(5,20);
+    return {cat:'c1',topic:'Autonomous / logistic equilibria',
+      promptHTML:`For ${dtex(`y' = ${r}\\,y\\left(1-\\frac{y}{${K}}\\right)`)} find the nonzero equilibrium.`,
+      answer:K, explainHTML:`Setting ${itex('y\\prime=0')} gives ${itex('y=0')} or ${itex(`y=${K}`)}.`}; },
+  function(){ const c=ri(2,20), ans=Math.sqrt(c);
+    return {cat:'c1',topic:'Autonomous equilibria',
+      promptHTML:`For ${dtex(`y' = y^2-${c}`)} find the larger equilibrium value.`,
+      answer:ans, explainHTML:`Equilibria solve ${itex(`y^2=${c}`)}, so ${itex(`y=\\pm\\sqrt{${c}}`)}; the larger is ${itex(`\\sqrt{${c}}\\approx ${ans.toFixed(3)}`)}.`}; },
+  function(){ const p=ri(1,4), x0=ri(1,4), y0=ri(1,4), ans=2*p*x0*y0;
+    return {cat:'c1',topic:'Exact equations',
+      promptHTML:`For ${itex(`M(x,y)=${p}xy^2`)}, compute ${itex(`\\partial M/\\partial y`)} at ${itex(`(x,y)=(${x0},${y0})`)}.`,
+      answer:ans, explainHTML:`${itex(`\\partial M/\\partial y = ${2*p}xy`)}, so at that point it equals ${itex(`${2*p}(${x0})(${y0})=${ans}`)}.`}; },
+  function(){ const V0=ri(5,20), RC=ri(1,5), t1=ri(1,5), ans=V0*(1-Math.exp(-t1/RC));
+    return {cat:'c1',topic:'RC circuit charging',
+      promptHTML:`${dtex(`V(t)=${V0}\\left(1-e^{-t/${RC}}\\right)`)} Find ${itex(`V(${t1})`)}.`,
+      answer:ans, explainHTML:`${dtex(`V(${t1})=${V0}(1-e^{-${t1}/${RC}})\\approx ${ans.toFixed(3)}`)}`}; },
+  // ---- c2 : higher-order linear ----
+  function(){ let r1=nz(-5,5), r2=nz(-5,5); while(r2===r1) r2=nz(-5,5); const b=-(r1+r2), c=r1*r2, ans=Math.min(r1,r2);
+    return {cat:'c2',topic:'Characteristic roots (real, distinct)',
+      promptHTML:`Find the smaller root of the characteristic equation of ${dtex(`y'' ${fmtSigned(b)}y' ${fmtSigned(c)}y = 0`)}`,
+      answer:ans, explainHTML:`${itex(`r^2${fmtSigned(b)}r${fmtSigned(c)}=(r-${r1})(r-${r2})=0`)}, so ${itex(`r=${r1}`)} or ${itex(`r=${r2}`)}.`}; },
+  function(){ const r=nz(-3,3), C1=ri(-3,3), C2=ri(-3,3), t1=ri(1,2), ans=(C1+C2*t1)*Math.exp(r*t1);
+    return {cat:'c2',topic:'Characteristic roots (repeated)',
+      promptHTML:`${itex(`y''-2(${r})y'+(${r})^2y=0`)} has ${itex(`y=(C_1+C_2t)e^{${r}t}`)}. With ${itex(`C_1=${C1},\\,C_2=${C2}`)}, find ${itex(`y(${t1})`)}.`,
+      answer:ans, explainHTML:`${dtex(`y(${t1})=(${C1}+${C2}\\cdot${t1})e^{${r*t1}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const alpha=ri(-3,3), c=ri(alpha*alpha+1,alpha*alpha+10), ans=Math.sqrt(c-alpha*alpha), a=-2*alpha;
+    return {cat:'c2',topic:'Characteristic roots (complex)',
+      promptHTML:`${dtex(`y'' ${fmtSigned(a)}y' ${fmtSigned(c)}y = 0`)} has complex roots ${itex('\\alpha\\pm i\\beta')}. Find ${itex('\\beta')}.`,
+      answer:ans, explainHTML:`Here ${itex(`\\alpha=${alpha}`)} and ${itex(`\\beta=\\sqrt{${c}-${alpha*alpha}}\\approx ${ans.toFixed(3)}`)}.`}; },
+  function(){ let b=ri(-4,4), c=ri(-4,4), k=ri(-3,3), d=k*k+b*k+c; while(d===0){ k=ri(-3,3); d=k*k+b*k+c; } const ans=1/d;
+    return {cat:'c2',topic:'Undetermined coefficients',
+      promptHTML:`For ${dtex(`y'' ${fmtSigned(b)}y' ${fmtSigned(c)}y = e^{${k}t}`)} the particular solution is ${itex('y_p=Ae^{'+k+'t}')}. Find ${itex('A')}.`,
+      answer:ans, explainHTML:`${itex(`A=\\dfrac{1}{k^2${fmtSigned(b)}k${fmtSigned(c)}}=\\dfrac{1}{${d}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const m=ri(1,5), k=ri(1,20), ans=Math.sqrt(k/m);
+    return {cat:'c2',topic:'Mechanical vibrations',
+      promptHTML:`${dtex(`${m}y''+${k}y=0`)} Find the natural frequency ${itex('\\omega_0=\\sqrt{k/m}')}.`,
+      answer:ans, explainHTML:`${dtex(`\\omega_0=\\sqrt{${k}/${m}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const m=ri(1,4), gamma=ri(1,10), k=ri(1,10), ans=gamma*gamma-4*m*k;
+    return {cat:'c2',topic:'Damped vibrations',
+      promptHTML:`For ${dtex(`${m}y''+${gamma}y'+${k}y=0`)} find the discriminant ${itex('\\gamma^2-4mk')} of the characteristic equation.`,
+      answer:ans, explainHTML:`${itex(`\\gamma^2-4mk=${gamma}^2-4(${m})(${k})=${ans}`)}`}; },
+  function(){ let r1=nz(-4,4), r2=nz(-4,4); while(r2===r1) r2=nz(-4,4); const ans=r2-r1;
+    return {cat:'c2',topic:'Variation of parameters / Wronskian',
+      promptHTML:`For ${itex(`y_1=e^{${r1}t},\\ y_2=e^{${r2}t}`)}, find the Wronskian ${itex('W(0)=y_1y_2\\prime-y_1\\prime y_2')} at ${itex('t=0')}.`,
+      answer:ans, explainHTML:`${itex(`W(t)=(${r2}-${r1})e^{(${r1}+${r2})t}`)}, so ${itex(`W(0)=${ans}`)}.`}; },
+  function(){ const F0=ri(1,10), k=ri(5,20), m=ri(1,3); let omega=ri(1,3), denom=k-m*omega*omega; while(denom===0){ omega=ri(1,3); denom=k-m*omega*omega; } const ans=F0/denom;
+    return {cat:'c2',topic:'Forced vibrations',
+      promptHTML:`${dtex(`${m}y''+${k}y=${F0}\\cos(${omega}t)`)} (non-resonant). The steady-state response is ${itex('y_p=\\dfrac{F_0}{k-m\\omega^2}\\cos(\\omega t)')}. Find that coefficient.`,
+      answer:ans, explainHTML:`${dtex(`\\dfrac{${F0}}{${k}-${m}(${omega})^2}\\approx ${ans.toFixed(3)}`)}`}; },
+  // ---- c3 : Laplace ----
+  function(){ const n=ri(1,4), s=ri(2,5), ans=M.factorial(n)/Math.pow(s,n+1);
+    return {cat:'c3',topic:'Laplace transform of t\u207f',
+      promptHTML:`${dtex(`\\mathcal{L}\\{t^{${n}}\\}(s)=\\frac{${n}!}{s^{${n+1}}}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{${n}!}{${s}^{${n+1}}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const a=nz(-4,4), s=ri(Math.abs(a)+1,Math.abs(a)+5), ans=1/(s-a);
+    return {cat:'c3',topic:'Laplace transform of e^{at}',
+      promptHTML:`${dtex(`\\mathcal{L}\\{e^{${a}t}\\}(s)=\\frac{1}{s-${a}}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{1}{${s}-${a}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const b=ri(1,5), s=ri(1,5), ans=b/(s*s+b*b);
+    return {cat:'c3',topic:'Laplace transform of sin',
+      promptHTML:`${dtex(`\\mathcal{L}\\{\\sin(${b}t)\\}(s)=\\frac{${b}}{s^2+${b}^2}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{${b}}{${s}^2+${b}^2}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const b=ri(1,5), s=ri(1,5), ans=s/(s*s+b*b);
+    return {cat:'c3',topic:'Laplace transform of cos',
+      promptHTML:`${dtex(`\\mathcal{L}\\{\\cos(${b}t)\\}(s)=\\frac{s}{s^2+${b}^2}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{${s}}{${s}^2+${b}^2}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const a=nz(-3,3), t1=ri(1,2), ans=Math.exp(a*t1);
+    return {cat:'c3',topic:'Inverse Laplace',
+      promptHTML:`${itex(`Y(s)=\\dfrac{1}{s-${a}}`)}. Find ${itex(`y(${t1})`)}.`,
+      answer:ans, explainHTML:`${itex(`y(t)=e^{${a}t}`)}, so ${dtex(`y(${t1})=e^{${a*t1}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const b=ri(1,4), t1=ri(1,3), ans=Math.sin(b*t1);
+    return {cat:'c3',topic:'Inverse Laplace',
+      promptHTML:`${itex(`Y(s)=\\dfrac{${b}}{s^2+${b}^2}`)}. Find ${itex(`y(${t1})`)}.`,
+      answer:ans, explainHTML:`${itex(`y(t)=\\sin(${b}t)`)}, so ${dtex(`y(${t1})=\\sin(${b*t1})\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ let a=nz(-3,3), b=nz(-3,3); while(b===a) b=nz(-3,3); const t1=ri(1,2), ans=(Math.exp(a*t1)-Math.exp(b*t1))/(a-b);
+    return {cat:'c3',topic:'Convolution',
+      promptHTML:`Find ${itex(`(e^{${a}t}*e^{${b}t})(${t1})=\\dfrac{e^{${a}t}-e^{${b}t}}{${a}-${b}}`)} evaluated at ${itex(`t=${t1}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\dfrac{e^{${a*t1}}-e^{${b*t1}}}{${a-b}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const c=ri(1,5), s=ri(1,5), ans=Math.exp(-c*s)/s;
+    return {cat:'c3',topic:'Laplace of a step function',
+      promptHTML:`${dtex(`\\mathcal{L}\\{u_{${c}}(t)\\}(s)=\\frac{e^{-${c}s}}{s}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{e^{-${c*s}}}{${s}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const a=nz(-3,3), s=ri(Math.abs(a)+1,Math.abs(a)+5), ans=1/Math.pow(s-a,2);
+    return {cat:'c3',topic:'Laplace transform of t\u00b7e^{at}',
+      promptHTML:`${dtex(`\\mathcal{L}\\{te^{${a}t}\\}(s)=\\frac{1}{(s-${a})^2}`)} Evaluate at ${itex(`s=${s}`)}.`,
+      answer:ans, explainHTML:`${dtex(`\\frac{1}{(${s}-${a})^2}\\approx ${ans.toFixed(3)}`)}`}; },
+  // ---- c4 : systems ----
+  function(){ const a=ri(-5,5), b=ri(-5,5), c=ri(-5,5), d=ri(-5,5), ans=a+d;
+    return {cat:'c4',topic:'Trace of a matrix',
+      promptHTML:`Find the trace of ${itex(`A=\\begin{pmatrix}${a}&${b}\\\\${c}&${d}\\end{pmatrix}`)}`,
+      answer:ans, explainHTML:`${itex(`\\mathrm{tr}(A)=${a}+${d}=${ans}`)}`}; },
+  function(){ const a=ri(-5,5), b=ri(-5,5), c=ri(-5,5), d=ri(-5,5), ans=a*d-b*c;
+    return {cat:'c4',topic:'Determinant of a matrix',
+      promptHTML:`Find the determinant of ${itex(`A=\\begin{pmatrix}${a}&${b}\\\\${c}&${d}\\end{pmatrix}`)}`,
+      answer:ans, explainHTML:`${itex(`\\det(A)=(${a})(${d})-(${b})(${c})=${ans}`)}`}; },
+  function(){ let l1=ri(-5,5), l2=ri(-5,5); while(l2===l1) l2=ri(-5,5); const tr=l1+l2, det=l1*l2, ans=Math.max(l1,l2);
+    return {cat:'c4',topic:'Eigenvalues from trace/determinant',
+      promptHTML:`A ${itex('2\\times2')} matrix has trace ${itex(`T=${tr}`)} and determinant ${itex(`D=${det}`)}. Find the larger eigenvalue (roots of ${itex('\\lambda^2-T\\lambda+D=0')}).`,
+      answer:ans, explainHTML:`${itex(`\\lambda=\\dfrac{T\\pm\\sqrt{T^2-4D}}{2}=${l1},\\,${l2}`)}; the larger is ${itex(`${ans}`)}.`}; },
+  function(){ const tr=ri(-6,6), det=ri(-10,10), ans=tr*tr-4*det;
+    return {cat:'c4',topic:'Classifying equilibria',
+      promptHTML:`A matrix has trace ${itex(`T=${tr}`)} and determinant ${itex(`D=${det}`)}. Find ${itex('\\Delta=T^2-4D')}.`,
+      answer:ans, explainHTML:`${itex(`\\Delta=${tr}^2-4(${det})=${ans}`)}`}; },
+  function(){ const xstar=ri(-5,5), ystar=ri(-5,5), a=nz(-3,3), b=nz(-3,3), c=nz(-3,3), d=nz(-3,3), e=-(a*xstar+b*ystar), f=-(c*xstar+d*ystar);
+    return {cat:'c4',topic:'Equilibrium of a linear system',
+      promptHTML:`Find the ${itex('x')}-coordinate of the equilibrium of ${dtex(`x' = ${a}x ${fmtSigned(b)}y ${fmtSigned(e)},\\qquad y' = ${c}x ${fmtSigned(d)}y ${fmtSigned(f)}`)}`,
+      answer:xstar, explainHTML:`Solving the ${itex('2\\times2')} linear system gives ${itex(`x=${xstar},\\,y=${ystar}`)}.`}; },
+  function(){ const a=ri(1,5), bcoef=ri(1,5), c=ri(1,5), d=ri(1,5), ans=d/c;
+    return {cat:'c4',topic:'Predator\u2013prey equilibrium',
+      promptHTML:`For ${dtex(`x' = x(${a}-${bcoef}y),\\qquad y' = y(${c}x-${d})`)} find the nonzero equilibrium ${itex('x^*')}.`,
+      answer:ans, explainHTML:`${itex(`x^*=d/c=${d}/${c}\\approx ${ans.toFixed(3)}`)} (with ${itex(`y^*=a/b=${(a/bcoef).toFixed(3)}`)}).`}; },
+  function(){ const det=ri(2,20), ans=Math.sqrt(det);
+    return {cat:'c4',topic:'Centers (purely imaginary eigenvalues)',
+      promptHTML:`A matrix has trace ${itex('0')} and determinant ${itex(`D=${det}`)}, giving eigenvalues ${itex('\\pm i\\omega')}. Find ${itex('\\omega')}.`,
+      answer:ans, explainHTML:`${itex(`\\omega=\\sqrt{D}=\\sqrt{${det}}\\approx ${ans.toFixed(3)}`)}`}; },
+  function(){ const tr=nz(-4,4), det=ri(Math.ceil(tr*tr/4)+1,Math.ceil(tr*tr/4)+10), ans=tr/2;
+    return {cat:'c4',topic:'Spiral growth rate',
+      promptHTML:`A matrix has trace ${itex(`T=${tr}`)} and determinant ${itex(`D=${det}`)} (complex eigenvalues). Find the growth rate ${itex('\\mathrm{Re}(\\lambda)=T/2')}.`,
+      answer:ans, explainHTML:`${itex(`\\mathrm{Re}(\\lambda)=${tr}/2=${ans}`)}`}; },
+];
+function shuffled(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function rollQuiz(n=15){ return shuffled(PBANK).slice(0,n).map(g=>g()); }
+
+add({ id:'practice-test', cat:'c5', tag:'practice', title:'Practice & Test', diff:'inter', ch:'15-question randomized quiz',
+  blurb:'15 randomized problems pulled from every topic — direction fields to phase planes. Type an answer (decimals or exact forms like \u03c0, e, \u221a2 are all accepted), check your work, and get a worked explanation for anything you miss.',
+  build(host){
+    let quiz=rollQuiz(15);
+    const wrap=document.createElement('div');
+    const scorebar=document.createElement('div'); scorebar.className='pq-scorebar';
+    const listEl=document.createElement('div');
+    wrap.append(scorebar,listEl); host.appendChild(wrap);
+    function renderScorebar(scored){
+      if(!scored){
+        scorebar.innerHTML=`<div><div class="pq-score-num">${quiz.length}</div><div class="pq-score-label">Questions</div></div>
+          <div class="btnrow" style="margin-left:auto"><button class="abtn primary" id="pqCheck">Check answers</button><button class="abtn" id="pqReset">New set (reset)</button></div>`;
+      } else {
+        const correct=quiz.filter(q=>q._correct).length, pct=Math.round(100*correct/quiz.length);
+        scorebar.innerHTML=`<div><div class="pq-score-num" style="color:${pct>=70?'#16A34A':pct>=40?'#B45309':'#E11D48'}">${correct}/${quiz.length}</div><div class="pq-score-label">Correct (${pct}%)</div></div>
+          <div class="btnrow" style="margin-left:auto"><button class="abtn" id="pqReset">New set (reset)</button></div>`;
+      }
+      document.getElementById('pqReset').onclick=()=>{ quiz=rollQuiz(15); renderList(); renderScorebar(false); host.scrollIntoView({block:'start',behavior:'smooth'}); };
+      const chk=document.getElementById('pqCheck'); if(chk) chk.onclick=checkAll;
+    }
+    function renderList(){
+      listEl.innerHTML='';
+      quiz.forEach((q,i)=>{
+        q._correct=undefined;
+        const card=document.createElement('div'); card.className='pq'; card.dataset.i=i;
+        card.innerHTML=`<div class="pq-head"><span class="pq-n">Q${i+1}</span><span class="pq-topic">${q.topic}</span></div>
+          <div class="pq-prompt">${q.promptHTML}</div>
+          <div class="pq-answer-row"><input type="text" placeholder="e.g. 3.142 or pi/2" data-i="${i}"><span class="pq-verdict"></span></div>
+          <div class="pq-explain">${q.explainHTML}</div>`;
+        listEl.appendChild(card);
+      });
+    }
+    function checkAll(){
+      listEl.querySelectorAll('.pq').forEach(card=>{
+        const i=+card.dataset.i, q=quiz[i];
+        const input=card.querySelector('input'); const val=parseAnswer(input.value);
+        const tol=Math.max(0.0015,Math.abs(q.answer)*0.001);
+        const ok=val!==null && Math.abs(val-q.answer)<tol;
+        q._correct=ok;
+        card.classList.remove('pq-correct','pq-wrong'); card.classList.add(ok?'pq-correct':'pq-wrong');
+        card.querySelector('.pq-verdict').innerHTML=val===null?'\u2014 could not read that answer':ok?'\u2713 correct':`\u2717 correct answer \u2248 ${q.answer.toFixed(3)}`;
+      });
+      renderScorebar(true);
+      listEl.querySelector('.pq-wrong')?.scrollIntoView({block:'nearest'});
+    }
+    renderList(); renderScorebar(false);
   }
 });
 
