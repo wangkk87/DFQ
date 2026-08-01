@@ -220,6 +220,11 @@ canvas{display:block;}
 .share-btn.copied{color:var(--c-calc2);border-color:var(--c-calc2);}
 
 .formula{font-family:var(--mono);font-size:.86rem;background:var(--paper-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;color:var(--ink);overflow-x:auto;}
+.sol-box{margin-top:12px;background:var(--white);border:1px solid var(--line);border-left:3px solid var(--c-calc2);border-radius:var(--r-sm);padding:12px 16px;overflow-x:auto;}
+.sol-box .sol-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;color:var(--c-calc2);font-weight:600;margin-bottom:6px;}
+.sol-box .sol-math{font-size:1.02rem;color:var(--ink);}
+.sol-box .sol-math .katex-display{margin:.35em 0;}
+.sol-box .sol-note{font-size:.76rem;color:var(--ink-soft);margin-top:6px;line-height:1.45;}
 
 @media(max-width:880px){
   .hero-inner{grid-template-columns:1fr;gap:30px;padding:40px 0;}
@@ -816,7 +821,8 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
     const win=UI.text({label:'t-window',value:'-1, 6',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
     const plot=UI.plotCard('slope field of y′ = g(t)·p(y) with the solution through (t₀, y₀)',360);
-    host.appendChild(UI.appGrid([gin,pin,ic,win,steps,UI.note('Separate: dy/p(y) = g(t) dt. Integrate both sides, then use y(t₀)=y₀ to fix the constant. The curve is computed numerically (RK4) so it is exact even when the integrals have no elementary form.')],[plot]));
+    const sol=makeSolBox('particular solution (implicit)');
+    host.appendChild(UI.appGrid([gin,pin,ic,win,steps,UI.note('Separate: dy/p(y) = g(t) dt. Integrate both sides, then use y(t₀)=y₀ to fix the constant. The curve is computed numerically (RK4) so it is exact even when the integrals have no elementary form.')],[plot,sol]));
     plot.enableZoom(render);
     function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
     function render(){ const g=gin.fn(), p=pin.fn(); if(!g||!p)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
@@ -826,6 +832,14 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
       html+=`<b>2.</b> integrate:&nbsp; ${Hi?('∫ dy/p = '+Hi):'∫ dy/p(y)'} = ${Gi?('∫ g dt = '+Gi):'∫ g(t) dt'} + C<br>`;
       html+=`<b>3.</b> apply y(${M.round(t0,2)}) = ${M.round(y0,2)} to find C, then solve for y.`;
       steps.innerHTML=html;
+      { const Gk=INTG[normSrc(gin.get())], Hk=INTP[normSrc(pin.get())];
+        if(Gk&&Hk&&isFinite(Hk.val(y0))&&isFinite(Gk.val(t0))){ const C=Hk.val(y0)-Gk.val(t0);
+          sol.set(`${Hk.tex} \\;=\\; ${Gk.tex} ${C>=0?'+':'-'}\\; ${nf(Math.abs(C),3)}`,
+            `Implicit solution through <b>(${nf(t0,2)},\\, ${nf(y0,2)})</b>. Separating and integrating gives ∫dy/p(y)=∫g(t)dt+C; the initial condition fixes <b>C = ${nf(C,3)}</b>.`);
+        } else {
+          sol.set(`\\int \\dfrac{dy}{${rawTex(pin.get())}} \\;=\\; \\int ${rawTex(gin.get())}\\,dt \\;+\\; C`,
+            'General (implicit) solution — the constant C is fixed by y(t₀)=y₀.');
+        } }
       const ch=plot.chart(); ch.setX(wp[0],wp[1]); let ys=[]; for(let i=0;i<=40;i++){const c=ODE.curve(f,t0,y0,wp[0],wp[1]); ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);} let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
       drawSlopeField(ch,f); drawLevel(ch,f,0,hexA(COL.cyan,.8),1.6,[6,4]); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
@@ -835,6 +849,21 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
   }
 });
 
+/* particular integral of y' + k y = g(t) for constant k and common g; returns {tex,val} or null */
+function linConstP(k, gsrc, gfn){
+  const gs=normSrc(gsrc); const a=gfn(0); const isConst=Math.abs(gfn(1)-a)<1e-9&&Math.abs(gfn(2.3)-a)<1e-9;
+  if(isConst){ if(Math.abs(k)<1e-9)return {tex:coefTerm(a,'t'),val:t=>a*t}; return {tex:nf(a/k),val:()=>a/k}; }
+  if(gs==='t'){ if(Math.abs(k)<1e-9)return {tex:'\\tfrac{t^{2}}{2}',val:t=>t*t/2};
+    return {tex:(Math.abs(k-1)<1e-9?'(t-1)':`\\dfrac{${nf(k)}t-1}{${nf(k*k)}}`),val:t=>(k*t-1)/(k*k)}; }
+  if(gs==='exp(t)'||gs==='e^t'){ if(Math.abs(k+1)<1e-9)return {tex:'t\\,e^{t}',val:t=>t*Math.exp(t)};
+    return {tex:`\\dfrac{e^{t}}{${nf(k+1)}}`,val:t=>Math.exp(t)/(k+1)}; }
+  if(gs==='exp(-t)'||gs==='e^(-t)'){ if(Math.abs(k-1)<1e-9)return {tex:'t\\,e^{-t}',val:t=>t*Math.exp(-t)};
+    return {tex:`\\dfrac{e^{-t}}{${nf(k-1)}}`,val:t=>Math.exp(-t)/(k-1)}; }
+  if(gs==='cos(t)'){ const D=k*k+1; return {tex:`\\dfrac{${coefTerm(k,'\\cos t')||'\\cos t'}+\\sin t}{${nf(D)}}`,val:t=>(k*Math.cos(t)+Math.sin(t))/D}; }
+  if(gs==='sin(t)'){ const D=k*k+1; return {tex:`\\dfrac{${coefTerm(k,'\\sin t')||'\\sin t'}-\\cos t}{${nf(D)}}`,val:t=>(k*Math.sin(t)-Math.cos(t))/D}; }
+  return null;
+}
+const PMU = { 't':'\\tfrac{t^{2}}{2}', '2/t':'2\\ln|t|', 'cos(t)':'\\sin t', 'sin(t)':'-\\cos t', '2*t':'t^{2}','2t':'t^{2}' };
 add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linear: Integrating Factor', diff:'inter', ch:'Linear · integrating factor',
   questions:['Why does multiplying by μ = e^∫p dt turn the left side into a single derivative (μy)′?','What role does the constant C play, and how does the initial condition fix it?','As t grows, which term dominates — the transient or the steady part?'],
   blurb:'For y′ + p(t)y = g(t): build the integrating factor μ = e^∫p dt, collapse the left side to (μy)′, integrate, and plot the solution.',
@@ -845,7 +874,8 @@ add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linea
     const win=UI.text({label:'t-window',value:'0, 6',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
     const plot=UI.plotCard('solution through the initial point, over the slope field',360);
-    host.appendChild(UI.appGrid([pin,gin,ic,win,steps,UI.note('The trick: μ(t)=e^{∫p dt} is chosen so that (μy)′ = μy′ + μp y = μg. Then μy = ∫ μg dt + C, so y = (∫ μg dt + C)/μ. The constant is set by the initial condition.')],[plot]));
+    const sol=makeSolBox('particular solution');
+    host.appendChild(UI.appGrid([pin,gin,ic,win,steps,UI.note('The trick: μ(t)=e^{∫p dt} is chosen so that (μy)′ = μy′ + μp y = μg. Then μy = ∫ μg dt + C, so y = (∫ μg dt + C)/μ. The constant is set by the initial condition.')],[plot,sol]));
     plot.enableZoom(render);
     function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
     function render(){ const p=pin.fn(), g=gin.fn(); if(!p||!g)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
@@ -855,6 +885,17 @@ add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linea
       html+=`<b>2.</b> rewrite:&nbsp; (μ·y)′ = μ·(${gin.get()})<br>`;
       html+=`<b>3.</b> integrate &amp; divide:&nbsp; y = ( ∫ μ·g dt + C ) / μ,&nbsp; then use y(${M.round(t0,2)})=${M.round(y0,2)}.`;
       steps.innerHTML=html;
+      { const k0=p(0); const pConst=Math.abs(p(1)-k0)<1e-9&&Math.abs(p(2.3)-k0)<1e-9;
+        let done=false;
+        if(pConst){ const yp=linConstP(k0,gin.get(),g);
+          if(yp){ const C=(y0-yp.val(t0))*Math.exp(k0*t0);
+            const homTex = Math.abs(C)<5e-4 ? '' : (Math.abs(k0)<1e-9 ? `${C>=0?'+':'-'}\\;${nf(Math.abs(C))}` : `${C>=0?'+':'-'}\\;${coefTerm(Math.abs(C),`e^{${coefTerm(-k0,'t')}}`)}`);
+            sol.set(`y(t) \\;=\\; ${yp.tex} \\;${homTex}`,
+              `Particular part plus the decaying transient; constant fixed by y(${nf(t0,2)})=${nf(y0,2)} → <b>C = ${nf(C,3)}</b>.`);
+            done=true; } }
+        if(!done){ const Pt=PMU[normSrc(pin.get())]; const muTex = Pt?`e^{${Pt}}`:`e^{\\int ${rawTex(pin.get())}\\,dt}`;
+          sol.set(`y(t)=\\dfrac{1}{\\mu}\\!\\left(\\int \\mu\\, ${rawTex(gin.get())}\\,dt + C\\right),\\quad \\mu=${muTex}`,
+            'General closed-form solution; the constant C is set by y(t₀)=y₀.'); } }
       const ch=plot.chart(); ch.setX(wp[0],wp[1]); const c=ODE.curve(f,t0,y0,wp[0],wp[1]); const ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);
       let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
@@ -936,7 +977,8 @@ add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant C
     const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'1, 0',hint:'two numbers',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
     const plot=UI.plotCard('the solution y(t)',360);
-    host.appendChild(UI.appGrid([aN,bN,cN,ic,steps,UI.note('Substituting y=e^{rt} gives the characteristic equation. <b>Real distinct</b> roots → C₁e^{r₁t}+C₂e^{r₂t}. <b>Repeated</b> root → (C₁+C₂t)e^{rt}. <b>Complex</b> α±βi → e^{αt}(C₁cos βt + C₂sin βt): α sets growth/decay, β sets the oscillation.')],[plot]));
+    const solB=makeSolBox('particular solution');
+    host.appendChild(UI.appGrid([aN,bN,cN,ic,steps,UI.note('Substituting y=e^{rt} gives the characteristic equation. <b>Real distinct</b> roots → C₁e^{r₁t}+C₂e^{r₂t}. <b>Repeated</b> root → (C₁+C₂t)e^{rt}. <b>Complex</b> α±βi → e^{αt}(C₁cos βt + C₂sin βt): α sets growth/decay, β sets the oscillation.')],[plot,solB]));
     plot.enableZoom(render);
     function render(){ const a=aN.get(),b=bN.get(),c=cN.get(); if(Math.abs(a)<1e-9)return; const icp=parseAB(ic.get()); if(!icp)return; const [y0,v0]=icp;
       const R=ODE.charRoots(a,b,c); let sol, gen, rootStr;
@@ -947,6 +989,15 @@ add({ id:'second-order', cat:'c2', tag:'explore', title:'Second-Order Constant C
       else { const {re,im}=R; const C1=y0, C2=(v0-re*y0)/im; sol=t=>Math.exp(re*t)*(C1*Math.cos(im*t)+C2*Math.sin(im*t));
         rootStr=`complex:&nbsp; r = ${M.round(re,3)} ± ${M.round(im,3)} i`; gen=`y = e^{${M.round(re,3)}t}( ${M.round(C1,3)} cos ${M.round(im,3)}t + ${M.round(C2,3)} sin ${M.round(im,3)}t )`; }
       steps.innerHTML=`<b>1.</b> characteristic equation:&nbsp; ${M.round(a,2)}r² + ${M.round(b,2)}r + ${M.round(c,2)} = 0<br><b>2.</b> roots:&nbsp; ${rootStr}<br><b>3.</b> fit y(0)=${M.round(y0,2)}, y′(0)=${M.round(v0,2)}:<br>&nbsp;&nbsp;<b style="color:var(--c-calc2)">${gen}</b>`;
+      { let L;
+        if(R.kind==='real'){ const {r1,r2}=R; const C2=(v0-r1*y0)/(r2-r1), C1=y0-C2;
+          L=joinTerms([coefTerm(C1,`e^{${coefTerm(r1,'t')}}`), coefTerm(C2,`e^{${coefTerm(r2,'t')}}`)]); }
+        else if(R.kind==='repeated'){ const r=R.r; const C1=y0, C2=v0-r*y0;
+          const inner=joinTerms([nf(C1), coefTerm(C2,'t')]); L=`\\left(${inner}\\right)e^{${coefTerm(r,'t')}}`; }
+        else { const {re,im}=R; const C1=y0, C2=(v0-re*y0)/im;
+          const inner=joinTerms([coefTerm(C1,`\\cos ${coefTerm(im,'t')}`), coefTerm(C2,`\\sin ${coefTerm(im,'t')}`)]);
+          L=(Math.abs(re)<5e-4?inner:`e^{${coefTerm(re,'t')}}\\left(${inner}\\right)`); }
+        solB.set(`y(t) = ${L}`, `Solves ${nf(a)}y'' ${b>=0?'+':'-'} ${nf(Math.abs(b))}y' ${c>=0?'+':'-'} ${nf(Math.abs(c))}y = 0 with y(0)=${nf(y0,2)},\\; y'(0)=${nf(v0,2)}.`); }
       const ch=plot.chart(); let T=10; ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){const y=sol(T*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(0,M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); ch.curve(sol,COL.calc2,2.8); ch.dot(0,y0,COL.coral,5);
       ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
@@ -1003,7 +1054,8 @@ add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff
     const stats=UI.statsBox();
     const ft=UI.plotCard('f(t) in the time domain',230);
     const Fs=UI.plotCard('F(s) in the s-domain',230);
-    host.appendChild(UI.appGrid([sel,aS,bS,cS,sS,pair,stats,UI.note('The Laplace transform F(s)=∫₀^∞ e^{−st}f(t)dt converts an IVP into an algebra problem: L{y′}=sY−y(0), L{y″}=s²Y−sy(0)−y′(0). Solve for Y(s), then invert. The number below checks the closed form against the actual integral.')],[ft,Fs]));
+    const sol=makeSolBox('transform pair');
+    host.appendChild(UI.appGrid([sel,aS,bS,cS,sS,pair,stats,UI.note('The Laplace transform F(s)=∫₀^∞ e^{−st}f(t)dt converts an IVP into an algebra problem: L{y′}=sY−y(0), L{y″}=s²Y−sy(0)−y′(0). Solve for Y(s), then invert. The number below checks the closed form against the actual integral.')],[ft,Fs,sol]));
     function defs(){ const a=aS.get(),b=bS.get(),c=cS.get();
       switch(sel.get()){
         case 'one': return {f:t=>1, F:s=>1/s, ft:'1', Fs:'1 / s', cond:'s > 0'};
@@ -1016,8 +1068,21 @@ add({ id:'laplace', cat:'c3', tag:'explore', title:'The Laplace Transform', diff
         case 'step': return {f:t=>t>=c?1:0, F:s=>Math.exp(-c*s)/s, ft:`u(t − ${c.toFixed(1)})`, Fs:`e^{−${c.toFixed(1)}s} / s`, cond:'s > 0'};
       }
     }
+    function laplaceTex(){ const a=aS.get(),b=bS.get(),c=cS.get();
+      switch(sel.get()){
+        case 'one': return {ft:'1', Fs:'\\dfrac{1}{s}'};
+        case 't': return {ft:'t', Fs:'\\dfrac{1}{s^{2}}'};
+        case 't2': return {ft:'t^{2}', Fs:'\\dfrac{2}{s^{3}}'};
+        case 'exp': return {ft:`e^{${coefTerm(a,'t')}}`, Fs:`\\dfrac{1}{s ${a>=0?'-':'+'} ${nf(Math.abs(a))}}`};
+        case 'sin': return {ft:`\\sin(${coefTerm(b,'t')})`, Fs:`\\dfrac{${nf(b)}}{s^{2} + ${nf(b*b)}}`};
+        case 'cos': return {ft:`\\cos(${coefTerm(b,'t')})`, Fs:`\\dfrac{s}{s^{2} + ${nf(b*b)}}`};
+        case 'expsin': return {ft:`e^{${coefTerm(a,'t')}}\\sin(${coefTerm(b,'t')})`, Fs:`\\dfrac{${nf(b)}}{(s ${a>=0?'-':'+'} ${nf(Math.abs(a))})^{2} + ${nf(b*b)}}`};
+        case 'step': return {ft:`u(t - ${nf(c)})`, Fs:`\\dfrac{e^{-${nf(c)}s}}{s}`};
+      }
+    }
     function render(){ const D=defs(); const sCheck=sS.get();
       const numeric=M.integrate(t=>Math.exp(-sCheck*t)*D.f(t),0,60,6000);
+      { const LT=laplaceTex(); sol.set(`\\mathcal{L}\\{\\,${LT.ft}\\,\\}(s) \\;=\\; ${LT.Fs}`, `Valid for ${D.cond.replace('>','>').replace(/</g,'<')}. This is the transform pair — no initial condition needed.`); }
       pair.innerHTML=`<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><span>L{ <b>${D.ft}</b> }(s) =</span><b style="font-size:1.15rem;color:var(--c-calc3)">${D.Fs}</b><span style="color:var(--ink-soft)">,&nbsp; ${D.cond}</span></div>`;
       stats.set([{k:'F('+sCheck.toFixed(1)+') formula',v:M.round(D.F(sCheck),4),accent:1},{k:'∫ numeric check',v:M.round(numeric,4),accent:1}]);
       const c1=ft.chart(); c1.setX(0,8); let ys=[]; for(let i=0;i<=200;i++){const v=D.f(8*i/200); if(isFinite(v))ys.push(v);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(1,M.max(ys)); c1.setY(ylo-.2,yhi+.3);
@@ -1095,7 +1160,8 @@ add({ id:'exact-equations', cat:'c1', tag:'explore', title:'Exact Equations', di
     const win=UI.text({label:'window  [−L, L]',value:'4',hint:'a single number',onchange:render});
     const verdict=UI.note(''); const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.85';
     const plot=UI.plotCard('level curves F(x,y)=C — the solution family',380);
-    host.appendChild(UI.appGrid([Min,Nin,win,verdict,steps,UI.note('Exactness test: ∂M/∂y must equal ∂N/∂x. Then a potential exists with F_x=M, F_y=N, built by F(x,y)=∫M dx (treating y as constant) + the missing y-only piece. Each solution is a level curve F=C.')],[plot]));
+    const sol=makeSolBox('general solution');
+    host.appendChild(UI.appGrid([Min,Nin,win,verdict,steps,UI.note('Exactness test: ∂M/∂y must equal ∂N/∂x. Then a potential exists with F_x=M, F_y=N, built by F(x,y)=∫M dx (treating y as constant) + the missing y-only piece. Each solution is a level curve F=C.')],[plot,sol]));
     plot.enableZoom(render);
     function pd(f,x,y,dir){ const h=1e-4; return dir==='x'?(f(x+h,y)-f(x-h,y))/(2*h):(f(x,y+h)-f(x,y-h))/(2*h); }
     function render(){ const M_=Min.fn(), N_=Nin.fn(); if(!M_||!N_)return; const L=parseFloat(win.get())||4;
@@ -1105,6 +1171,18 @@ add({ id:'exact-equations', cat:'c1', tag:'explore', title:'Exact Equations', di
       verdict.innerHTML=exact?`<b style="color:${COL.calc2}">Exact</b> — ∂M/∂y = ∂N/∂x. A potential F exists.`:`<b style="color:${COL.amber}">Not exact</b> — ∂M/∂y ≠ ∂N/∂x (off by ≈ ${M.round(maxd,3)}); an integrating factor would be needed.`;
       verdict.style.borderLeftColor=exact?COL.calc2:COL.amber;
       steps.innerHTML=`<b>1.</b> test:&nbsp; ∂M/∂y = ${M.round(pd(M_,1,1,'y'),3)} ,&nbsp; ∂N/∂x = ${M.round(pd(N_,1,1,'x'),3)} (at (1,1))<br><b>2.</b> potential:&nbsp; F(x,y) = ∫ M dx + h(y), with h′(y) chosen so F_y = N<br><b>3.</b> solutions:&nbsp; F(x,y) = C (drawn at right)`;
+      { const alpha=pd(M_,1,1,'x'), beta=pd(M_,1,1,'y'), delta=pd(N_,1,1,'y');
+        const linM = Math.abs(pd(M_,-1,2,'x')-alpha)<1e-3 && Math.abs(pd(M_,2,-1,'y')-beta)<1e-3;
+        const linN = Math.abs(pd(N_,-1,2,'y')-delta)<1e-3;
+        const gamma=M_(0,0), eps=N_(0,0);
+        if(exact && linM && linN){
+          const terms=[ coefTerm(alpha/2,'x^{2}'), coefTerm(beta,'xy'), coefTerm(delta/2,'y^{2}'), coefTerm(gamma,'x'), coefTerm(eps,'y') ];
+          sol.set(`${joinTerms(terms)} \\;=\\; C`, 'Solution family as level curves of the potential F(x,y)=C. Pick C (or an initial point) to select one curve.');
+        } else if(exact){
+          sol.set(`F(x,y)=\\int M\\,dx + h(y) \\;=\\; C`, 'Exact: the solutions are the level curves F(x,y)=C, where h(y) is chosen so that F_y=N.');
+        } else {
+          sol.set(`${rawTex(Min.get())}\\,dx + ${rawTex(Nin.get())}\\,dy = 0`, 'Not exact as written — an integrating factor is needed before a potential F exists.');
+        } }
       // potential by line integral from origin: F(x,y)=∫_0^x M(s,0)ds + ∫_0^y N(x,t)dt
       const F=(x,y)=>{ let s=0; const n=60; for(let i=0;i<n;i++){ const a=x*i/n,b=x*(i+1)/n; s+=(M_(a,0)+M_(b,0))/2*(b-a); } for(let i=0;i<n;i++){ const a=y*i/n,b=y*(i+1)/n; s+=(N_(x,a)+N_(x,b))/2*(b-a); } return s; };
       const ch=plot.chart(); ch.setX(-L,L).setY(-L,L); ch.clear(); ch.gridlines(niceTicks(-L,L,7),niceTicks(-L,L,7)); ch.axes();
@@ -1196,8 +1274,10 @@ add({ id:'undetermined-coefficients', cat:'c2', tag:'explore', title:'Method of 
     const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'0, 0',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
     const plot=UI.plotCard('full solution y = y_h + y_p (forced) vs. y_h alone (faint)',360);
-    host.appendChild(UI.appGrid([aN,bN,cN,gsel,p1,p2,ic,steps,UI.note('Guess a yₚ that looks like g(t): an exponential for an exponential, P cos + Q sin for a sinusoid, a polynomial for a polynomial. Plug in and match coefficients. If the guess collides with a homogeneous solution (resonance), multiply by t. The plot solves the full equation exactly.')],[plot]));
+    const sol=makeSolBox('particular solution');
+    host.appendChild(UI.appGrid([aN,bN,cN,gsel,p1,p2,ic,steps,UI.note('Guess a yₚ that looks like g(t): an exponential for an exponential, P cos + Q sin for a sinusoid, a polynomial for a polynomial. Plug in and match coefficients. If the guess collides with a homogeneous solution (resonance), multiply by t. The plot solves the full equation exactly.')],[plot,sol]));
     plot.enableZoom(render);
+    function addTerm(base,term){ if(!term||term==='0')return base; if(!base||base==='0')return term; return term[0]==='-'?base+' - '+term.slice(1):base+' + '+term; }
     function relabel(){ const ty=gsel.get(); if(ty==='exp'){ lab(p1,'A'); lab(p2,'k'); } else if(ty==='trig'){ lab(p1,'A (cos)'); lab(p2,'B (sin) · ω=1.5'); } else { lab(p1,'p₀'); lab(p2,'p₁'); } }
     function lab(sl,t){ sl.querySelector('label').firstChild.textContent=t; }
     relabel();
@@ -1212,6 +1292,22 @@ add({ id:'undetermined-coefficients', cat:'c2', tag:'explore', title:'Method of 
       else { g=t=>A+B*t; if(Math.abs(c)>1e-6){ const P1=B/c, P0=(A-b*P1)/c; guess=`P₀ + P₁ t`; ypInfo=`P₁ = ${M.round(P1,3)}, P₀ = ${M.round(P0,3)}`; } else { guess=`t(P₀ + P₁ t)`; ypInfo=`c = 0 (resonance) → multiply by t`; } }
       const roots=ODE.charRoots(a,b,c); const rstr=roots.kind==='real'?`r=${M.round(roots.r1,2)}, ${M.round(roots.r2,2)}`:roots.kind==='repeated'?`r=${M.round(roots.r,2)} (double)`:`r=${M.round(roots.re,2)}±${M.round(roots.im,2)}i`;
       steps.innerHTML=`<b>1.</b> homogeneous roots:&nbsp; ${rstr}<br><b>2.</b> guess&nbsp; y_p = ${guess}<br><b>3.</b> match coefficients:&nbsp; <b style="color:var(--c-calc2)">${ypInfo}</b><br><b>4.</b> y = y_h + y_p, then fit y(0)=${M.round(y0,2)}, y′(0)=${M.round(v0,2)}`;
+      { let ypTex, yp0=null, yp0p=null;
+        if(ty==='exp'){ const k=B; const den=a*k*k+b*k+c;
+          if(Math.abs(den)>1e-6){ const C=A/den; ypTex=coefTerm(C,`e^{${coefTerm(k,'t')}}`); yp0=C; yp0p=C*k; }
+          else { const d2=2*a*k+b; if(Math.abs(d2)>1e-6){ const C=A/d2; ypTex=coefTerm(C,`t\\,e^{${coefTerm(k,'t')}}`); yp0=0; yp0p=C; }
+            else { const C=A/(2*a); ypTex=coefTerm(C,`t^{2}e^{${coefTerm(k,'t')}}`); yp0=0; yp0p=0; } } }
+        else if(ty==='trig'){ const w=1.5; const Rr=c-a*w*w,Sr=b*w,det=Rr*Rr+Sr*Sr;
+          if(det>1e-6){ const P=(A*Rr-Sr*B)/det, Q=(Sr*A+Rr*B)/det; ypTex=joinTerms([coefTerm(P,`\\cos ${coefTerm(w,'t')}`),coefTerm(Q,`\\sin ${coefTerm(w,'t')}`)]); yp0=P; yp0p=w*Q; }
+          else { ypTex=`t\\left(P\\cos ${nf(w)}t+Q\\sin ${nf(w)}t\\right)`; } }
+        else { if(Math.abs(c)>1e-6){ const Q1=B/c, Q0=(A-b*Q1)/c; ypTex=joinTerms([nf(Q0),coefTerm(Q1,'t')]); yp0=Q0; yp0p=Q1; }
+          else { ypTex=`t\\left(${nf(A)}+\\cdots\\right)`; } }
+        if(yp0!=null){ const e0=y0-yp0, e1=v0-yp0p; const RR=ODE.charRoots(a,b,c); let yhTex;
+          if(RR.kind==='real'){ const {r1,r2}=RR; const C2=(e1-r1*e0)/(r2-r1),C1=e0-C2; yhTex=joinTerms([coefTerm(C1,`e^{${coefTerm(r1,'t')}}`),coefTerm(C2,`e^{${coefTerm(r2,'t')}}`)]); }
+          else if(RR.kind==='repeated'){ const r=RR.r; const C1=e0,C2=e1-r*e0; yhTex=`\\left(${joinTerms([nf(C1),coefTerm(C2,'t')])}\\right)e^{${coefTerm(r,'t')}}`; }
+          else { const {re,im}=RR; const C1=e0,C2=(e1-re*e0)/im; const inner=joinTerms([coefTerm(C1,`\\cos ${coefTerm(im,'t')}`),coefTerm(C2,`\\sin ${coefTerm(im,'t')}`)]); yhTex=(Math.abs(re)<5e-4?inner:`e^{${coefTerm(re,'t')}}\\left(${inner}\\right)`); }
+          sol.set(`y(t) = ${addTerm(yhTex, ypTex)}`, `Full solution y = y_h + y_p, with y_h fit to y(0)=${nf(y0,2)},\\; y'(0)=${nf(v0,2)}. Here y_p = ${ypTex||'0'}.`);
+        } else { sol.set(`y(t) = y_h ${ypTex&&ypTex[0]==='-'?'-\\;'+ypTex.slice(1):'+\\;'+ypTex}`, 'Resonant forcing — y_p carries an extra factor of t; add y_h and fit the initial conditions.'); } }
       const F=(t,P)=>[P[1],(g(t)-b*P[1]-c*P[0])/a]; const full=ODE.flow(F,[y0,v0],0,14,1200);
       const Fh=(t,P)=>[P[1],(-b*P[1]-c*P[0])/a]; const hom=ODE.flow(Fh,[y0,v0],0,14,1200);
       const ch=plot.chart(); ch.setX(0,14); const ys=full.map(d=>d[1]).concat(hom.map(d=>d[1])).filter(isFinite); let ylo=M.min(ys),yhi=M.max(ys); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
@@ -1271,11 +1367,23 @@ add({ id:'discontinuous-forcing', cat:'c3', tag:'interactive', title:'Step & Imp
     const gS=UI.slider({label:'damping',min:0,max:1.5,step:0.1,value:0.3,fmt:v=>v.toFixed(1),oninput:render});
     const note2=document.createElement('div'); note2.className='formula'; note2.style.fontSize='.95rem';
     const top=UI.plotCard('the forcing input',180); const bot=UI.plotCard('the response y(t) of  y″ + (damping) y′ + y = forcing',230);
-    host.appendChild(UI.appGrid([fsel,cS,gS,note2,UI.note('A step switches the input on permanently; a pulse is on for a finite window; an impulse is a sudden kick. Transforms: L{u_c}=e^{−cs}/s, L{δ_c}=e^{−cs}. Before t=c the system rests; after, it rings down at a rate set by the damping.')],[top,bot]));
+    const solB=makeSolBox('response y(t)  (rest initial conditions)');
+    host.appendChild(UI.appGrid([fsel,cS,gS,note2,UI.note('A step switches the input on permanently; a pulse is on for a finite window; an impulse is a sudden kick. Transforms: L{u_c}=e^{−cs}/s, L{δ_c}=e^{−cs}. Before t=c the system rests; after, it rings down at a rate set by the damping.')],[top,bot,solB]));
     top.enableZoom(render); bot.enableZoom(render);
     function render(){ const kind=fsel.get(), c=cS.get(), g=gS.get(); const dt=0.02;
       const force=t=> kind==='step'?(t>=c?1:0) : kind==='pulse'?((t>=c&&t<=c+1)?1:0) : ((t>=c&&t<c+dt)?1/dt:0);
       note2.innerHTML= kind==='step'?`forcing = u(t − ${c.toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = e^{−${c.toFixed(1)}s}/s</b>` : kind==='pulse'?`forcing = u(t−${c.toFixed(1)}) − u(t−${(c+1).toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = (e^{−${c.toFixed(1)}s} − e^{−${(c+1).toFixed(1)}s})/s</b>` : `forcing = δ(t − ${c.toFixed(1)}),&nbsp; <b style="color:var(--c-calc3)">L = e^{−${c.toFixed(1)}s}</b>`;
+      { const d=g/2, wd=Math.sqrt(Math.max(0,1-d*d)); const cc=nf(c), cc1=nf(c+1);
+        const stepBody=(arg)=> d<1e-6 ? `1-\\cos(${arg})`
+          : `1 - e^{-${nf(d)}(${arg})}\\!\\left(\\cos ${nf(wd)}(${arg}) + ${nf(d/wd)}\\sin ${nf(wd)}(${arg})\\right)`;
+        const impBody=(arg)=> d<1e-6 ? `\\sin(${arg})`
+          : `${nf(1/wd)}\\,e^{-${nf(d)}(${arg})}\\sin\\!\\big(${nf(wd)}(${arg})\\big)`;
+        let L, note=`Underdamped: δ = γ/2 = ${nf(d)}, ω_d = √(1−δ²) = ${nf(wd)}. System rests until t = ${cc}, then rings down.`;
+        if(kind==='step'){ L=`y(t)=\\Big[\\,${stepBody('t-'+cc)}\\,\\Big]\\,u(t-${cc})`; }
+        else if(kind==='impulse'){ L=`y(t)=${impBody('t-'+cc)}\\;u(t-${cc})`; }
+        else { L=`\\begin{aligned}y(t)&=S(t-${cc})-S(t-${cc1}),\\\\[2pt] S(\\tau)&=\\big[\\,${stepBody('\\tau')}\\,\\big]u(\\tau)\\end{aligned}`;
+          note=`Pulse = step at t=${cc} minus step at t=${cc1}. `+note; }
+        solB.set(L, note); }
       const F=(t,P)=>[P[1], force(t)-g*P[1]-P[0]]; const sol=ODE.flow(F,[0,0],0,16,1600);
       const T=top.chart(); T.setX(0,16).setY(-0.3, kind==='impulse'?1.4:1.4); T.clear(); T.gridlines(niceTicks(0,16,8),niceTicks(T.ymin,T.ymax,4)); T.axes();
       const fxs=[],fys=[]; for(let i=0;i<=400;i++){ const t=16*i/400; let v=force(t); if(kind==='impulse')v=(t>=c&&t<c+0.12)?1:0; fxs.push(T.X(t)); fys.push(T.Y(v)); }
@@ -1364,6 +1472,36 @@ add({ id:'nonlinear-systems', cat:'c4', tag:'interactive', title:'Nonlinear Syst
    ===================================================================== */
 function tex(latex,display){ try{ return katex.renderToString(latex,{throwOnError:false,displayMode:!!display,strict:false}); }catch(e){ return '<code>'+latex+'</code>'; } }
 function dtex(l){ return tex(l,true); }
+function makeSolBox(label){ const w=document.createElement('div'); w.className='sol-box';
+  w.innerHTML=`<div class="sol-label">${label||'solution'}</div><div class="sol-math"></div><div class="sol-note" style="display:none"></div>`;
+  const m=w.querySelector('.sol-math'), n=w.querySelector('.sol-note');
+  w.set=(latex,note)=>{ m.innerHTML=dtex(latex); if(note){ n.style.display=''; n.innerHTML=note; } else { n.style.display='none'; n.innerHTML=''; } };
+  return w; }
+function nf(x,d){ d=d==null?3:d; if(!isFinite(x))return String(x); let s=(+x).toFixed(d); s=s.replace(/\.?0+$/,''); return s===''||s==='-0'?'0':s; }
+function coefTerm(coef,body,d){ const c=+(+coef).toFixed(d==null?3:d); if(Math.abs(c)<5e-4)return ''; if(!body)return nf(c,d); if(Math.abs(c-1)<5e-4)return body; if(Math.abs(c+1)<5e-4)return '-'+body; return nf(c,d)+body; }
+function joinTerms(terms){ terms=terms.filter(t=>t&&t!=='0'); if(!terms.length)return '0'; let s=terms[0]; for(let i=1;i<terms.length;i++){ const t=terms[i]; s+= (t[0]==='-'?' - '+t.slice(1):' + '+t); } return s; }
+function normSrc(s){ return (s||'').replace(/\s+/g,'').toLowerCase(); }
+function rawTex(s){ return (s||'').replace(/\*/g,'\\cdot ').replace(/exp\(/g,'\\exp\\!\\left(').replace(/\bpi\b/g,'\\pi'); }
+/* ∫ g(t) dt  for common g — {tex: antiderivative in LaTeX, val: numeric antiderivative} */
+const INTG = {
+  '1':{tex:'t',val:t=>t}, 't':{tex:'\\tfrac{t^{2}}{2}',val:t=>t*t/2},
+  't^2':{tex:'\\tfrac{t^{3}}{3}',val:t=>t**3/3}, 't*t':{tex:'\\tfrac{t^{3}}{3}',val:t=>t**3/3},
+  '2*t':{tex:'t^{2}',val:t=>t*t}, '2t':{tex:'t^{2}',val:t=>t*t},
+  'cos(t)':{tex:'\\sin t',val:Math.sin}, 'sin(t)':{tex:'-\\cos t',val:t=>-Math.cos(t)},
+  'exp(t)':{tex:'e^{t}',val:Math.exp}, 'e^t':{tex:'e^{t}',val:Math.exp},
+  'exp(-t)':{tex:'-e^{-t}',val:t=>-Math.exp(-t)}, 'e^(-t)':{tex:'-e^{-t}',val:t=>-Math.exp(-t)}
+};
+/* ∫ dy / p(y)  for common p — antiderivative of 1/p(y) */
+const INTP = {
+  'y':{tex:'\\ln|y|',val:y=>Math.log(Math.abs(y))},
+  '1-y':{tex:'-\\ln|1-y|',val:y=>-Math.log(Math.abs(1-y))},
+  'y*(1-y)':{tex:'\\ln\\!\\left|\\dfrac{y}{1-y}\\right|',val:y=>Math.log(Math.abs(y/(1-y)))},
+  'y*(1-y/4)':{tex:'\\ln\\!\\left|\\dfrac{y}{1-y/4}\\right|',val:y=>Math.log(Math.abs(y/(1-y/4)))},
+  'y^2-1':{tex:'\\tfrac12\\ln\\!\\left|\\dfrac{y-1}{y+1}\\right|',val:y=>0.5*Math.log(Math.abs((y-1)/(y+1)))},
+  '1-y^2':{tex:'\\tfrac12\\ln\\!\\left|\\dfrac{1+y}{1-y}\\right|',val:y=>0.5*Math.log(Math.abs((1+y)/(1-y)))},
+  '1+y^2':{tex:'\\arctan y',val:Math.atan}, 'y^2+1':{tex:'\\arctan y',val:Math.atan},
+  'y^2':{tex:'-\\dfrac{1}{y}',val:y=>-1/y}, '1':{tex:'y',val:y=>y}
+};
 function itex(l){ return tex(l,false); }
 function ri(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }
 function nz(a,b){ let x; do{ x=ri(a,b); }while(x===0); return x; }
