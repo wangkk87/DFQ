@@ -780,7 +780,7 @@ function parseAB(s){ const p=(s||'').split(/[\s,]+/).map(Number).filter(x=>!isNa
    ===================================================================== */
 
 add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields & Solution Curves', diff:'intro', ch:'Direction fields',
-  questions:['A solution curve must stay tangent to the slope marks everywhere — why does that pin it down once you fix one point?','Where the field is flat (slope 0), what is special about those y-values?','Two solution curves of the same equation can never cross. Can you see why from the field?'],
+  questions:['A solution curve must stay tangent to the slope marks everywhere — why does that pin it down once you fix one point?','Where the field is flat (slope 0), the dashed curve traces f(t,y)=0. For an autonomous y′=f(y) that curve is a horizontal line at a fixed y — why isn\'t it horizontal here for y′=y−t?','Two solution curves of the same equation can never cross. Can you see why from the field?'],
   blurb:'Type any first-order ODE y′ = f(t, y). See its slope field, then click anywhere on the plot to drop an initial condition and watch the solution thread through it.',
   build(host){
     let ics=[[0,0.2],[0,1.6],[0,2.6]];
@@ -789,7 +789,7 @@ add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields
     const yr=UI.text({label:'y-window  [y₀, y₁]',value:'-1.5, 3',hint:'two numbers',onchange:render});
     const clr=document.createElement('button'); clr.className='abtn'; clr.textContent='Clear curves'; clr.onclick=()=>{ics=[];render();};
     const plot=UI.plotCard('slope field · click to drop an initial condition',420);
-    host.appendChild(UI.appGrid([fin,tr,yr,clr,UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. <b>Click the plot</b> to drop initial conditions; scroll to zoom.')],[plot]));
+    host.appendChild(UI.appGrid([fin,tr,yr,clr,UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. The dashed teal curve is drawn exactly where f(t,y)=0 — the segments sitting on it are the truly flat ones (the grid dots alone can miss that curve, so it\'s traced directly rather than guessed from nearby samples). <b>Click the plot</b> to drop initial conditions; scroll to zoom.')],[plot]));
     plot.enableZoom(render);
     const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
     cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
@@ -797,7 +797,8 @@ add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields
     function render(){ const f=fin.fn(); if(!f)return; const tp=parseAB(tr.get()),yp=parseAB(yr.get()); if(!tp||!yp)return;
       const ch=plot.chart(); ch.setX(tp[0],tp[1]).setY(yp[0],yp[1]); ch.clear();
       ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
-      drawSlopeField(ch,f);
+      drawSlopeField(ch,f,null,30,20);
+      drawLevel(ch,f,0,hexA(COL.cyan,.85),1.8,[7,5]);
       ics.forEach((ic,k)=>{ drawSolCurve(ch,f,ic[0],ic[1],[COL.calc1,COL.coral,COL.calc3,COL.amber,COL.green][k%5],2.6); ch.dot(ic[0],ic[1],COL.ink,4); });
       ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
     }
@@ -827,7 +828,7 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
       steps.innerHTML=html;
       const ch=plot.chart(); ch.setX(wp[0],wp[1]); let ys=[]; for(let i=0;i<=40;i++){const c=ODE.curve(f,t0,y0,wp[0],wp[1]); ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);} let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
-      drawSlopeField(ch,f); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
+      drawSlopeField(ch,f); drawLevel(ch,f,0,hexA(COL.cyan,.8),1.6,[6,4]); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
       ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
     }
     render();
@@ -857,7 +858,7 @@ add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linea
       const ch=plot.chart(); ch.setX(wp[0],wp[1]); const c=ODE.curve(f,t0,y0,wp[0],wp[1]); const ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<1e3);
       let ylo=Math.min(y0,M.min(ys)),yhi=Math.max(y0,M.max(ys)); const pad=(yhi-ylo)*.3||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
-      drawSlopeField(ch,f); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
+      drawSlopeField(ch,f); drawLevel(ch,f,0,hexA(COL.cyan,.8),1.6,[6,4]); drawSolCurve(ch,f,t0,y0,COL.calc1,2.8); ch.dot(t0,y0,COL.coral,5);
       ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
     }
     render();
