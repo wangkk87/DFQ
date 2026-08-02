@@ -149,7 +149,12 @@ canvas{display:block;}
 
 .viz{display:flex;flex-direction:column;gap:14px;}
 .plot-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;}
-.plot-card .plot-title{font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:8px;}
+.plot-card .plot-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+.plot-card .plot-title-text{font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);}
+.dlbtn{font-family:var(--mono);font-size:.66rem;letter-spacing:.03em;border:1px solid var(--line);background:var(--white);color:var(--ink-soft);border-radius:99px;padding:4px 10px;display:inline-flex;align-items:center;gap:5px;transition:.15s;white-space:nowrap;flex:none;}
+.dlbtn:hover{border-color:var(--accent,var(--c-calc1));color:var(--accent,var(--c-calc1));}
+.dlbtn:active{transform:translateY(1px);}
+.dlbtn svg{width:11px;height:11px;flex:none;}
 .plotwrap{width:100%;}
 .plotwrap canvas{width:100%;height:auto;}
 .zoom-ctl{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:.5;transition:.15s;}
@@ -512,6 +517,19 @@ class Chart{
 function niceTicks(min,max,n=6){ const span=max-min||1; const step0=span/n; const mag=Math.pow(10,Math.floor(Math.log10(step0)));
   const norm=step0/mag; let step; if(norm<1.5)step=1; else if(norm<3)step=2; else if(norm<7)step=5; else step=10; step*=mag;
   const t=[]; let v=Math.ceil(min/step)*step; while(v<=max+1e-9){ t.push(M.round(v,6)); v+=step; } return t; }
+/* download any canvas as a PNG, composited onto a white background so exports look clean when opened/printed */
+function downloadCanvasPNG(canvas, filename){
+  try{
+    const tmp=document.createElement('canvas'); tmp.width=canvas.width; tmp.height=canvas.height;
+    const tctx=tmp.getContext('2d'); tctx.fillStyle='#FFFFFF'; tctx.fillRect(0,0,tmp.width,tmp.height); tctx.drawImage(canvas,0,0);
+    tmp.toBlob(blob=>{
+      if(!blob)return; const url=URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download=filename||'ode-lab-plot.png'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    },'image/png');
+  }catch(e){ console.warn('PNG export failed',e); }
+}
+function slugify(s){ return (s||'ode-lab-plot').toString().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,'')||'ode-lab-plot'; }
 /* ----------------------- (3) UI + REGISTRY -------------------------- */
 const CATS = {
   c1:{name:'First-Order ODEs', color:COL.calc1, n:'01', desc:'Direction fields, separable & linear equations, integrating factors, Euler\u2019s method, exactness, existence & uniqueness, and real-world models.',
@@ -565,7 +583,7 @@ const UI = {
     w.get=()=>inp.value; w.set=(v)=>inp.value=v; w.input=inp; return w; },
   number({label,value,step='any',min,max,hint,onchange}){ const w=document.createElement('div'); w.className='ctrl';
     w.innerHTML=`<label>${label}</label><input type="number" value="${value}" step="${step}" ${min!=null?`min="${min}"`:''} ${max!=null?`max="${max}"`:''}>${hint?`<span class="hint">${hint}</span>`:''}`;
-    const inp=w.querySelector('input'); inp.addEventListener('input',()=>onchange(+inp.value)); w.get=()=>+inp.value; w.set=(v)=>inp.value=v; return w; },
+    const inp=w.querySelector('input'); inp.addEventListener('input',()=>{ if(onchange)onchange(+inp.value); }); w.get=()=>+inp.value; w.set=(v)=>inp.value=v; return w; },
   textarea({label,value,hint,onchange}){ const w=document.createElement('div'); w.className='ctrl';
     w.innerHTML=`<label>${label}</label><textarea>${value}</textarea>${hint?`<span class="hint">${hint}</span>`:''}`;
     const t=w.querySelector('textarea'); t.addEventListener('input',()=>onchange(t.value)); w.get=()=>t.value; w.set=(v)=>t.value=v; return w; },
@@ -583,11 +601,12 @@ const UI = {
     if(primaryBtn){ w._primaryBtn=primaryBtn; }
     return w; },
   statsBox(){ const w=document.createElement('div'); w.className='stats'; w.set=(arr)=>{ w.innerHTML=arr.map(s=>`<div class="stat"><div class="k">${s.k}</div><div class="v ${s.accent?'accent':''}">${s.v}</div></div>`).join(''); }; return w; },
-  plotCard(title,h=null){ const w=document.createElement('div'); w.className='plot-card';
-    w.innerHTML=`<div class="plot-title">${title}</div><div class="plotwrap"><canvas></canvas></div>`;
+  plotCard(title,h=null){ const w=document.createElement('div'); w.className='plot-card'; w._titleText=title;
+    w.innerHTML=`<div class="plot-title"><span class="plot-title-text">${title}</span><button type="button" class="dlbtn" title="Download this plot as a PNG image"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8.5"/><path d="M4.5 6.5L8 10l3.5-3.5"/><path d="M2 12v1.5A1.5 1.5 0 0 0 3.5 15h9A1.5 1.5 0 0 0 14 13.5V12"/></svg>PNG</button></div><div class="plotwrap"><canvas></canvas></div>`;
     const cv=w.querySelector('canvas'); w.canvas=cv;
     w.chart=(opts)=>new Chart(cv,Object.assign(h?{cssH:h}:{}, cv._zoomOn?{zoom:cv._zoom}:{}, opts||{}));
-    w.setTitle=(t)=>w.querySelector('.plot-title').textContent=t;
+    w.setTitle=(t)=>{ w._titleText=t; w.querySelector('.plot-title-text').textContent=t; };
+    w.querySelector('.dlbtn').addEventListener('click',(e)=>{ e.stopPropagation(); e.preventDefault(); downloadCanvasPNG(cv, slugify(w._titleText)+'.png'); });
     w.enableZoom=function(redraw){
       cv._zoom={k:1,ox:0,oy:0}; cv._zoomOn=true;
       const wrap=w.querySelector('.plotwrap'); wrap.style.position='relative'; cv.style.cursor='grab'; cv.style.touchAction='none';
@@ -710,14 +729,19 @@ const Sym = (function(){
       case '^': prec=3; s=str(tr.a,4)+'^'+str(tr.b,3,'r'); break; }
     const needP=prec<parent||(prec===parent&&side==='r'&&(parent===1||parent===2)&&(tr.k==='-'||tr.k==='/'));
     return needP?'('+s+')':s; }
-  function integrateSimple(tr){ tr=simp(tr);
-    if(tr.k==='n')return mul(tr,X());
-    if(tr.k==='v'&&tr.n==='x')return div(pow(X(),N(2)),N(2));
-    if(tr.k==='^'&&tr.a.k==='v'&&tr.a.n==='x'&&tr.b.k==='n'){ const c=tr.b.v; if(Math.abs(c+1)<1e-9)return fn('ln',fn('abs',X())); return div(pow(X(),N(c+1)),N(c+1)); }
-    if(tr.k==='*'){ if(tr.a.k==='n'){ const r=integrateSimple(tr.b); return r?simp(mul(tr.a,r)):null; } if(tr.b.k==='n'){ const r=integrateSimple(tr.a); return r?simp(mul(tr.b,r)):null; } return null; }
-    if(tr.k==='/'&&tr.b.k==='n'){ const r=integrateSimple(tr.a); return r?simp(div(r,tr.b)):null; }
-    if(tr.k==='f'){ const g=tr.a; const k=ev(diff(g),0); const lin=Math.abs(ev(diff(diff(g)),0))<1e-9&&Math.abs(ev(diff(diff(g)),1))<1e-9;
-      if(!lin||Math.abs(k)<1e-12){ if(tr.n==='exp'&&g.k==='v'&&g.n==='x')return fn('exp',X()); return null; }
+  function integrateSimple(tr,vn){ vn=vn||'x'; tr=simp(tr); const VX=()=>V(vn);
+    if(tr.k==='n')return mul(tr,VX());
+    if(tr.k==='v'&&tr.n===vn)return div(pow(VX(),N(2)),N(2));
+    if(tr.k==='v')return null;
+    if(tr.k==='neg'){ const r=integrateSimple(tr.a,vn); return r?simp(neg(r)):null; }
+    if(tr.k==='+'){ const ra=integrateSimple(tr.a,vn), rb=integrateSimple(tr.b,vn); return (ra&&rb)?simp(add(ra,rb)):null; }
+    if(tr.k==='-'){ const ra=integrateSimple(tr.a,vn), rb=integrateSimple(tr.b,vn); return (ra&&rb)?simp(sub(ra,rb)):null; }
+    if(tr.k==='^'&&tr.a.k==='v'&&tr.a.n===vn&&tr.b.k==='n'){ const c=tr.b.v; if(Math.abs(c+1)<1e-9)return fn('ln',fn('abs',VX())); return div(pow(VX(),N(c+1)),N(c+1)); }
+    if(tr.k==='*'){ if(tr.a.k==='n'){ const r=integrateSimple(tr.b,vn); return r?simp(mul(tr.a,r)):null; } if(tr.b.k==='n'){ const r=integrateSimple(tr.a,vn); return r?simp(mul(tr.b,r)):null; } return null; }
+    if(tr.k==='/'&&tr.b.k==='n'){ const r=integrateSimple(tr.a,vn); return r?simp(div(r,tr.b)):null; }
+    if(tr.k==='f'){ const g=tr.a; const dg=diff(g,vn); const k=ev(dg,0); const d2=diff(dg,vn);
+      const lin=Math.abs(ev(d2,0))<1e-9&&Math.abs(ev(d2,1))<1e-9;
+      if(!lin||Math.abs(k)<1e-12){ if(tr.n==='exp'&&g.k==='v'&&g.n===vn)return fn('exp',VX()); return null; }
       switch(tr.n){ case 'exp':return simp(div(fn('exp',g),N(k))); case 'sin':return simp(div(neg(fn('cos',g)),N(k))); case 'cos':return simp(div(fn('sin',g),N(k))); default:return null; } }
     return null; }
   function compile(src, vars=['x']){ const lv=vars.map(v=>v.toLowerCase()); const t=parse((src||'').toLowerCase(), lv);
@@ -744,10 +768,26 @@ function polyRealRoots(coeffs){ const n=coeffs.length-1; if(n<1)return []; const
    ===================================================================== */
 const ODE = {
   rk4(f,t,y,h){ const k1=f(t,y),k2=f(t+h/2,y+h/2*k1),k3=f(t+h/2,y+h/2*k2),k4=f(t+h,y+h*k3); return y+h/6*(k1+2*k2+2*k3+k4); },
-  curve(f,t0,y0,tmin,tmax,h){ h=h||(tmax-tmin)/700; const fwd=[[t0,y0]],bwd=[]; let t=t0,y=y0;
-    while(t<tmax){ y=ODE.rk4(f,t,y,h); t+=h; if(!isFinite(y)||Math.abs(y)>1e7)break; fwd.push([t,y]); }
-    t=t0;y=y0; while(t>tmin){ y=ODE.rk4(f,t,y,-h); t-=h; if(!isFinite(y)||Math.abs(y)>1e7)break; bwd.push([t,y]); }
-    bwd.reverse(); const p=bwd.concat(fwd); return {ts:p.map(q=>q[0]),ys:p.map(q=>q[1])}; },
+  // Integrates y'=f(t,y) both forward and backward from (t0,y0). Near a vertical asymptote / pole
+  // (e.g. y'=1/(4-y^2) as y->2) a fixed step can way overshoot and the curve looks jagged/garbled,
+  // so each step is (a) skipped once the local slope is already absurdly steep -- we've essentially
+  // hit a vertical tangent, so the curve simply ends there, matching what the true solution does --
+  // and (b) adaptively halved a few times if a step's jump in y is wildly out of proportion to what
+  // the local slope predicts, which catches the stiffness building up just *before* the pole.
+  curve(f,t0,y0,tmin,tmax,h){ h=h||(tmax-tmin)/700; const SLOPE_CAP=1e4;
+    function integrate(dir){ const pts=[]; let t=t0,y=y0; const stop=dir>0?tmax:tmin; let guard=0;
+      while((dir>0? t<stop : t>stop) && guard++<20000){
+        const m0=f(t,y); if(!isFinite(m0)||Math.abs(m0)>SLOPE_CAP)break;
+        let step=h*dir, tryY, tryT, sub=0;
+        while(true){ tryT=t+step; tryY=ODE.rk4(f,t,y,step);
+          if(isFinite(tryY) && Math.abs(tryY-y) < Math.max(1, 30*Math.abs(step*m0)))break;
+          sub++; if(sub>6)break; step/=4; }
+        if(!isFinite(tryY)||Math.abs(tryY)>1e7)break;
+        y=tryY; t=tryT; pts.push([t,y]);
+        if(sub>6)break; }
+      return pts; }
+    const fwd=integrate(1), bwd=integrate(-1).reverse();
+    const p=bwd.concat([[t0,y0]],fwd); return {ts:p.map(q=>q[0]),ys:p.map(q=>q[1])}; },
   rk4sys(F,t,p,h){ const k1=F(t,p), p2=[p[0]+h/2*k1[0],p[1]+h/2*k1[1]], k2=F(t+h/2,p2),
     p3=[p[0]+h/2*k2[0],p[1]+h/2*k2[1]], k3=F(t+h/2,p3), p4=[p[0]+h*k3[0],p[1]+h*k3[1]], k4=F(t+h,p4);
     return [p[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]), p[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1])]; },
@@ -771,6 +811,81 @@ const ODE = {
       prev=cur;pv=y; }
     return roots; }
 };
+/* ----- constant equilibrium solutions y=c of y'=f(t,y): c such that f(t,c)=0 for EVERY t in the window, ----
+   not merely at one t (that's what makes y=c an actual constant solution, even for a non-autonomous f). */
+function findConstantEquilibria(f,tmin,tmax,ymin,ymax){
+  const NT=9; const ts=[]; for(let i=0;i<NT;i++)ts.push(tmin+(tmax-tmin)*(i+0.5)/NT);
+  function maxAbs(y){ let m=0; for(const t of ts){ const v=f(t,y); if(!isFinite(v))return Infinity; m=Math.max(m,Math.abs(v)); } return m; }
+  const NY=500, vals=[]; for(let i=0;i<=NY;i++)vals.push(maxAbs(ymin+(ymax-ymin)*i/NY));
+  const finiteVals=vals.filter(isFinite).sort((a,b)=>a-b);
+  const scale = finiteVals.length? Math.max(finiteVals[Math.floor(finiteVals.length*0.5)],1e-6) : 1;
+  const tol = Math.max(1e-4, scale*0.01);
+  const roots=[];
+  for(let i=1;i<NY;i++){
+    if(vals[i]<=tol && vals[i]<=vals[i-1] && vals[i]<=vals[i+1]){
+      let a=ymin+(ymax-ymin)*(i-1)/NY, b=ymin+(ymax-ymin)*(i+1)/NY;
+      for(let k=0;k<40;k++){ const m1=a+(b-a)/3, m2=b-(b-a)/3; if(maxAbs(m1)<maxAbs(m2))b=m2; else a=m1; }
+      const yc=(a+b)/2;
+      if(maxAbs(yc)<=tol*2 && !roots.some(r=>Math.abs(r-yc)<(ymax-ymin)*0.01))roots.push(yc);
+    } }
+  return roots.sort((a,b)=>a-b);
+}
+/* ----- numeric test: is f(t,y) = g(t)*h(y) for SOME g,h? Uses the cross-ratio identity
+   f(t1,y1)*f(t2,y2) = f(t1,y2)*f(t2,y1), which holds for every separable f and (generically) fails otherwise. */
+function testSeparable(f,tmin,tmax,ymin,ymax){
+  const pts=[]; for(let i=0;i<50 && pts.length<24;i++){
+    const t=tmin+(tmax-tmin)*Math.random(), y=ymin+(ymax-ymin)*Math.random(), v=f(t,y);
+    if(isFinite(v) && Math.abs(v)>1e-9) pts.push([t,y,v]); }
+  if(pts.length<10)return false;
+  let checks=0, ok=0;
+  for(let trial=0;trial<30;trial++){
+    const A=pts[(Math.random()*pts.length)|0], B=pts[(Math.random()*pts.length)|0];
+    if(A===B)continue;
+    const f12=f(A[0],B[1]), f21=f(B[0],A[1]);
+    if(!isFinite(f12)||!isFinite(f21))continue;
+    const lhs=A[2]*B[2], rhs=f12*f21, scale=Math.max(Math.abs(lhs),Math.abs(rhs),1e-9);
+    checks++; if(Math.abs(lhs-rhs)<scale*2e-3)ok++;
+  }
+  return checks>=12 && ok/checks>0.9;
+}
+/* ----- collect the set of variable names actually used in a parsed Sym tree ----- */
+function symFreeVars(tr){ const s=new Set();
+  (function walk(n){ if(!n)return; if(n.k==='v')s.add(n.n); else if(n.k==='f'||n.k==='neg')walk(n.a); else if(n.a!==undefined||n.b!==undefined){walk(n.a);walk(n.b);} })(tr);
+  return s; }
+function symOnlyVar(tr,name){ const s=symFreeVars(tr); return [...s].every(v=>v===name); }
+/* ----- try to split a parsed f(t,y) tree into {g:tree-in-t, h:tree-in-y, hInv:tree for 1/h} with f = g*h.
+   hInv is tracked structurally (not built as a generic 1/h and hoped to simplify) so that when f was
+   literally typed as A(t)/B(y), the "1/h" needed for the separable integral dy/h(y) is just B(y) itself,
+   not a nested double-fraction that the simplifier can't collapse. */
+function symSplitProduct(tr){
+  if(tr.k==='*'){
+    if(symOnlyVar(tr.a,'t')&&symOnlyVar(tr.b,'y'))return {g:tr.a,h:tr.b,hInv:Sym.div(Sym.N(1),tr.b)};
+    if(symOnlyVar(tr.a,'y')&&symOnlyVar(tr.b,'t'))return {g:tr.b,h:tr.a,hInv:Sym.div(Sym.N(1),tr.a)};
+  }
+  if(tr.k==='/'){
+    if(symOnlyVar(tr.a,'t')&&symOnlyVar(tr.b,'y'))return {g:tr.a,h:Sym.div(Sym.N(1),tr.b),hInv:tr.b};
+    if(symOnlyVar(tr.a,'y')&&symOnlyVar(tr.b,'t'))return {g:Sym.div(Sym.N(1),tr.b),h:tr.a,hInv:Sym.div(Sym.N(1),tr.a)};
+  }
+  if(symOnlyVar(tr,'t'))return {g:tr,h:Sym.N(1),hInv:Sym.N(1)};
+  if(symOnlyVar(tr,'y'))return {g:Sym.N(1),h:tr,hInv:Sym.div(Sym.N(1),tr)};
+  return null;
+}
+/* ----- numeric test: is f(t,y) affine in y for every fixed t (i.e. linear, y'=g(t)-p(t)y)? ----- */
+function testLinearInY(f,tmin,tmax,ymin,ymax){
+  let checks=0, ok=0;
+  for(let i=0;i<10;i++){
+    const t=tmin+(tmax-tmin)*Math.random();
+    const y1=ymin+(ymax-ymin)*0.25, y2=ymin+(ymax-ymin)*0.5, y3=ymin+(ymax-ymin)*0.75;
+    const v1=f(t,y1),v2=f(t,y2),v3=f(t,y3); if(![v1,v2,v3].every(isFinite))continue;
+    const slopeA=(v2-v1)/(y2-y1), slopeB=(v3-v2)/(y3-y2);
+    const scale=Math.max(Math.abs(slopeA),Math.abs(slopeB),1e-9);
+    checks++; if(Math.abs(slopeA-slopeB)<scale*1e-2)ok++;
+  }
+  return checks>=6 && ok/checks>0.85;
+}
+function symStrToTex(tr){ let s; try{ s=Sym.str(tr); }catch(e){ return '?'; }
+  return s.replace(/·/g,'\\cdot ').replace(/−/g,'-'); }
+
 function drawSlopeField(ch,f,col,nx,ny){ nx=nx||22; ny=ny||15; const ctx=ch.ctx; ctx.save(); ctx.strokeStyle=col||hexA(COL.slate,.45); ctx.lineWidth=1.2;
   for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++){ const t=ch.xmin+(ch.xmax-ch.xmin)*i/nx, y=ch.ymin+(ch.ymax-ch.ymin)*j/ny; const m=f(t,y); if(!isFinite(m))continue;
     const px=ch.X(t),py=ch.Y(y); let dx=ch.X(t+1)-ch.X(t), dy=ch.Y(y+m)-ch.Y(y); const L=Math.hypot(dx,dy)||1, s=8/L; dx*=s; dy*=s;
@@ -786,30 +901,106 @@ function parseAB(s){ const p=(s||'').split(/[\s,]+/).map(Number).filter(x=>!isNa
 
 add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields & Solution Curves', diff:'intro', ch:'Direction fields',
   questions:['A solution curve must stay tangent to the slope marks everywhere — why does that pin it down once you fix one point?','Where the field is flat (slope 0), the dashed curve traces f(t,y)=0. For an autonomous y′=f(y) that curve is a horizontal line at a fixed y — why isn\'t it horizontal here for y′=y−t?','Two solution curves of the same equation can never cross. Can you see why from the field?'],
-  blurb:'Type any first-order ODE y′ = f(t, y). See its slope field, then click anywhere on the plot to drop an initial condition and watch the solution thread through it.',
+  blurb:'Type any first-order ODE y′ = f(t, y). See its slope field, then click anywhere on the plot — or type an initial condition below — to drop a solution curve and thread it through.',
   build(host){
     let ics=[[0,0.2],[0,1.6],[0,2.6]];
-    const fin=makeFnInput('y′ = f(t, y)','y*(1 - y)',['t','y'],()=>{render();},'use t and y, e.g. y - t, y*(1-y), sin(t)-y');
-    const tr=UI.text({label:'t-window  [t₀, t₁]',value:'-1, 6',hint:'two numbers',onchange:render});
-    const yr=UI.text({label:'y-window  [y₀, y₁]',value:'-1.5, 3',hint:'two numbers',onchange:render});
-    const clr=document.createElement('button'); clr.className='abtn'; clr.textContent='Clear curves'; clr.onclick=()=>{ics=[];render();};
+    let lastClick=null;
+    const fin=makeFnInput('y′ = f(t, y)','y*(1 - y)',['t','y'],()=>render(),'use t and y, e.g. y - t, y*(1-y), sin(t)-y');
+    const tminN=UI.number({label:'t min',value:-1,step:'any',onchange:render});
+    const tmaxN=UI.number({label:'t max',value:6,step:'any',onchange:render});
+    const yminN=UI.number({label:'y min',value:-1.5,step:'any',onchange:render});
+    const ymaxN=UI.number({label:'y max',value:3,step:'any',onchange:render});
+    const t0N=UI.number({label:'initial condition t₀',value:0,step:'any',onchange:()=>{}});
+    const y0N=UI.number({label:'initial condition y₀',value:1,step:'any',onchange:()=>{}});
+    const addBtn=UI.buttons([
+      {label:'Add initial condition',primary:true,onclick:()=>{ const t0=t0N.get(),y0=y0N.get(); if(!isFinite(t0)||!isFinite(y0))return; ics.push([t0,y0]); lastClick=[t0,y0]; render(); }},
+      {label:'Clear curves',onclick:()=>{ ics=[]; lastClick=null; render(); }}
+    ]);
+    const stats=UI.statsBox();
     const plot=UI.plotCard('slope field · click to drop an initial condition',420);
-    host.appendChild(UI.appGrid([fin,tr,yr,clr,UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. The dashed teal curve is drawn exactly where f(t,y)=0 — the segments sitting on it are the truly flat ones (the grid dots alone can miss that curve, so it\'s traced directly rather than guessed from nearby samples). <b>Click the plot</b> to drop initial conditions; scroll to zoom.')],[plot]));
+    const genBox=makeSolBox('general solution');
+    const parBox=makeSolBox('particular solution');
+    host.appendChild(UI.appGrid(
+      [fin,tminN,tmaxN,yminN,ymaxN,t0N,y0N,addBtn,stats,
+       UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. The dashed teal curve is drawn exactly where f(t,y)=0. <b>Click the plot</b> to drop an initial condition (or type one on the left); scroll to zoom.')],
+      [plot,genBox,parBox]));
     plot.enableZoom(render);
     const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
     cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
-    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect(); ics.push([ch.ix(e.clientX-r.left),ch.iy(e.clientY-r.top)]); render(); });
-    function render(){ const f=fin.fn(); if(!f)return; const tp=parseAB(tr.get()),yp=parseAB(yr.get()); if(!tp||!yp)return;
-      const ch=plot.chart(); ch.setX(tp[0],tp[1]).setY(yp[0],yp[1]); ch.clear();
+    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect();
+      const t=ch.ix(e.clientX-r.left), y=ch.iy(e.clientY-r.top); ics.push([t,y]); lastClick=[t,y]; t0N.set(M.round(t,3)); y0N.set(M.round(y,3)); render(); });
+
+    function render(){
+      const f=fin.fn(); if(!f)return;
+      const tmin=tminN.get(),tmax=tmaxN.get(),ymin=yminN.get(),ymax=ymaxN.get();
+      if(![tmin,tmax,ymin,ymax].every(isFinite) || tmin>=tmax || ymin>=ymax)return;
+
+      const ch=plot.chart(); ch.setX(tmin,tmax).setY(ymin,ymax); ch.clear();
       ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
       drawSlopeField(ch,f,null,30,20);
       drawLevel(ch,f,0,hexA(COL.cyan,.85),1.8,[7,5]);
+      const eq=findConstantEquilibria(f,tmin,tmax,ymin,ymax);
+      eq.forEach(yv=>{ if(yv>=ymin&&yv<=ymax)ch.line(tmin,yv,tmax,yv,hexA(COL.rose,.75),1.8,[2,3]); });
       ics.forEach((ic,k)=>{ drawSolCurve(ch,f,ic[0],ic[1],[COL.calc1,COL.coral,COL.calc3,COL.amber,COL.green][k%5],2.6); ch.dot(ic[0],ic[1],COL.ink,4); });
+      if(lastClick)ch.dot(lastClick[0],lastClick[1],COL.rose,5);
       ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+
+      stats.set([
+        {k:'equation', v:'y\u2032 = '+fin.get()},
+        {k:'solution curves', v:ics.length},
+        {k:'equilibria', v: eq.length? eq.map(v=>nf(v,2)).join(', ') : 'none', accent:1},
+        {k:'last click', v: lastClick? `t=${nf(lastClick[0],2)}, y=${nf(lastClick[1],2)}` : '\u2014'}
+      ]);
+
+      updateSolutionBoxes(f,fin.get(),tmin,tmax,ymin,ymax,ics,genBox,parBox);
     }
     render();
   }
 });
+/* best-effort general/particular solution display for the direction-field tool:
+   try separable, then linear-in-y, then fall back to an honest "no closed form found" note. */
+function updateSolutionBoxes(f,rawSrc,tmin,tmax,ymin,ymax,ics,genBox,parBox){
+  let tree=null; try{ tree=Sym.simp(Sym.parse(rawSrc.toLowerCase(),['t','y'])); }catch(e){ tree=null; }
+  const lastIC = ics.length? ics[ics.length-1] : null;
+
+  const sep = tree ? symSplitProduct(tree) : null;
+  if(sep && testSeparable(f,tmin,tmax,ymin,ymax)){
+    const {g,h,hInv}=sep; const gTex=symStrToTex(g), hTex=symStrToTex(h);
+    let G=null,H=null; try{ G=Sym.integrateSimple(g,'t'); }catch(e){} try{ H=Sym.integrateSimple(hInv,'y'); }catch(e){}
+    if(G&&H){
+      const Gtex=symStrToTex(G), Htex=symStrToTex(H);
+      genBox.set(`${Htex} \\;=\\; ${Gtex} \\;+\\; C`,
+        `Separable: <code>dy / (${hTex}) = (${gTex}) dt</code>. Integrating both sides gives this implicit family, with $C$ an arbitrary constant.`);
+      if(lastIC){ const [t0,y0]=lastIC;
+        try{ const C = Sym.ev(H,y0) - Sym.ev(G,t0);
+          if(isFinite(C)) parBox.set(`${Htex} \\;=\\; ${Gtex} \\;+\\; ${nf(C,3)}`,
+            `Through <b>(${nf(t0,2)}, ${nf(y0,2)})</b>: plugging into the general solution and solving gives $C=${nf(C,3)}$.`);
+          else parBox.set('\\text{(not defined at this point)}','Pick a point away from a pole of f(t,y) to get a numeric particular solution.');
+        }catch(e){ parBox.set('\\text{---}','Could not evaluate the closed form at this point; the plotted curve above is still exact.'); }
+      } else parBox.set('\\text{---}','Add an initial condition to see the particular solution through it.');
+    } else {
+      genBox.set(`\\displaystyle\\int \\dfrac{dy}{${hTex}} \\;=\\; \\int ${gTex}\\,dt \\;+\\; C`,
+        'Separable -- this is the setup (dy over h(y) equals g(t) dt, integrated). This tool\'s built-in integrator does not recognize a closed form for one or both sides here, but the numerically-traced curve(s) above are exact regardless.');
+      parBox.set(lastIC? `y(${nf(lastIC[0],2)})=${nf(lastIC[1],2)}` : '\\text{---}',
+        lastIC? 'Particular solution through this point, traced numerically (RK4) above.' : 'Add an initial condition to see its numerically-traced solution curve above.');
+    }
+    return;
+  }
+
+  if(testLinearInY(f,tmin,tmax,ymin,ymax)){
+    genBox.set(`y' + p(t)\\,y = g(t)`,
+      'This equation is linear in y. It can be solved exactly with an integrating factor \\(\\mu(t)=e^{\\int p\\,dt}\\) — see the dedicated "First-Order Linear: Integrating Factor" tool above for the full symbolic steps.');
+    parBox.set(lastIC? `y(${nf(lastIC[0],2)})=${nf(lastIC[1],2)}` : '\\text{---}',
+      lastIC? 'Particular solution through this point, traced numerically (RK4) above.' : 'Add an initial condition to see its numerically-traced solution curve above.');
+    return;
+  }
+
+  genBox.set('\\text{no elementary closed form found}',
+    'Most equations of the form y\u2032=f(t,y) simply do not have one -- that is exactly why the direction field and the numerically-traced solution curves (RK4) above are useful: they solve the equation completely without ever needing a formula.');
+  parBox.set(lastIC? `y(${nf(lastIC[0],2)})=${nf(lastIC[1],2)}` : '\\text{---}',
+    lastIC? 'Particular solution through this point, traced numerically (RK4) above.' : 'Add an initial condition to see its numerically-traced solution curve above.');
+}
+
 
 add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff:'inter', ch:'Separable',
   questions:['Why are you allowed to treat dy/dt like a fraction and move dt to the other side here?','After integrating, why does a single +C absorb the constants from both sides?','How does the initial condition pick out one curve from the whole family?'],
@@ -1141,9 +1332,19 @@ add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of
 function drawLevel(ch,g,level,color,width,dash){ const ctx=ch.ctx; const NX=84,NY=84;
   const xs=[],ys=[]; for(let i=0;i<=NX;i++)xs.push(ch.xmin+(ch.xmax-ch.xmin)*i/NX); for(let j=0;j<=NY;j++)ys.push(ch.ymin+(ch.ymax-ch.ymin)*j/NY);
   const Z=ys.map(y=>xs.map(x=>g(x,y)));
+  // Estimate a "typical" magnitude of g over the grid, so we can tell a genuine zero-crossing
+  // apart from a sign flip caused by a pole (g racing to +/-infinity, e.g. 1/(4-y^2) near y=2).
+  // Marching squares alone can't see the difference -- both look like "opposite signs at the two
+  // corners" -- so any pair of corners whose |value| is way above the typical scale is treated as
+  // a discontinuity and simply not connected, instead of being drawn as a spurious level line.
+  let finite=[]; for(let j=0;j<=NY;j++)for(let i=0;i<=NX;i++){ const v=Z[j][i]; if(isFinite(v))finite.push(Math.abs(v)); }
+  finite.sort((a,b)=>a-b);
+  const typ = finite.length? Math.max(finite[Math.floor(finite.length*0.5)],1e-6) : 1;
+  const CAP = Math.max(50, typ*40);
   ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width||1.6; if(dash)ctx.setLineDash(dash); ctx.beginPath();
   for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){ const C=[[xs[i],ys[j],Z[j][i]],[xs[i+1],ys[j],Z[j][i+1]],[xs[i+1],ys[j+1],Z[j+1][i+1]],[xs[i],ys[j+1],Z[j+1][i]]];
-    const pts=[]; for(let e=0;e<4;e++){ const p1=C[e],p2=C[(e+1)%4]; if(isFinite(p1[2])&&isFinite(p2[2])&&(p1[2]-level)*(p2[2]-level)<0){ const t=(level-p1[2])/(p2[2]-p1[2]); pts.push([p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])]); } }
+    const pts=[]; for(let e=0;e<4;e++){ const p1=C[e],p2=C[(e+1)%4];
+      if(isFinite(p1[2])&&isFinite(p2[2])&&Math.abs(p1[2])<CAP&&Math.abs(p2[2])<CAP&&(p1[2]-level)*(p2[2]-level)<0){ const t=(level-p1[2])/(p2[2]-p1[2]); pts.push([p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])]); } }
     if(pts.length>=2){ ctx.moveTo(ch.X(pts[0][0]),ch.Y(pts[0][1])); ctx.lineTo(ch.X(pts[1][0]),ch.Y(pts[1][1])); if(pts.length>=4){ ctx.moveTo(ch.X(pts[2][0]),ch.Y(pts[2][1])); ctx.lineTo(ch.X(pts[3][0]),ch.Y(pts[3][1])); } } }
   ctx.stroke(); ctx.restore(); }
 
