@@ -1107,7 +1107,9 @@ add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", di
     const hS=UI.slider({label:'step size h',min:0.05,max:1,step:0.05,value:0.5,fmt:v=>v.toFixed(2),oninput:render});
     const stats=UI.statsBox();
     const plot=UI.plotCard('Euler polygon (coral) vs. true RK4 curve (blue)',360);
-    host.appendChild(UI.appGrid([fin,ic,tend,hS,stats,UI.note('Euler: yₙ₊₁ = yₙ + h·f(tₙ, yₙ). Each step trusts the current slope across the whole interval h, so it lags on curved solutions. Smaller h means more, shorter steps — and less error (the error is roughly proportional to h).')],[plot]));
+    const genBox=makeSolBox('general solution (if elementary)');
+    const solBox=makeSolBox('exact solution through (t₀, y₀)');
+    host.appendChild(UI.appGrid([fin,ic,tend,hS,stats,UI.note('Euler: yₙ₊₁ = yₙ + h·f(tₙ, yₙ). Each step trusts the current slope across the whole interval h, so it lags on curved solutions. Smaller h means more, shorter steps — and less error (the error is roughly proportional to h).')],[plot,genBox,solBox]));
     plot.enableZoom(render);
     function render(){ const f=fin.fn(); if(!f)return; const icp=parseAB(ic.get()); if(!icp)return; const [t0,y0]=icp; const t1=tend.get(), h=hS.get();
       const E=[[t0,y0]]; let t=t0,y=y0; let guard=0; while(t<t1-1e-9&&guard++<5000){ const hh=Math.min(h,t1-t); y=y+hh*f(t,y); t+=hh; E.push([t,y]); }
@@ -1118,6 +1120,7 @@ add({ id:'euler-method', cat:'c1', tag:'interactive', title:"Euler's Method", di
       drawSolCurve(ch,f,t0,y0,COL.calc1,2.6);
       ch.pline(E.map(p=>ch.X(p[0])),E.map(p=>ch.Y(p[1])),COL.coral,2.4); E.forEach(p=>ch.dot(p[0],p[1],COL.coral,3));
       ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      updateSolutionBoxes(f,fin.get(),ch.xmin,ch.xmax,ch.ymin,ch.ymax,[[t0,y0]],genBox,solBox);
     }
     render();
   }
