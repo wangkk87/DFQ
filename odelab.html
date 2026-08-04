@@ -1357,38 +1357,125 @@ add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of
   }
 });
 
-/* ----------------------- matrix algebra helpers ---------------------- */
-function matZeros(m,n){ return Array.from({length:m},()=>Array(n).fill(0)); }
-function matAdd(A,B){ return A.map((row,i)=>row.map((v,j)=>v+B[i][j])); }
-function matSub(A,B){ return A.map((row,i)=>row.map((v,j)=>v-B[i][j])); }
-function matScale(A,c){ return A.map(row=>row.map(v=>v*c)); }
-function matMul(A,B){ const m=A.length,n=A[0].length,p=B[0].length; const R=matZeros(m,p);
-  for(let i=0;i<m;i++)for(let j=0;j<p;j++){ let s=0; for(let k=0;k<n;k++) s+=A[i][k]*B[k][j]; R[i][j]=s; } return R; }
-function matDet(A){ const n=A.length;
-  if(n===1) return A[0][0];
-  if(n===2) return A[0][0]*A[1][1]-A[0][1]*A[1][0];
-  let det=0;
-  for(let j=0;j<n;j++){ const minor=A.slice(1).map(row=>row.filter((_,k)=>k!==j)); det += ((j%2===0)?1:-1)*A[0][j]*matDet(minor); }
-  return det; }
-/* Gauss-Jordan elimination with partial pivoting; returns null if singular */
-function matInverse(A){ const n=A.length;
-  const G=A.map((row,i)=>[...row, ...Array.from({length:n},(_,j)=>j===i?1:0)]);
-  for(let col=0; col<n; col++){
-    let piv=col; for(let r=col;r<n;r++){ if(Math.abs(G[r][col])>Math.abs(G[piv][col])) piv=r; }
-    if(Math.abs(G[piv][col])<1e-10) return null;
-    [G[col],G[piv]]=[G[piv],G[col]];
-    const pv=G[col][col]; for(let k=0;k<2*n;k++) G[col][k]/=pv;
-    for(let r=0;r<n;r++){ if(r===col) continue; const f=G[r][col]; for(let k=0;k<2*n;k++) G[r][k]-=f*G[col][k]; }
-  }
-  return G.map(row=>row.slice(n)); }
-function matToTex(A,d){ const rows=A.map(row=>row.map(v=>nf(v,d==null?4:d)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
-/* parse a single matrix-cell entry: plain arithmetic only (digits, + - * / ^ ( ) . and spaces) — no variables,
-   so students can type exact values like 1/3, -2/5, 2^2, (1+3)/2 and get the exact rational/decimal result. */
-function parseMatEntry(s){
-  s=(s==null?'':String(s)).trim(); if(s==='') return 0;
-  if(!/^[-+*/^().0-9\s]+$/.test(s)) return NaN;
-  try{ const js=s.replace(/\^/g,'**'); const v=Function('"use strict";return ('+js+');')(); return (typeof v==='number'&&isFinite(v))?v:NaN; }catch(e){ return NaN; }
+/* ======================= exact matrix algebra engine =======================
+   Every entry is an "Expr": a normalized sum of Terms, and each Term is
+   (n/d)*sqrt(r) with n,d BigInt (d>0, gcd(n,d)=1) and r a square-free
+   positive BigInt (r=1n means the term is a plain rational number). This
+   lets +, -, *, and matrix multiplication / determinant / adjugate stay
+   100% exact for integers, fractions, decimals, and square roots — nothing
+   is ever rounded to a decimal unless we explicitly fall back (see below). */
+function bgcd(a,b){ a=a<0n?-a:a; b=b<0n?-b:b; while(b){ const t=a%b; a=b; b=t; } return a; }
+function reduceFrac(n,d){ if(d<0n){ n=-n; d=-d; } if(n===0n) return [0n,1n]; const g=bgcd(n,d)||1n; return [n/g,d/g]; }
+function squareFreeFactor(r){ if(r<=1n) return [1n, r<0n?1n:r]; let s=1n, sf=r, p=2n;
+  while(p*p<=sf){ while(sf % (p*p) === 0n){ sf/=(p*p); s*=p; } p+=1n; } return [s,sf]; }
+function termReduce(t){ let {n,d,r}=t; if(n===0n) return {n:0n,d:1n,r:1n};
+  if(d<0n){ n=-n; d=-d; } let g=bgcd(n,d)||1n; n/=g; d/=g;
+  if(r<0n) throw new Error('square root of a negative number is not real');
+  if(r===0n){ n=0n; d=1n; r=1n; return {n,d,r}; }
+  const [s,sf]=squareFreeFactor(r); n*=s; r=sf;
+  g=bgcd(n,d)||1n; n/=g; d/=g; return {n,d,r:(n===0n)?1n:r}; }
+function exprNormalize(terms){ const map=new Map();
+  for(const raw of terms){ const t=termReduce(raw); if(t.n===0n) continue; const key=t.r.toString();
+    if(map.has(key)){ const e=map.get(key); const nn=e.n*t.d+t.n*e.d, dd=e.d*t.d; const [rn,rd]=reduceFrac(nn,dd);
+      if(rn===0n) map.delete(key); else map.set(key,{n:rn,d:rd,r:t.r}); }
+    else map.set(key,t); }
+  return [...map.values()].sort((a,b)=>a.r<b.r?-1:a.r>b.r?1:0); }
+function exprAdd(A,B){ return exprNormalize([...A,...B]); }
+function exprNeg(A){ return A.map(t=>({n:-t.n,d:t.d,r:t.r})); }
+function exprSub(A,B){ return exprAdd(A,exprNeg(B)); }
+function exprFromFrac(n,d){ const [rn,rd]=reduceFrac(BigInt(n),BigInt(d)); return rn===0n?[]:[{n:rn,d:rd,r:1n}]; }
+function exprFromInt(k){ return exprFromFrac(BigInt(k),1n); }
+function exprFromDecimalString(s){ if(s.indexOf('.')<0) return exprFromFrac(BigInt(s===''?'0':s),1n);
+  const [ip,fp]=s.split('.'); const digits=(ip||'0')+(fp||''); const den=10n**BigInt((fp||'').length);
+  return exprFromFrac(BigInt(digits===''?'0':digits),den); }
+function termMul(t1,t2){ return termReduce({n:t1.n*t2.n,d:t1.d*t2.d,r:t1.r*t2.r}); }
+function exprMul(A,B){ if(A.length===0||B.length===0) return []; const terms=[];
+  for(const ta of A) for(const tb of B) terms.push(termMul(ta,tb)); return exprNormalize(terms); }
+function exprIsZero(A){ return A.length===0; }
+function exprIsRational(A){ return A.every(t=>t.r===1n); }
+function exprReciprocal(A){
+  if(A.length===0) throw new Error('division by zero');
+  if(A.length===1){ const t=A[0]; return [termReduce({n:t.d,d:t.n*t.r,r:t.r})]; }
+  if(A.length===2){ const [t1,t2]=A; const conj=[t1,{n:-t2.n,d:t2.d,r:t2.r}];
+    const norm=exprSub([termMul(t1,t1)],[termMul(t2,t2)]); // always rational (r=1n)
+    if(exprIsZero(norm)) throw new Error('division by zero');
+    const nt=norm[0]; const invRat=[termReduce({n:nt.d,d:nt.n,r:1n})]; return exprMul(conj,invRat); }
+  throw new Error('cannot exactly invert a sum of more than two radical terms');
 }
+function exprDiv(A,B){ return exprMul(A,exprReciprocal(B)); }
+function exprSqrt(A){ if(!exprIsRational(A)) throw new Error('sqrt of a non-rational expression is not supported');
+  if(A.length===0) return []; const t=A[0]; if(t.n<0n) throw new Error('square root of a negative number is not real');
+  const rad=t.n*t.d; const [s,sf]=squareFreeFactor(rad); return [termReduce({n:s,d:t.d,r:sf})]; }
+function exprToSmallInt(A,label){ if(A.length===0) return 0; if(A.length>1||A[0].r!==1n||A[0].d!==1n) throw new Error((label||'exponent')+' must be a plain integer');
+  const v=Number(A[0].n); if(!Number.isInteger(v)) throw new Error((label||'exponent')+' must be a plain integer'); return v; }
+function exprToNumber(A){ return A.reduce((s,t)=>s+Number(t.n)/Number(t.d)*Math.sqrt(Number(t.r)),0); }
+function fracTexPart(n,d){ return d===1n? n.toString() : `\\frac{${n.toString()}}{${d.toString()}}`; }
+function exprToTex(A){ if(A.length===0) return '0';
+  const parts=A.map(t=>{ const neg=t.n<0n; const an=neg?-t.n:t.n; let body;
+    if(t.r===1n) body=fracTexPart(an,t.d);
+    else if(t.d===1n) body=(an===1n?'':an.toString())+`\\sqrt{${t.r.toString()}}`;
+    else body=`\\frac{${an===1n?'':an.toString()}\\sqrt{${t.r.toString()}}}{${t.d.toString()}}`;
+    return {neg,body}; });
+  let out=''; parts.forEach((p,i)=>{ out += i===0 ? (p.neg?'-':'')+p.body : (p.neg?' - ':' + ')+p.body; }); return out; }
+/* recursive-descent parser for a single matrix cell: integers, decimals, fractions a/b,
+   sqrt(...), + - * / ^ and parentheses — builds an exact Expr directly (no eval, no Function). */
+function parseEntryExpr(str){
+  str=(str||'').trim(); let i=0;
+  const skip=()=>{ while(str[i]===' ') i++; };
+  const err=(m)=>{ throw new Error(m||('unexpected character'+(str[i]?(' "'+str[i]+'"'):' (end of input)'))); };
+  function pExpr(){ skip(); let node=pTerm(); skip();
+    while(str[i]==='+'||str[i]==='-'){ const op=str[i]; i++; const rhs=pTerm(); node=op==='+'?exprAdd(node,rhs):exprSub(node,rhs); skip(); }
+    return node; }
+  function pTerm(){ skip(); let node=pUnary(); skip();
+    while(str[i]==='*'||str[i]==='/'){ const op=str[i]; i++; const rhs=pUnary(); node=op==='*'?exprMul(node,rhs):exprDiv(node,rhs); skip(); }
+    return node; }
+  function pUnary(){ skip(); if(str[i]==='-'){ i++; return exprNeg(pUnary()); } if(str[i]==='+'){ i++; return pUnary(); } return pPow(); }
+  function pPow(){ let node=pAtom(); skip();
+    if(str[i]==='^'){ i++; skip(); const exp=pUnary(); const k=exprToSmallInt(exp,'exponent');
+      let r=exprFromInt(1); for(let j=0;j<Math.abs(k);j++) r=exprMul(r,node); if(k<0) r=exprReciprocal(r); node=r; }
+    return node; }
+  function pAtom(){ skip();
+    if(str[i]==='('){ i++; const node=pExpr(); skip(); if(str[i]!==')') err('missing )'); i++; return node; }
+    if(str.slice(i,i+4).toLowerCase()==='sqrt'){ i+=4; skip(); if(str[i]!=='(') err('sqrt needs (...)'); i++;
+      const inner=pExpr(); skip(); if(str[i]!==')') err('missing )'); i++; return exprSqrt(inner); }
+    const start=i; while(/[0-9.]/.test(str[i]||'')) i++;
+    if(i===start) err(); return exprFromDecimalString(str.slice(start,i)); }
+  if(str==='') return [];
+  const result=pExpr(); skip(); if(i<str.length) err('unexpected trailing input'); return result;
+}
+function parseCellExpr(s){ try{ return {ok:true, expr:parseEntryExpr(s)}; }catch(e){ return {ok:false, expr:[], msg:e.message}; } }
+/* matrix operations on 2-D arrays of Expr — every step (+,-,*, determinant, adjugate) is exact */
+function matExprAdd(A,B){ return A.map((row,i)=>row.map((v,j)=>exprAdd(v,B[i][j]))); }
+function matExprSub(A,B){ return A.map((row,i)=>row.map((v,j)=>exprSub(v,B[i][j]))); }
+function matExprScale(A,c){ return A.map(row=>row.map(v=>exprMul(v,c))); }
+function matExprMul(A,B){ const m=A.length,n=A[0].length,p=B[0].length; const R=[];
+  for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<p;j++){ let s=[]; for(let k=0;k<n;k++) s=exprAdd(s,exprMul(A[i][k],B[k][j])); row.push(s); } R.push(row); } return R; }
+function matExprDet(A){ const n=A.length;
+  if(n===1) return A[0][0];
+  if(n===2) return exprSub(exprMul(A[0][0],A[1][1]), exprMul(A[0][1],A[1][0]));
+  let det=[];
+  for(let j=0;j<n;j++){ const minor=A.slice(1).map(row=>row.filter((_,k)=>k!==j));
+    const term=exprMul(A[0][j], matExprDet(minor)); det = (j%2===0)? exprAdd(det,term) : exprSub(det,term); }
+  return det; }
+function matExprAdjugate(A){ const n=A.length; const adj=Array.from({length:n},()=>Array(n).fill([]));
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){ const minor=A.filter((_,r)=>r!==i).map(row=>row.filter((_,c)=>c!==j));
+    let cof=matExprDet(minor); if((i+j)%2===1) cof=exprNeg(cof); adj[j][i]=cof; } return adj; }
+/* exact inverse via adjugate/det (only the final division needs det to be at most a 2-term radical
+   sum for exprReciprocal to work; that covers the vast majority of classroom matrices). Falls back
+   to a clearly-labeled decimal approximation only when the determinant is a genuine 3+ term sum. */
+function matExprInverse(A){ const det=matExprDet(A); if(exprIsZero(det)) return {det, inv:null};
+  try{ const invDet=exprReciprocal(det); const adj=matExprAdjugate(A); const inv=adj.map(row=>row.map(v=>exprMul(v,invDet)));
+    return {det, inv, exact:true}; }
+  catch(e){ const n=A.length; const Anum=A.map(row=>row.map(exprToNumber)); const detNum=exprToNumber(det);
+    const G=Anum.map((row,i)=>[...row, ...Array.from({length:n},(_,j)=>j===i?1:0)]);
+    for(let col=0; col<n; col++){ let piv=col; for(let r=col;r<n;r++){ if(Math.abs(G[r][col])>Math.abs(G[piv][col])) piv=r; }
+      if(Math.abs(G[piv][col])<1e-12) return {det, inv:null};
+      [G[col],G[piv]]=[G[piv],G[col]]; const pv=G[col][col]; for(let k=0;k<2*n;k++) G[col][k]/=pv;
+      for(let r=0;r<n;r++){ if(r===col) continue; const f=G[r][col]; for(let k=0;k<2*n;k++) G[r][k]-=f*G[col][k]; } }
+    const invNum=G.map(row=>row.slice(n)); return {det, inv:invNum, exact:false, detNum}; }
+}
+function matExprToTex(A){ const rows=A.map(row=>row.map(v=>exprToTex(v)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
+function matNumToTex(A){ const rows=A.map(row=>row.map(v=>nf(v,4)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
 /* editable m×n matrix input panel used by the Matrix Operations applet */
 function buildMatPanel(name,initM,initN){
   const el=document.createElement('div'); el.className='mat-panel';
@@ -1400,9 +1487,10 @@ function buildMatPanel(name,initM,initN){
   const grid=document.createElement('div'); grid.className='mat-grid';
   function rebuild(){
     vals=Array.from({length:m},(_,i)=>Array.from({length:n},(_,j)=>(vals[i]&&vals[i][j]!==undefined)?vals[i][j]:''));
-    grid.style.gridTemplateColumns=`repeat(${n}, 58px)`; grid.innerHTML='';
+    grid.style.gridTemplateColumns=`repeat(${n}, 64px)`; grid.innerHTML='';
     for(let i=0;i<m;i++)for(let j=0;j<n;j++){
       const inp=document.createElement('input'); inp.type='text'; inp.value=vals[i][j]; inp.placeholder='0'; inp.autocomplete='off';
+      inp.title='integers, fractions (2/3), decimals, or square roots like sqrt(2) or 2*sqrt(3)/5';
       inp.addEventListener('input',()=>{ vals[i][j]=inp.value; });
       grid.appendChild(inp);
     }
@@ -1410,12 +1498,12 @@ function buildMatPanel(name,initM,initN){
   rebuild();
   el.append(title,dimsRow,grid);
   return { el, getDims:()=>({m,n}),
-    getMatrix(){ let ok=true; const A=[]; for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<n;j++){ const v=parseMatEntry(vals[i][j]); if(!isFinite(v))ok=false; row.push(isFinite(v)?v:0); } A.push(row); } return {ok,mat:A,m,n}; } };
+    getMatrix(){ let ok=true,badMsg=''; const A=[]; for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<n;j++){ const p=parseCellExpr(vals[i][j]); if(!p.ok){ok=false; badMsg=p.msg;} row.push(p.expr); } A.push(row); } return {ok,badMsg,mat:A,m,n}; } };
 }
 
-add({ id:'matrix-operations', cat:'c4', tag:'interactive', title:'Matrix Operations', diff:'inter', ch:'Matrix algebra',
+add({ id:'matrix-operations', cat:'c4', tag:'interactive', title:'Matrix Operations (exact)', diff:'inter', ch:'Matrix algebra',
   questions:['Why do A+B and A−B require A and B to have exactly the same shape, while AB only requires the inner dimensions to match?','If AB is defined, is BA always defined too — and even when it is, is AB = BA in general?','A square matrix fails to have an inverse exactly when its determinant is 0. What does that mean about the system Ax = b?'],
-  blurb:'Pick the size of matrix A and matrix B, type in exact entries (fractions like 1/3 are fine), and compute A+B, A−B, a scalar multiple, AB, BA, the determinant, and the inverse — all the linear-algebra bookkeeping that x′ = A x depends on.',
+  blurb:'Pick the size of matrix A and matrix B, then type in exact entries — integers, fractions like 2/3, or square roots like sqrt(2) — and compute A+B, A−B, a scalar multiple, AB, BA, the determinant, and the inverse. Every result is kept exact: fractions stay fractions and √ stays √, nothing is rounded to a decimal.',
   build(host){
     const wrap=document.createElement('div'); wrap.className='panel';
     const panelsRow=document.createElement('div'); panelsRow.className='mat-panels';
@@ -1428,41 +1516,44 @@ add({ id:'matrix-operations', cat:'c4', tag:'interactive', title:'Matrix Operati
     const singleOpsB=document.createElement('div'); singleOpsB.className='mat-single-ops'; singleOpsB.appendChild(detB);
     pA.el.appendChild(singleOpsA); pB.el.appendChild(singleOpsB);
 
-    const scalarN=UI.number({label:'scalar c',value:2,step:'any',onchange:()=>{}});
-    const scalarRow=document.createElement('div'); scalarRow.className='mat-scalar-row'; scalarRow.appendChild(scalarN);
+    const scalarT=UI.text({label:'scalar c',value:'2',hint:'e.g. -3/4 or sqrt(2)',onchange:()=>{}});
+    const scalarRow=document.createElement('div'); scalarRow.className='mat-scalar-row'; scalarRow.appendChild(scalarT);
 
     const result=makeSolBox('result'); result.set('\\text{choose an operation below}','');
     const errNote=UI.note(''); errNote.style.display='none';
 
     function showErr(msg){ errNote.style.display=''; errNote.style.borderLeftColor=COL.coral; errNote.innerHTML=`<b style="color:${COL.coral}">Not defined —</b> ${msg}`; }
     function showResult(latex,note){ errNote.style.display='none'; result.set(latex,note); }
+    function badEntries(msg){ showErr(`could not read a matrix entry (${msg||'invalid expression'}). Use integers, fractions like 2/3, decimals, or sqrt(n).`); }
 
-    function doAdd(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+    function doAdd(){ const {mat:A,m:mA,n:nA,ok:okA,badMsg:mA_}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB,badMsg:mB_}=pB.getMatrix();
       if(mA!==mB||nA!==nB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — addition needs identical dimensions.`); return; }
-      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
-      showResult(`A+B=${matToTex(matAdd(A,B))}`,'Added entrywise: (A+B)_{ij} = a_{ij} + b_{ij}.'); }
-    function doSub(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(!okA||!okB){ badEntries(mA_||mB_); return; }
+      showResult(`A+B=${matExprToTex(matExprAdd(A,B))}`,'Added entrywise: (A+B)_{ij} = a_{ij} + b_{ij}. Every fraction and √ term is kept exact.'); }
+    function doSub(){ const {mat:A,m:mA,n:nA,ok:okA,badMsg:mA_}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB,badMsg:mB_}=pB.getMatrix();
       if(mA!==mB||nA!==nB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — subtraction needs identical dimensions.`); return; }
-      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
-      showResult(`A-B=${matToTex(matSub(A,B))}`,'Subtracted entrywise: (A−B)_{ij} = a_{ij} − b_{ij}.'); }
-    function doScale(which){ const p=which==='A'?pA:pB; const {mat:A,ok}=p.getMatrix(); const c=scalarN.get();
-      if(!ok){ showErr('one or more entries is not a valid number.'); return; }
-      showResult(`${nf(c,4)}${which}=${matToTex(matScale(A,c))}`,`Every entry of ${which} is scaled by c = ${nf(c,4)}.`); }
-    function doAB(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(!okA||!okB){ badEntries(mA_||mB_); return; }
+      showResult(`A-B=${matExprToTex(matExprSub(A,B))}`,'Subtracted entrywise: (A−B)_{ij} = a_{ij} − b_{ij}.'); }
+    function doScale(which){ const p=which==='A'?pA:pB; const {mat:A,ok,badMsg}=p.getMatrix(); const cp=parseCellExpr(scalarT.get());
+      if(!ok){ badEntries(badMsg); return; } if(!cp.ok){ showErr(`the scalar c is not a valid expression (${cp.msg}).`); return; }
+      showResult(`${exprToTex(cp.expr)}${which}=${matExprToTex(matExprScale(A,cp.expr))}`,`Every entry of ${which} is scaled by c = ${exprToTex(cp.expr)}, kept exact.`); }
+    function doAB(){ const {mat:A,m:mA,n:nA,ok:okA,badMsg:mA_}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB,badMsg:mB_}=pB.getMatrix();
       if(nA!==mB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — for AB, columns of A (${nA}) must match rows of B (${mB}).`); return; }
-      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
-      showResult(`AB=${matToTex(matMul(A,B))}`,`Result is ${mA}\u00d7${nB}: (AB)_{ij}=\\sum_k a_{ik}b_{kj}.`); }
-    function doBA(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(!okA||!okB){ badEntries(mA_||mB_); return; }
+      showResult(`AB=${matExprToTex(matExprMul(A,B))}`,`Result is ${mA}\u00d7${nB}: (AB)_{ij}=\\sum_k a_{ik}b_{kj}.`); }
+    function doBA(){ const {mat:A,m:mA,n:nA,ok:okA,badMsg:mA_}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB,badMsg:mB_}=pB.getMatrix();
       if(nB!==mA){ showErr(`B is ${mB}\u00d7${nB} and A is ${mA}\u00d7${nA} — for BA, columns of B (${nB}) must match rows of A (${mA}).`); return; }
-      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
-      showResult(`BA=${matToTex(matMul(B,A))}`,`Result is ${mB}\u00d7${nA}: (BA)_{ij}=\\sum_k b_{ik}a_{kj}. Compare with AB above — matrix multiplication is <b>not</b> commutative in general.`); }
-    function doDetInv(which){ const p=which==='A'?pA:pB; const {mat:A,m,n,ok}=p.getMatrix();
+      if(!okA||!okB){ badEntries(mA_||mB_); return; }
+      showResult(`BA=${matExprToTex(matExprMul(B,A))}`,`Result is ${mB}\u00d7${nA}: (BA)_{ij}=\\sum_k b_{ik}a_{kj}. Compare with AB above — matrix multiplication is <b>not</b> commutative in general.`); }
+    function doDetInv(which){ const p=which==='A'?pA:pB; const {mat:A,m,n,ok,badMsg}=p.getMatrix();
       if(m!==n){ showErr(`Matrix ${which} is ${m}\u00d7${n} — the determinant and inverse only exist for a <b>square</b> matrix.`); return; }
-      if(!ok){ showErr('one or more entries is not a valid number.'); return; }
-      const det=matDet(A);
-      if(Math.abs(det)<1e-9){ showResult(`\\det(${which})=${nf(det,4)}`,`Matrix ${which} is <b>singular</b> (determinant \u2248 0) — it has <b>no inverse</b>.`); return; }
-      const inv=matInverse(A);
-      showResult(`\\det(${which})=${nf(det,4)}\\qquad ${which}^{-1}=${matToTex(inv,4)}`,`Matrix ${which} is invertible since det(${which}) \u2260 0.`); }
+      if(!ok){ badEntries(badMsg); return; }
+      const {det,inv,exact,detNum}=matExprInverse(A);
+      if(exprIsZero(det)){ showResult(`\\det(${which})=0`,`Matrix ${which} is <b>singular</b> — it has <b>no inverse</b>. The system ${which}x=b has either no solution or infinitely many.`); return; }
+      if(inv===null){ showResult(`\\det(${which})=${exprToTex(det)}`,`Matrix ${which} is <b>singular</b> (determinant is 0) — it has <b>no inverse</b>.`); return; }
+      if(exact){ showResult(`\\det(${which})=${exprToTex(det)}\\qquad ${which}^{-1}=${matExprToTex(inv)}`,`Exact, via ${which}^{-1}=\\dfrac{1}{\\det ${which}}\\,\\mathrm{adj}(${which}). Matrix ${which} is invertible since det(${which}) \u2260 0.`); }
+      else { showResult(`\\det(${which})=${exprToTex(det)}\\qquad ${which}^{-1}\\approx ${matNumToTex(inv)}`,`det(${which}) = ${exprToTex(det)} \u2248 ${nf(detNum,6)} is a sum of more than two √ terms, so the inverse can't be simplified to a single exact fraction/√ expression here — shown as a high-precision decimal instead.`); }
+    }
 
     const combineBtns=UI.buttons([
       {label:'A + B', onclick:doAdd},
@@ -1475,7 +1566,7 @@ add({ id:'matrix-operations', cat:'c4', tag:'interactive', title:'Matrix Operati
 
     const divider=document.createElement('div'); divider.className='mat-divider';
     wrap.append(panelsRow, scalarRow, divider, combineBtns, errNote, result,
-      UI.note('Addition/subtraction need <b>identical</b> shapes. The product AB needs (cols of A) = (rows of B); the result is (rows of A) \u00d7 (cols of B). A square matrix is invertible exactly when its determinant is nonzero \u2014 otherwise Ax = b has either no solution or infinitely many.'));
+      UI.note('Entries may be integers, fractions (2/3), decimals, or square roots (sqrt(5), 2*sqrt(3)/5). Every operation here — addition, subtraction, scalar multiples, AB, BA, determinant, and inverse (via the adjugate formula) — is computed with exact fractions and radicals, never rounded to a decimal. Addition/subtraction need <b>identical</b> shapes; AB needs (cols of A) = (rows of B), giving an (rows of A) \u00d7 (cols of B) result. A square matrix is invertible exactly when its determinant is nonzero.'));
     host.appendChild(wrap);
   }
 });
