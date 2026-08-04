@@ -253,6 +253,30 @@ canvas{display:block;}
   *{animation-duration:.001ms!important;transition-duration:.001ms!important;}
 }
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+
+/* ---------- Matrix operations ---------- */
+.mat-panels{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:6px;}
+.mat-panel{flex:1;min-width:230px;}
+.mat-label{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin-bottom:8px;}
+.mat-dims{display:flex;gap:10px;margin-bottom:10px;max-width:220px;}
+.mat-dims .ctrl{width:90px;}
+.mat-grid{display:inline-grid;gap:6px;margin-bottom:10px;}
+.mat-grid input{width:58px;height:38px;text-align:center;font-family:var(--mono);font-size:.86rem;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);padding:0 4px;}
+.mat-grid input:focus{outline:none;border-color:var(--accent,var(--c-calc1));}
+.mat-single-ops{display:flex;gap:8px;flex-wrap:wrap;}
+.mat-single-ops .abtn{flex:none;}
+.mat-scalar-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin:14px 0;}
+.mat-scalar-row .ctrl{width:140px;}
+.mat-divider{border-top:1px dashed var(--line);margin:18px 0;}
+
+/* ---------- Site-wide click tracker ---------- */
+.click-tracker{position:fixed;right:16px;bottom:16px;z-index:90;display:flex;align-items:center;gap:7px;background:var(--white);border:1px solid var(--line);border-radius:99px;padding:8px 15px;font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);box-shadow:var(--shadow-md);user-select:none;}
+.click-tracker .dot{width:6px;height:6px;border-radius:99px;background:var(--c-calc2);flex:none;}
+.click-tracker b{color:var(--ink);font-weight:700;}
+@media(max-width:540px){
+  .click-tracker{right:10px;bottom:10px;padding:7px 12px;font-size:.66rem;}
+  .mat-dims{max-width:100%;}
+}
 </style>
 </head>
 <body>
@@ -329,6 +353,8 @@ canvas{display:block;}
 </main>
 
 <section id="appletView" aria-live="polite"></section>
+
+<div class="click-tracker" id="clickTracker" aria-live="off"><span class="dot"></span><span id="clickTrackerText"><b>0</b>&nbsp;clicks</span></div>
 
 <script>
 /* =====================================================================
@@ -1331,6 +1357,129 @@ add({ id:'phase-portrait', cat:'c4', tag:'interactive', title:'Phase Portrait of
   }
 });
 
+/* ----------------------- matrix algebra helpers ---------------------- */
+function matZeros(m,n){ return Array.from({length:m},()=>Array(n).fill(0)); }
+function matAdd(A,B){ return A.map((row,i)=>row.map((v,j)=>v+B[i][j])); }
+function matSub(A,B){ return A.map((row,i)=>row.map((v,j)=>v-B[i][j])); }
+function matScale(A,c){ return A.map(row=>row.map(v=>v*c)); }
+function matMul(A,B){ const m=A.length,n=A[0].length,p=B[0].length; const R=matZeros(m,p);
+  for(let i=0;i<m;i++)for(let j=0;j<p;j++){ let s=0; for(let k=0;k<n;k++) s+=A[i][k]*B[k][j]; R[i][j]=s; } return R; }
+function matDet(A){ const n=A.length;
+  if(n===1) return A[0][0];
+  if(n===2) return A[0][0]*A[1][1]-A[0][1]*A[1][0];
+  let det=0;
+  for(let j=0;j<n;j++){ const minor=A.slice(1).map(row=>row.filter((_,k)=>k!==j)); det += ((j%2===0)?1:-1)*A[0][j]*matDet(minor); }
+  return det; }
+/* Gauss-Jordan elimination with partial pivoting; returns null if singular */
+function matInverse(A){ const n=A.length;
+  const G=A.map((row,i)=>[...row, ...Array.from({length:n},(_,j)=>j===i?1:0)]);
+  for(let col=0; col<n; col++){
+    let piv=col; for(let r=col;r<n;r++){ if(Math.abs(G[r][col])>Math.abs(G[piv][col])) piv=r; }
+    if(Math.abs(G[piv][col])<1e-10) return null;
+    [G[col],G[piv]]=[G[piv],G[col]];
+    const pv=G[col][col]; for(let k=0;k<2*n;k++) G[col][k]/=pv;
+    for(let r=0;r<n;r++){ if(r===col) continue; const f=G[r][col]; for(let k=0;k<2*n;k++) G[r][k]-=f*G[col][k]; }
+  }
+  return G.map(row=>row.slice(n)); }
+function matToTex(A,d){ const rows=A.map(row=>row.map(v=>nf(v,d==null?4:d)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
+/* parse a single matrix-cell entry: plain arithmetic only (digits, + - * / ^ ( ) . and spaces) — no variables,
+   so students can type exact values like 1/3, -2/5, 2^2, (1+3)/2 and get the exact rational/decimal result. */
+function parseMatEntry(s){
+  s=(s==null?'':String(s)).trim(); if(s==='') return 0;
+  if(!/^[-+*/^().0-9\s]+$/.test(s)) return NaN;
+  try{ const js=s.replace(/\^/g,'**'); const v=Function('"use strict";return ('+js+');')(); return (typeof v==='number'&&isFinite(v))?v:NaN; }catch(e){ return NaN; }
+}
+/* editable m×n matrix input panel used by the Matrix Operations applet */
+function buildMatPanel(name,initM,initN){
+  const el=document.createElement('div'); el.className='mat-panel';
+  const title=document.createElement('div'); title.className='mat-label'; title.textContent=`Matrix ${name}`;
+  let m=initM,n=initN,vals=Array.from({length:m},()=>Array(n).fill(''));
+  const rowsSel=UI.select({label:'rows (m)',options:[1,2,3,4,5].map(k=>({value:String(k),label:String(k)})),value:String(m),onchange:v=>{m=+v;rebuild();}});
+  const colsSel=UI.select({label:'cols (n)',options:[1,2,3,4,5].map(k=>({value:String(k),label:String(k)})),value:String(n),onchange:v=>{n=+v;rebuild();}});
+  const dimsRow=document.createElement('div'); dimsRow.className='mat-dims'; dimsRow.append(rowsSel,colsSel);
+  const grid=document.createElement('div'); grid.className='mat-grid';
+  function rebuild(){
+    vals=Array.from({length:m},(_,i)=>Array.from({length:n},(_,j)=>(vals[i]&&vals[i][j]!==undefined)?vals[i][j]:''));
+    grid.style.gridTemplateColumns=`repeat(${n}, 58px)`; grid.innerHTML='';
+    for(let i=0;i<m;i++)for(let j=0;j<n;j++){
+      const inp=document.createElement('input'); inp.type='text'; inp.value=vals[i][j]; inp.placeholder='0'; inp.autocomplete='off';
+      inp.addEventListener('input',()=>{ vals[i][j]=inp.value; });
+      grid.appendChild(inp);
+    }
+  }
+  rebuild();
+  el.append(title,dimsRow,grid);
+  return { el, getDims:()=>({m,n}),
+    getMatrix(){ let ok=true; const A=[]; for(let i=0;i<m;i++){ const row=[]; for(let j=0;j<n;j++){ const v=parseMatEntry(vals[i][j]); if(!isFinite(v))ok=false; row.push(isFinite(v)?v:0); } A.push(row); } return {ok,mat:A,m,n}; } };
+}
+
+add({ id:'matrix-operations', cat:'c4', tag:'interactive', title:'Matrix Operations', diff:'inter', ch:'Matrix algebra',
+  questions:['Why do A+B and A−B require A and B to have exactly the same shape, while AB only requires the inner dimensions to match?','If AB is defined, is BA always defined too — and even when it is, is AB = BA in general?','A square matrix fails to have an inverse exactly when its determinant is 0. What does that mean about the system Ax = b?'],
+  blurb:'Pick the size of matrix A and matrix B, type in exact entries (fractions like 1/3 are fine), and compute A+B, A−B, a scalar multiple, AB, BA, the determinant, and the inverse — all the linear-algebra bookkeeping that x′ = A x depends on.',
+  build(host){
+    const wrap=document.createElement('div'); wrap.className='panel';
+    const panelsRow=document.createElement('div'); panelsRow.className='mat-panels';
+    const pA=buildMatPanel('A',2,2), pB=buildMatPanel('B',2,2);
+    panelsRow.append(pA.el,pB.el);
+
+    const detA=document.createElement('button'); detA.className='abtn'; detA.textContent='det(A) & A⁻¹'; detA.onclick=()=>doDetInv('A');
+    const detB=document.createElement('button'); detB.className='abtn'; detB.textContent='det(B) & B⁻¹'; detB.onclick=()=>doDetInv('B');
+    const singleOpsA=document.createElement('div'); singleOpsA.className='mat-single-ops'; singleOpsA.appendChild(detA);
+    const singleOpsB=document.createElement('div'); singleOpsB.className='mat-single-ops'; singleOpsB.appendChild(detB);
+    pA.el.appendChild(singleOpsA); pB.el.appendChild(singleOpsB);
+
+    const scalarN=UI.number({label:'scalar c',value:2,step:'any',onchange:()=>{}});
+    const scalarRow=document.createElement('div'); scalarRow.className='mat-scalar-row'; scalarRow.appendChild(scalarN);
+
+    const result=makeSolBox('result'); result.set('\\text{choose an operation below}','');
+    const errNote=UI.note(''); errNote.style.display='none';
+
+    function showErr(msg){ errNote.style.display=''; errNote.style.borderLeftColor=COL.coral; errNote.innerHTML=`<b style="color:${COL.coral}">Not defined —</b> ${msg}`; }
+    function showResult(latex,note){ errNote.style.display='none'; result.set(latex,note); }
+
+    function doAdd(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(mA!==mB||nA!==nB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — addition needs identical dimensions.`); return; }
+      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
+      showResult(`A+B=${matToTex(matAdd(A,B))}`,'Added entrywise: (A+B)_{ij} = a_{ij} + b_{ij}.'); }
+    function doSub(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(mA!==mB||nA!==nB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — subtraction needs identical dimensions.`); return; }
+      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
+      showResult(`A-B=${matToTex(matSub(A,B))}`,'Subtracted entrywise: (A−B)_{ij} = a_{ij} − b_{ij}.'); }
+    function doScale(which){ const p=which==='A'?pA:pB; const {mat:A,ok}=p.getMatrix(); const c=scalarN.get();
+      if(!ok){ showErr('one or more entries is not a valid number.'); return; }
+      showResult(`${nf(c,4)}${which}=${matToTex(matScale(A,c))}`,`Every entry of ${which} is scaled by c = ${nf(c,4)}.`); }
+    function doAB(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(nA!==mB){ showErr(`A is ${mA}\u00d7${nA} and B is ${mB}\u00d7${nB} — for AB, columns of A (${nA}) must match rows of B (${mB}).`); return; }
+      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
+      showResult(`AB=${matToTex(matMul(A,B))}`,`Result is ${mA}\u00d7${nB}: (AB)_{ij}=\\sum_k a_{ik}b_{kj}.`); }
+    function doBA(){ const {mat:A,m:mA,n:nA,ok:okA}=pA.getMatrix(); const {mat:B,m:mB,n:nB,ok:okB}=pB.getMatrix();
+      if(nB!==mA){ showErr(`B is ${mB}\u00d7${nB} and A is ${mA}\u00d7${nA} — for BA, columns of B (${nB}) must match rows of A (${mA}).`); return; }
+      if(!okA||!okB){ showErr('one or more entries is not a valid number.'); return; }
+      showResult(`BA=${matToTex(matMul(B,A))}`,`Result is ${mB}\u00d7${nA}: (BA)_{ij}=\\sum_k b_{ik}a_{kj}. Compare with AB above — matrix multiplication is <b>not</b> commutative in general.`); }
+    function doDetInv(which){ const p=which==='A'?pA:pB; const {mat:A,m,n,ok}=p.getMatrix();
+      if(m!==n){ showErr(`Matrix ${which} is ${m}\u00d7${n} — the determinant and inverse only exist for a <b>square</b> matrix.`); return; }
+      if(!ok){ showErr('one or more entries is not a valid number.'); return; }
+      const det=matDet(A);
+      if(Math.abs(det)<1e-9){ showResult(`\\det(${which})=${nf(det,4)}`,`Matrix ${which} is <b>singular</b> (determinant \u2248 0) — it has <b>no inverse</b>.`); return; }
+      const inv=matInverse(A);
+      showResult(`\\det(${which})=${nf(det,4)}\\qquad ${which}^{-1}=${matToTex(inv,4)}`,`Matrix ${which} is invertible since det(${which}) \u2260 0.`); }
+
+    const combineBtns=UI.buttons([
+      {label:'A + B', onclick:doAdd},
+      {label:'A − B', onclick:doSub},
+      {label:'c·A', onclick:()=>doScale('A')},
+      {label:'c·B', onclick:()=>doScale('B')},
+      {label:'A × B', onclick:doAB, primary:true},
+      {label:'B × A', onclick:doBA},
+    ]);
+
+    const divider=document.createElement('div'); divider.className='mat-divider';
+    wrap.append(panelsRow, scalarRow, divider, combineBtns, errNote, result,
+      UI.note('Addition/subtraction need <b>identical</b> shapes. The product AB needs (cols of A) = (rows of B); the result is (rows of A) \u00d7 (cols of B). A square matrix is invertible exactly when its determinant is nonzero \u2014 otherwise Ax = b has either no solution or infinitely many.'));
+    host.appendChild(wrap);
+  }
+});
+
 /* contour / level-curve helper (marching squares, solid segments) */
 function drawLevel(ch,g,level,color,width,dash){ const ctx=ch.ctx; const NX=84,NY=84;
   const xs=[],ys=[]; for(let i=0;i<=NX;i++)xs.push(ch.xmin+(ch.xmax-ch.xmin)*i/NX); for(let j=0;j<=NY;j++)ys.push(ch.ymin+(ch.ymax-ch.ymin)*j/NY);
@@ -2055,6 +2204,13 @@ function heroAnim(){
   if(window.heroRAF)cancelAnimationFrame(window.heroRAF);
   if(reduce){ idx=sol.ts.length-1; frame(); } else frame();
 }
+
+/* -------------------- (7) SITE-WIDE CLICK TRACKER -------------------- */
+let _clickCount=0;
+try{ _clickCount=parseInt(localStorage.getItem('cl-click-count')||'0',10)||0; }catch(e){}
+function renderClickTracker(){ const t=document.getElementById('clickTrackerText'); if(t) t.innerHTML=`<b>${_clickCount.toLocaleString()}</b>&nbsp;click${_clickCount===1?'':'s'}`; }
+document.addEventListener('click',()=>{ _clickCount++; try{localStorage.setItem('cl-click-count',String(_clickCount));}catch(e){} renderClickTracker(); },{capture:true});
+renderClickTracker();
 
 /* ----------------------------- INIT --------------------------------- */
 renderCatalog();
