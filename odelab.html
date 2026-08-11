@@ -231,6 +231,34 @@ canvas{display:block;}
 .sol-box .sol-math .katex-display{margin:.35em 0;}
 .sol-box .sol-note{font-size:.76rem;color:var(--ink-soft);margin-top:6px;line-height:1.45;}
 
+/* ---------- Model / diagram boxes (mixing tank, cooling, loan) ---------- */
+.model-box{background:var(--white);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px;margin-bottom:12px;}
+.model-box .model-title{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.model-box.accent1{border-left:3px solid var(--c-calc1);}
+.model-box.accent2{border-left:3px solid var(--c-calc2);}
+.model-box.accent3{border-left:3px solid var(--c-calc3);}
+.model-box .model-body{font-family:var(--mono);font-size:.9rem;line-height:1.9;overflow-x:auto;}
+.diagram-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-md);padding:18px;margin-bottom:14px;}
+.diagram-card .diagram-cap{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:10px;}
+
+/* Live visual (tank / body) */
+.live-visual{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0;}
+.live-visual svg{max-width:100%;height:auto;}
+.flow-dot{animation:flowmove linear infinite;}
+@keyframes flowmove{0%{opacity:0;}12%{opacity:1;}88%{opacity:1;}100%{opacity:0;}}
+.scrub-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
+.scrub-row .abtn{flex:none;padding:8px 12px;}
+.readout-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:.78rem;color:var(--ink-soft);margin-top:6px;}
+.readout-row b{color:var(--ink);font-size:.92rem;}
+
+/* Amortization table */
+.amort-wrap{overflow-x:auto;}
+.amort-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.78rem;white-space:nowrap;}
+.amort-table th,.amort-table td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--line);}
+.amort-table th{color:var(--ink-faint);font-weight:600;text-transform:uppercase;font-size:.62rem;letter-spacing:.04em;background:var(--paper-2);position:sticky;top:0;}
+.amort-table td:first-child,.amort-table th:first-child{text-align:left;}
+.amort-table tbody tr:hover{background:var(--paper-2);}
+
 @media(max-width:880px){
   .hero-inner{grid-template-columns:1fr;gap:30px;padding:40px 0;}
   .hero-canvas-card{order:-1;}
@@ -1770,44 +1798,139 @@ add({ id:'modeling', cat:'c1', tag:'interactive', title:'First-Order Models in t
    FIRST-ORDER APPLICATIONS — dedicated, worked-example style tools
    ===================================================================== */
 
+function bodySVG({frac,roomFrac}){
+  const bodyColor = lerpColor('#6FA3C9','#D9503D', M.clamp(frac,0,1));
+  const roomTint = lerpColor('#E4EEF6','#FBEEDD', M.clamp(roomFrac,0,1));
+  return `<svg viewBox="0 0 360 170" width="360" height="170" role="img" aria-label="Body cooling diagram">
+    <rect x="4" y="4" width="352" height="150" rx="12" fill="${roomTint}" stroke="${COL.line}" stroke-width="1.5"/>
+    <line x1="20" y1="132" x2="340" y2="132" stroke="${COL.faint}" stroke-width="2"/>
+    <g>
+      <rect x="70" y="98" width="150" height="30" rx="15" fill="${bodyColor}" stroke="${COL.ink}" stroke-width="1.6"/>
+      <circle cx="235" cy="113" r="17" fill="${bodyColor}" stroke="${COL.ink}" stroke-width="1.6"/>
+      <rect x="50" y="106" width="24" height="8" rx="4" fill="${bodyColor}" stroke="${COL.ink}" stroke-width="1.4"/>
+      <rect x="45" y="98" width="8" height="24" rx="4" fill="${bodyColor}" stroke="${COL.ink}" stroke-width="1.4" transform="rotate(-18 49 110)"/>
+    </g>
+    <g font-family="var(--mono)" font-size="12" fill="${COL.soft}">
+      <text x="20" y="24">room T_env</text>
+      <text x="270" y="24" text-anchor="end">thermometer</text>
+    </g>
+    <g transform="translate(280,32)">
+      <rect x="0" y="0" width="10" height="46" rx="5" fill="#fff" stroke="${COL.ink}" stroke-width="1.4"/>
+      <circle cx="5" cy="50" r="8" fill="${bodyColor}" stroke="${COL.ink}" stroke-width="1.4"/>
+      <rect x="2" y="18" width="6" height="30" rx="3" fill="${bodyColor}"/>
+    </g>
+  </svg>`;
+}
+function parseClock(s){ if(!s)return null; s=s.trim().toUpperCase(); const m=s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/); if(!m)return null;
+  let h=parseInt(m[1],10), mi=parseInt(m[2],10); const ap=m[3];
+  if(ap==='AM'){ if(h===12)h=0; } else if(ap==='PM'){ if(h!==12)h+=12; }
+  if(h>23||mi>59) return null; return h*60+mi; }
+function formatClock(mins){ mins=((mins%1440)+1440)%1440; let h=Math.floor(mins/60), mi=Math.round(mins%60); if(mi===60){mi=0;h+=1;h%=24;}
+  const ap=h<12?'AM':'PM'; let h12=h%12; if(h12===0)h12=12; return `${h12}:${String(mi).padStart(2,'0')} ${ap}`; }
+
 add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cooling — Forensic Time of Death", diff:'inter', ch:'Application · cooling',
   questions:['Why does the cooling rate k not depend on the starting temperature, only on the environment?','Two temperature readings pin down k. What goes wrong if both readings are taken very close together in time?','Why is the estimated time of death always *before* the body was found, never after?'],
-  blurb:'T(t) = T_env + (T₀ − T_env)e^{−kt}. Enter the room temperature and two temperature readings; the tool solves for the cooling constant k and works backward to estimate the time of death.',
+  blurb:'T(t) = T_env + (T₀ − T_env)e^{−kt}. Set the room temperature and two temperature readings — watch the figure cool live — then see the full model: schematic, general ODE, your numbers substituted, and the complete step-by-step solution for the time of death.',
   build(host){
-    const envN=UI.number({label:'room / environment temp T_env (°C)',value:20,step:'any',onchange:render});
-    const t0N=UI.number({label:'temp at discovery, T(0) (°C)',value:27,step:'any',onchange:render});
-    const t1hN=UI.number({label:'hours after discovery of 2nd reading',value:1,step:'any',min:0.01,onchange:render});
-    const t1N=UI.number({label:'temp at that later reading (°C)',value:25,step:'any',onchange:render});
-    const bodyN=UI.number({label:'normal body temp (°C)',value:37,step:'any',onchange:render});
-    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
+    const envN=UI.number({label:'room / environment temp T_env (°C)',value:20,step:'any',onchange:()=>{recompute();render();}});
+    const t0N=UI.number({label:'temp at discovery, T(0) (°C)',value:27,step:'any',onchange:()=>{recompute();render();}});
+    const t1hN=UI.number({label:'hours after discovery of 2nd reading',value:1,step:'any',min:0.01,onchange:()=>{recompute();render();}});
+    const t1N=UI.number({label:'temp at that later reading (°C)',value:25,step:'any',onchange:()=>{recompute();render();}});
+    const bodyN=UI.number({label:'normal body temp (°C)',value:37,step:'any',onchange:()=>{recompute();render();}});
+    const clockN=UI.text({label:'clock time body found (optional, e.g. 2:00 AM)',value:'2:00 AM',hint:'used only to show an actual estimated time of death',onchange:()=>{render();}});
+
+    const visual=document.createElement('div'); visual.className='live-visual';
+    const readout=document.createElement('div'); readout.className='readout-row';
+    const tScrub=UI.slider({label:'t (hours, relative to discovery)',min:-4,max:4,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:renderVisual});
+    const scrubRow=document.createElement('div'); scrubRow.className='scrub-row';
+    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),-4,4,0.02,renderVisual);
+    scrubRow.append(playBtn);
+    const visualCard=document.createElement('div'); visualCard.className='diagram-card';
+    visualCard.append(Object.assign(document.createElement('div'),{className:'diagram-cap',textContent:'Live figure — drag the time slider through the estimated time of death'}),visual,tScrub,scrubRow,readout);
+
+    const schematic=diagramCard('Mathematical setup',`<div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:.82rem;">
+      <div style="border:2px solid var(--c-calc1);border-radius:8px;padding:10px 14px;background:var(--white);">body<br><b>T(t)</b></div>
+      <div style="font-size:1.3rem;color:var(--ink-faint);">→ heat loss →</div>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--white);">room<br><b>T_env</b></div>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-family:var(--mono);font-size:.86rem;color:var(--ink-soft);">dT/dt = −k(T − T_env)&nbsp; — cooling rate is proportional to how far T is above room temperature</div>`);
+
+    const genModel=modelBox('General model (symbols)',
+      `T′(t) = −k(T − T_env),&nbsp; T(0)=T₀<br><br>
+       T(t) = T_env + (T₀ − T_env)·e^{−kt}<br><br>
+       fit k from a second reading T(t₁)=T₁:&nbsp; k = (1/t₁)·ln[ (T₀−T_env) / (T₁−T_env) ]<br><br>
+       time of death t*: solve T(t*) = T_body&nbsp; ⟹&nbsp; t* = −(1/k)·ln[ (T_body−T_env) / (T₀−T_env) ]`,'accent1');
+    const numModel=modelBox('Your model (numbers substituted)','','accent2');
+    const fullSol=modelBox('Full solution & interpretation','','accent3');
+
     const stats=UI.statsBox();
-    const plot=UI.plotCard('T(t) — t=0 is when the body was found',420);
-    host.appendChild(UI.appGrid([envN,t0N,t1hN,t1N,bodyN,steps,stats,UI.note('Take t=0 at the moment the body is <i>found</i>. Fit k from the two readings T(0) and T(t₁), then solve T(t*)=37°C for t* — it comes out negative, meaning death happened |t*| hours <b>before</b> the body was found.')],[plot]));
+    const plot=UI.plotCard('T(t) — t=0 is when the body was found',360);
+    host.appendChild(UI.appGrid(
+      [envN,t0N,t1hN,t1N,bodyN,clockN,UI.note('Take t=0 at the moment the body is found. Fit k from the two readings T(0) and T(t₁), then solve T(t*)=T_body for t* — it comes out negative, meaning death happened |t*| hours before discovery.')],
+      [visualCard, schematic, genModel, numModel, plot, fullSol, stats]));
     plot.enableZoom(render);
-    function render(){
-      const env=envN.get(), T0=t0N.get(), t1=t1hN.get(), T1=t1N.get(), body=bodyN.get();
-      if(![env,T0,t1,T1,body].every(isFinite) || t1<=0) return;
+
+    let env,T0,t1,T1,body,k,Tfn,tstar,valid=false;
+    function recompute(){
+      env=envN.get(); T0=t0N.get(); t1=t1hN.get(); T1=t1N.get(); body=bodyN.get();
+      valid = [env,T0,t1,T1,body].every(isFinite) && t1>0;
+      if(!valid) return;
       const num0=T0-env, num1=T1-env;
-      if(num0<=0 || num1<=0 || num0<=num1){ steps.innerHTML='<span style="color:var(--c-calc1)">Need T(0) &gt; T(t₁) &gt; T_env (the body must be cooling toward the room).</span>'; stats.set([]); return; }
-      const k=Math.log(num0/num1)/t1;
-      const T=t=>env+num0*Math.exp(-k*t);
-      let tstar=null;
-      if(body>env){ tstar = -Math.log((body-env)/num0)/k; }
-      steps.innerHTML=`<b>1.</b> T(t) = ${nf(env)} + ${nf(num0)} e^{−kt}<br>`+
-        `<b>2.</b> fit k from T(${nf(t1)}) = ${nf(T1)}:&nbsp; e^{−k(${nf(t1)})} = ${nf(num1)}/${nf(num0)}&nbsp; ⟹&nbsp; k = ln(${nf(num0)}/${nf(num1)})/${nf(t1)} = <b style="color:var(--c-calc2)">${M.round(k,4)} hr⁻¹</b><br>`+
-        (tstar!=null? `<b>3.</b> solve ${nf(body)} = ${nf(env)} + ${nf(num0)} e^{−kt*}:&nbsp; t* = −ln((${nf(body-env)})/${nf(num0)})/k = <b style="color:var(--c-calc1)">${M.round(tstar,3)} hr</b>&nbsp; ${tstar<0? '(before discovery)':'(after discovery — check your inputs)'}`
-          : `<b>3.</b> body temp ${nf(body)}°C must be above the environment temp to back-solve a time of death.`);
+      if(num0<=0 || num1<=0 || num0<=num1){ valid=false; return; }
+      k=Math.log(num0/num1)/t1;
+      Tfn = t=>env+num0*Math.exp(-k*t);
+      tstar = body>env? -Math.log((body-env)/num0)/k : null;
+      const tmin=Math.min(-0.5,(tstar!=null?tstar-0.5:-0.5)), tmax=t1+1;
+      tScrub.querySelector('input').min=M.round(tmin,2); tScrub.querySelector('input').max=M.round(tmax,2);
+      tScrub.set(0);
+    }
+
+    function renderVisual(){
+      if(!valid){ visual.innerHTML=''; readout.innerHTML=''; return; }
+      const t=tScrub.get(); const Tt=Tfn(t);
+      const frac=(Tt-env)/(body-env||1);
+      const roomFrac=M.clamp((env-10)/25,0,1);
+      visual.innerHTML = bodySVG({frac,roomFrac});
+      readout.innerHTML = `<span>T(t) = <b>${M.round(Tt,2)}°C</b></span><span>t = <b>${M.round(t,2)} hr</b> (relative to discovery)</span>${tstar!=null?`<span>time of death at t = <b>${M.round(tstar,2)} hr</b></span>`:''}`;
+    }
+
+    function render(){
+      recompute();
+      const num0=T0-env, num1=T1-env;
+      if(!valid){
+        numModel.querySelector('.model-body').innerHTML='<span style="color:var(--c-calc1)">Need T(0) &gt; T(t₁) &gt; T_env (the body must be cooling toward the room) and t₁ &gt; 0.</span>';
+        fullSol.querySelector('.model-body').innerHTML=''; stats.set([]); renderVisual(); return;
+      }
+      numModel.querySelector('.model-body').innerHTML=
+        `T(t) = ${nf(env)} + ${nf(num0)}·e^{−kt}<br>k = ln(${nf(num0)}/${nf(num1)})/${nf(t1)} = <b style="color:var(--c-calc2)">${M.round(k,4)} hr⁻¹</b>`+
+        (tstar!=null? `<br>t* = −ln((${nf(body-env)})/${nf(num0)})/${M.round(k,4)} = <b style="color:var(--c-calc1)">${M.round(tstar,3)} hr</b>` : '');
+
+      let clockLine='';
+      if(tstar!=null){
+        const foundMin=parseClock(clockN.get());
+        if(foundMin!=null){ const deathMin=foundMin+tstar*60; clockLine=`<br><b>5.</b> Body found at ${clockN.get()}, and t*=${M.round(tstar,2)} hr ⟹ estimated time of death ≈ <b style="color:var(--c-coral,${COL.coral})">${formatClock(deathMin)}</b>.`; }
+      }
+      fullSol.querySelector('.model-body').innerHTML=
+        `<b>1.</b> T(t) = T_env + (T₀−T_env)e^{−kt} = ${nf(env)} + ${nf(num0)} e^{−kt}.<br>`+
+        `<b>2.</b> Fit k from T(${nf(t1)}) = ${nf(T1)}: e^{−k(${nf(t1)})} = ${nf(num1)}/${nf(num0)} ⟹ k = ${M.round(k,4)} hr⁻¹.<br>`+
+        (tstar!=null? `<b>3.</b> Solve ${nf(body)} = ${nf(env)} + ${nf(num0)} e^{−kt*} for t*: t* = ${M.round(tstar,3)} hr ${tstar<0?'(negative ⟹ before discovery, as expected)':'(positive — check your inputs; death would be after discovery)'}.<br>`+
+          `<b>4.</b> So death occurred about <b style="color:var(--c-calc1)">${M.round(Math.abs(tstar),2)} hours (${Math.round(Math.abs(tstar)*60)} minutes)</b> ${tstar<0?'before':'after'} the body was found.${clockLine}`
+          : `<b>3.</b> Body temperature ${nf(body)}°C must exceed the room temperature to back-solve a time of death.`);
+
       const rows=[{k:'cooling constant k',v:M.round(k,4)+' /hr',accent:1}];
-      if(tstar!=null){ const mins=Math.round(Math.abs(tstar)*60); rows.push({k:'time of death',v:`${M.round(Math.abs(tstar),2)} hr (${mins} min) before discovery`,accent:1}); }
+      if(tstar!=null) rows.push({k:'time of death',v:`${M.round(Math.abs(tstar),2)} hr before discovery`,accent:1});
       stats.set(rows);
+
       const tmin=Math.min(-0.5,(tstar!=null?tstar-0.5:-0.5)), tmax=t1+2;
-      const ch=plot.chart(); ch.setX(tmin,tmax); let ys=[]; for(let i=0;i<=300;i++){const y=T(tmin+(tmax-tmin)*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(env,M.min(ys)),yhi=Math.max(body,M.max(ys)); const pad=(yhi-ylo)*.12||2; ch.setY(ylo-pad,yhi+pad);
+      const ch=plot.chart(); ch.setX(tmin,tmax); let ys=[]; for(let i=0;i<=300;i++){const y=Tfn(tmin+(tmax-tmin)*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(env,M.min(ys)),yhi=Math.max(body,M.max(ys)); const pad=(yhi-ylo)*.12||2; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(tmin,tmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
       ch.line(tmin,env,tmax,env,hexA(COL.slate,.6),1.4,[5,4]);
-      ch.curve(T,COL.calc1,2.8); ch.dot(0,T0,COL.ink,5); ch.dot(t1,T1,COL.ink,5);
+      ch.curve(Tfn,COL.calc1,2.8); ch.dot(0,T0,COL.ink,5); ch.dot(t1,T1,COL.ink,5);
       if(tstar!=null) ch.dot(tstar,body,COL.coral,6);
       ch.axisX(niceTicks(tmin,tmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      renderVisual();
     }
+    recompute();
     render();
   }
 });
@@ -1848,59 +1971,204 @@ add({ id:'logistic-application', cat:'c1', tag:'live', title:'Logistic Growth �
   }
 });
 
+/* ---------- shared helpers for the visual "live" applets (tank / body / loan) ---------- */
+function lerpColor(hexA_,hexB_,t){ t=M.clamp(t,0,1); const a=parseInt(hexA_.slice(1),16), b=parseInt(hexB_.slice(1),16);
+  const ar=(a>>16)&255,ag=(a>>8)&255,ab=a&255, br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
+  const r=Math.round(ar+(br-ar)*t), g=Math.round(ag+(bg-ag)*t), bl=Math.round(ab+(bb-ab)*t);
+  return '#'+[r,g,bl].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function modelBox(title,bodyHTML,accent){ const w=document.createElement('div'); w.className='model-box '+(accent||'accent1');
+  w.innerHTML=`<div class="model-title">${title}</div><div class="model-body">${bodyHTML}</div>`; return w; }
+function diagramCard(caption,innerHTML){ const w=document.createElement('div'); w.className='diagram-card';
+  w.innerHTML=`<div class="diagram-cap">${caption}</div>${innerHTML}`; return w; }
+function scrubSlider({label,min,max,step,value,fmt,oninput}){ const w=UI.slider({label,min,max,step,value,fmt,oninput}); return w; }
+function playButton(getT,setT,tmin,tmax,step,onFrame){
+  const btn=document.createElement('button'); btn.className='abtn'; btn.textContent='▶ Play';
+  let playing=false, raf=null, last=0;
+  function frame(ts){ if(!playing)return; if(!last)last=ts; const dt=ts-last; last=ts;
+    let t=getT()+step*(dt/60); if(t>tmax){ t=tmin; } setT(t); onFrame();
+    raf=requestAnimationFrame(frame); }
+  btn.onclick=()=>{ playing=!playing; btn.textContent=playing?'⏸ Pause':'▶ Play'; last=0;
+    if(playing) raf=requestAnimationFrame(frame); else if(raf) cancelAnimationFrame(raf); };
+  return btn;
+}
+
+function tankSVG({Vfrac,conc,concMax,rin,rout,cin,unitVol,unitConc}){
+  const liquidColor = lerpColor('#BFE3F0','#0B4C7A', concMax>1e-9? conc/concMax : 0);
+  const tankX=125,tankY=26,tankW=110,tankH=180;
+  const liqH = M.clamp(Vfrac,0,1)*tankH;
+  const liqY = tankY+tankH-liqH;
+  const inSpeed = rin>1e-9? M.clamp(2.2/rin*10,0.5,3.5):0;
+  const outSpeed = rout>1e-9? M.clamp(2.2/rout*10,0.5,3.5):0;
+  const inDots = rin>1e-9? [0,0.33,0.66].map((ph,i)=>`<circle cx="14" cy="70" r="4" fill="${hexA(COL.calc1,.85)}">
+      <animateMotion dur="${inSpeed}s" repeatCount="indefinite" begin="-${ph*inSpeed}s" path="M 0,0 L ${tankX+6-14},0"/></circle>`).join(''):'';
+  const outDots = rout>1e-9? [0,0.33,0.66].map((ph,i)=>`<circle cx="${tankX+tankW-6}" cy="${tankY+tankH-14}" r="4" fill="${hexA(COL.coral,.85)}">
+      <animateMotion dur="${outSpeed}s" repeatCount="indefinite" begin="-${ph*outSpeed}s" path="M 0,0 L ${346-(tankX+tankW-6)},0"/></circle>`).join(''):'';
+  return `<svg viewBox="0 0 360 250" width="360" height="250" role="img" aria-label="Mixing tank diagram">
+    <rect x="6" y="60" width="${tankX-6}" height="20" rx="4" fill="none" stroke="${COL.faint}" stroke-width="2"/>
+    <text x="10" y="52" font-family="var(--mono)" font-size="11" fill="${COL.soft}">in: c_in=${nf(cin,2)} ${unitConc}</text>
+    <text x="10" y="96" font-family="var(--mono)" font-size="11" fill="${COL.soft}">r_in=${nf(rin,2)} ${unitVol}/min</text>
+    ${inDots}
+    <rect x="${tankX+tankW+2}" y="${tankY+tankH-24}" width="${340-(tankX+tankW+2)}" height="20" rx="4" fill="none" stroke="${COL.faint}" stroke-width="2"/>
+    <text x="${tankX+tankW+4}" y="${tankY+tankH-30}" font-family="var(--mono)" font-size="11" fill="${COL.soft}">out</text>
+    <text x="${tankX+tankW+4}" y="${tankY+tankH+18}" font-family="var(--mono)" font-size="11" fill="${COL.soft}">r_out=${nf(rout,2)}</text>
+    ${outDots}
+    <rect x="${tankX}" y="${tankY}" width="${tankW}" height="${tankH}" rx="10" fill="${COL.paper}" stroke="${COL.ink}" stroke-width="2.4"/>
+    <clipPath id="tankClip"><rect x="${tankX+2}" y="${tankY+2}" width="${tankW-4}" height="${tankH-4}" rx="8"/></clipPath>
+    <rect x="${tankX+2}" y="${liqY}" width="${tankW-4}" height="${liqH-2>0?liqH-2:0}" fill="${liquidColor}" clip-path="url(#tankClip)"/>
+    <line x1="${tankX+2}" y1="${liqY}" x2="${tankX+tankW-2}" y2="${liqY}" stroke="${hexA('#FFFFFF',.5)}" stroke-width="1.5" clip-path="url(#tankClip)"/>
+  </svg>`;
+}
+
 add({ id:'mixing-tank-live', cat:'c1', tag:'live', title:'Mixing Tank (Brine) — Live Solver', diff:'inter', ch:'Application · mixing',
-  questions:['Why does the volume stay constant here even while liquid keeps flowing in and out?','What does the steady-state amount of salt represent physically?','If the tank starts saltier than the incoming brine, which direction does Q(t) move — and why does that make sense?'],
-  blurb:'A tank of constant volume V has brine (concentration c_in) flowing in and the well-mixed solution flowing out, both at rate r. Q′ = c_in·r − (r/V)Q. Solve for Q(t), and for the time to reach any target amount of salt.',
+  questions:['If the inflow and outflow rates are equal, why does the tank\u2019s volume stay constant even though liquid keeps moving through it?','What does the steady-state / limiting concentration represent physically?','If inflow and outflow rates differ, the volume V(t) changes with time — why does that make the differential equation harder to solve, and what technique still handles it?'],
+  blurb:'Pure water or brine (concentration c_in) flows into a tank at rate r_in; the well-mixed solution drains out at rate r_out. Watch the tank fill/drain and change color live, then see the full model — schematic, general ODE, your numbers plugged in, and the complete step-by-step solution.',
   build(host){
-    const VS=UI.slider({label:'tank volume V (L)',min:10,max:2000,step:10,value:1000,fmt:v=>v.toFixed(0),oninput:render});
-    const rS=UI.slider({label:'flow rate r (L/min, in = out)',min:0.5,max:50,step:0.5,value:10,fmt:v=>v.toFixed(1),oninput:render});
-    const cinS=UI.slider({label:'inflow concentration c_in (kg/L)',min:0,max:2,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:render});
-    const Q0S=UI.number({label:'initial salt Q(0) (kg)',value:50,step:'any',onchange:render});
+    const V0N=UI.number({label:'initial volume V₀ (L)',value:1000,step:'any',min:1,onchange:()=>{recompute();render();}});
+    const rinS=UI.slider({label:'inflow rate r_in (L/min)',min:0,max:30,step:0.5,value:10,fmt:v=>v.toFixed(1),oninput:()=>{recompute();render();}});
+    const cinS=UI.slider({label:'inflow concentration c_in (kg/L)  — 0 = pure water',min:0,max:2,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:()=>{recompute();render();}});
+    const routS=UI.slider({label:'outflow rate r_out (L/min)',min:0,max:30,step:0.5,value:10,fmt:v=>v.toFixed(1),oninput:()=>{recompute();render();}});
+    const Q0N=UI.number({label:'initial salt Q(0) (kg)',value:50,step:'any',onchange:()=>{recompute();render();}});
     const target=UI.number({label:'solve: time to reach Q = … kg',value:5,step:'any',onchange:render});
-    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
+
+    const visual=document.createElement('div'); visual.className='live-visual';
+    const readout=document.createElement('div'); readout.className='readout-row';
+    const tScrub=UI.slider({label:'t (minutes)',min:0,max:100,step:1,value:0,fmt:v=>v.toFixed(1),oninput:renderVisual});
+    const scrubRow=document.createElement('div'); scrubRow.className='scrub-row';
+    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),0,100,1,renderVisual);
+    scrubRow.append(playBtn);
+    const visualCard=document.createElement('div'); visualCard.className='diagram-card';
+    visualCard.append(Object.assign(document.createElement('div'),{className:'diagram-cap',textContent:'Live tank — drag the time slider or press play'}),visual,tScrub,scrubRow,readout);
+
+    const schematic=diagramCard('Mathematical setup',`<div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:.82rem;">
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--white);">rate in<br><b>c_in · r_in</b></div>
+      <div style="font-size:1.3rem;color:var(--ink-faint);">→</div>
+      <div style="border:2px solid var(--c-calc1);border-radius:8px;padding:10px 14px;background:var(--white);">tank<br><b>V(t), Q(t)</b></div>
+      <div style="font-size:1.3rem;color:var(--ink-faint);">→</div>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--white);">rate out<br><b>(Q/V) · r_out</b></div>
+    </div>
+    <div style="text-align:center;margin-top:12px;font-family:var(--mono);font-size:.86rem;color:var(--ink-soft);">dQ/dt = (rate in) − (rate out) = c_in·r_in − (r_out/V(t))·Q</div>`);
+
+    const genModel=modelBox('General model (symbols)',
+      `V(t) = V₀ + (r_in − r_out)·t<br>Q′(t) + (r_out / V(t))·Q = c_in·r_in,&nbsp; Q(0)=Q₀<br><br>
+       <u>if r_in = r_out</u> (constant volume V=V₀):<br>
+       &nbsp; Q(t) = c_in·V₀ + (Q₀ − c_in·V₀)·e^{−(r_out/V₀) t}<br><br>
+       <u>if r_in ≠ r_out</u> (integrating factor μ(t)=V(t)^{r_out/(r_in−r_out)}):<br>
+       &nbsp; Q(t) = c_in·V(t) + (Q₀ − c_in·V₀)·(V₀ / V(t))^{ r_out/(r_in−r_out) }`,'accent1');
+    const numModel=modelBox('Your model (numbers substituted)','',  'accent2');
+    const fullSol=modelBox('Full solution & interpretation','','accent3');
+
     const stats=UI.statsBox();
-    const plot=UI.plotCard('Q(t) — salt in the tank over time',420);
-    host.appendChild(UI.appGrid([VS,rS,cinS,Q0S,target,steps,stats,UI.note('Rate in = c_in·r (kg/min). Rate out = (Q/V)·r, since the outflow carries the current concentration Q/V. The equilibrium Q* = c_in·V is where inflow salt rate equals outflow salt rate.')],[plot]));
+    const plot=UI.plotCard('Q(t) — salt in the tank over time',380);
+    host.appendChild(UI.appGrid(
+      [V0N,rinS,cinS,routS,Q0N,target,UI.note('Rate in = c_in·r_in (kg/min). Rate out = (Q/V)·r_out, since the outflow carries whatever concentration is currently in the tank. When r_in = r_out the volume never changes; otherwise V(t) drifts and the tank can drain empty or overflow.')],
+      [visualCard, schematic, genModel, numModel, plot, fullSol, stats]));
     plot.enableZoom(render);
-    function render(){
-      const V=VS.get(),r=rS.get(),cin=cinS.get(),Q0=Q0S.get(),Ptar=target.get();
-      const Qss=cin*V; const k=r/V;
-      const Q=t=>Qss+(Q0-Qss)*Math.exp(-k*t);
-      steps.innerHTML=`<b>1.</b> Q′ = ${nf(cin)}·${nf(r)} − (${nf(r)}/${nf(V)})·Q = ${nf(cin*r)} − ${nf(k,4)}Q,&nbsp; Q(0)=${nf(Q0)}<br>`+
-        `<b>2.</b> Q(t) = ${nf(Qss)} + (${nf(Q0)} − ${nf(Qss)}) e^{−${nf(k,4)}t}`;
-      const rows=[{k:'steady state Q*',v:M.round(Qss,3),accent:1},{k:'rate constant r/V',v:M.round(k,5)}];
-      if((Ptar>Qss&&Q0<Ptar)||(Ptar<Qss&&Q0>Ptar)){
-        const ratio=(Ptar-Qss)/(Q0-Qss);
-        if(ratio>0){ const tt=-Math.log(ratio)/k; steps.innerHTML+=`<br><b>3.</b> solve ${nf(Ptar)} = ${nf(Qss)} + (${nf(Q0)}−${nf(Qss)})e^{−kt}:&nbsp; t = <b style="color:var(--c-calc2)">${M.round(tt,2)} min</b>`;
-          rows.push({k:'time to reach '+nf(Ptar)+' kg',v:M.round(tt,2)+' min',accent:1}); }
-      } else { steps.innerHTML+=`<br><b>3.</b> target ${nf(Ptar)} kg is not between Q(0) and the steady state — it will never be reached.`; }
-      stats.set(rows);
-      const T = k>1e-9? Math.min(600, 6/k) : 200;
-      const ch=plot.chart(); ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){const y=Q(T*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(0,Qss,M.min(ys)),yhi=Math.max(Qss,M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
-      ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
-      ch.line(0,Qss,T,Qss,hexA(COL.coral,.6),1.6,[6,4]);
-      ch.curve(Q,COL.calc1,2.8); ch.dot(0,Q0,COL.ink,5);
-      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+
+    let k, Qss_const, Vref, tDomain, Qfn, Vfn, concMaxRef;
+    function recompute(){
+      const V0=V0N.get(), rin=rinS.get(), rout=routS.get(), cin=cinS.get(), Q0=Q0N.get();
+      k = rin-rout;
+      Vfn = t=> Math.max(0, V0 + k*t);
+      if(Math.abs(k) < 1e-7){
+        const kk = V0>1e-9? rout/V0 : 0;
+        Qss_const = cin*V0;
+        Qfn = t=> Qss_const + (Q0-Qss_const)*Math.exp(-kk*t);
+        tDomain = rout>1e-9? Math.min(600, 6*V0/rout) : 60;
+      } else {
+        const p = rout/k;
+        Qfn = t=>{ const Vt=Vfn(t); if(Vt<=1e-9) return cin*Vt; return cin*Vt + (Q0-cin*V0)*Math.pow(V0/Vt, p); };
+        tDomain = k<0? Math.max(1, V0/(-k))*0.985 : Math.min(600, 6*Math.max(V0/(Math.max(rout,rin)),1));
+      }
+      Vref = Math.max(V0, Vfn(tDomain))*1.05;
+      concMaxRef = Math.max(cin, V0>1e-9?Q0/V0:0, 1e-6);
+      tScrub.set(0); tScrub.querySelector('input').max=M.round(tDomain,2); tScrub.querySelector('input').min=0; tScrub.querySelector('input').step=Math.max(0.1,tDomain/200);
     }
+
+    function renderVisual(){
+      const t=tScrub.get(); const rin=rinS.get(), rout=routS.get(), cin=cinS.get(), V0=V0N.get();
+      const Vt=Vfn(t), Qt=Qfn(t), ct = Vt>1e-9? Qt/Vt : 0;
+      visual.innerHTML = tankSVG({Vfrac:Vt/Vref, conc:ct, concMax:concMaxRef, rin, rout, cin, unitVol:'L', unitConc:'kg/L'});
+      readout.innerHTML = `<span>V(t) = <b>${M.round(Vt,1)} L</b></span><span>Q(t) = <b>${M.round(Qt,3)} kg</b></span><span>c(t)=Q/V = <b>${M.round(ct,4)} kg/L</b></span><span>t = <b>${M.round(t,2)} min</b></span>`;
+    }
+
+    function render(){
+      const V0=V0N.get(), rin=rinS.get(), rout=routS.get(), cin=cinS.get(), Q0=Q0N.get(), Ptar=target.get();
+      recompute();
+      const sameRate = Math.abs(k)<1e-7;
+      numModel.querySelector('.model-body').innerHTML = sameRate?
+        `V(t) = ${nf(V0)} (constant, since r_in = r_out = ${nf(rin)})<br>Q′ = ${nf(cin)}·${nf(rin)} − (${nf(rout)}/${nf(V0)})·Q = ${nf(cin*rin,4)} − ${nf(rout/V0,5)}Q,&nbsp; Q(0)=${nf(Q0)}<br>Q(t) = ${nf(cin*V0,3)} + (${nf(Q0)} − ${nf(cin*V0,3)})·e^{−${nf(rout/V0,5)}t}`
+        : `V(t) = ${nf(V0)} + (${nf(rin)} − ${nf(rout)})t = ${nf(V0)} ${k>=0?'+':'−'} ${nf(Math.abs(k),3)}t<br>Q′ + (${nf(rout)}/V(t))·Q = ${nf(cin*rin,4)},&nbsp; Q(0)=${nf(Q0)}<br>Q(t) = ${nf(cin)}·V(t) + (${nf(Q0)} − ${nf(cin*V0,3)})·(${nf(V0)}/V(t))^{${nf(rout/k,4)}}`;
+
+      const rows=[{k:'V(t) formula',v: sameRate? 'constant = '+nf(V0) : (k>0?'growing':'draining'), accent:1}];
+      if(sameRate) rows.push({k:'steady state Q*',v:M.round(cin*V0,3),accent:1});
+      else rows.push({k: k<0?'time until empty':'—', v: k<0? M.round(V0/(-k),2)+' min':'V(t) grows without bound', accent:1});
+
+      let solveLine='';
+      const Qend = Qfn(tDomain);
+      if(sameRate){
+        const Qss=cin*V0, kk=rout/V0;
+        if((Ptar>Qss&&Q0<Ptar)||(Ptar<Qss&&Q0>Ptar)){
+          const ratio=(Ptar-Qss)/(Q0-Qss);
+          if(ratio>0){ const tt=-Math.log(ratio)/kk; solveLine=`Solve ${nf(Ptar)} = ${nf(Qss,3)} + (${nf(Q0)}−${nf(Qss,3)})e^{−kt}&nbsp;⟹&nbsp; t = <b style="color:var(--c-calc2)">${M.round(tt,2)} min</b>`;
+            rows.push({k:'time to reach '+nf(Ptar)+' kg',v:M.round(tt,2)+' min',accent:1}); }
+        } else solveLine=`Target ${nf(Ptar)} kg is not between Q(0) and the steady state Q*=${nf(Qss,3)} — it is never reached.`;
+      } else {
+        solveLine = `With time-varying volume, solve Q(t)=${nf(Ptar)} numerically for t (no simple closed form to isolate t in general). Scrub the time slider above, or read the value off the plot, to find where the curve crosses Q=${nf(Ptar)}.`;
+      }
+
+      fullSol.querySelector('.model-body').innerHTML = sameRate?
+        `<b>1.</b> Since r_in = r_out, V(t)=V₀ is constant — this is the classic linear ODE Q′+kQ=c_in r_in with k=r_out/V₀.<br>`+
+        `<b>2.</b> Integrating factor μ=e^{kt} gives Q(t) = Q* + (Q₀−Q*)e^{−kt}, Q* = c_in·V₀ = ${nf(cin*V0,3)} kg.<br>`+
+        `<b>3.</b> ${solveLine}<br>`+
+        `<b>4.</b> As t→∞, Q(t) → Q* = ${nf(cin*V0,3)} kg — the tank settles at the incoming concentration times its volume.`
+        : `<b>1.</b> Here r_in≠r_out, so V(t)=V₀+(r_in−r_out)t is not constant — the ODE Q′+(r_out/V(t))Q=c_in r_in has a time-varying coefficient.<br>`+
+        `<b>2.</b> Using integrating factor μ(t)=V(t)^{r_out/(r_in−r_out)} and integrating gives the closed form shown in "your model" above.<br>`+
+        `<b>3.</b> ${solveLine}<br>`+
+        `<b>4.</b> ${k<0? `The tank runs dry at t ≈ ${M.round(V0/(-k),2)} min (V(t)=0) — the model stops applying beyond that.` : `The tank volume grows without bound; physically it would eventually overflow, so treat large t with that in mind.`}`;
+
+      stats.set(rows);
+      const T = tDomain;
+      const ch=plot.chart(); ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){const y=Qfn(T*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(0,M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
+      ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      if(sameRate) ch.line(0,cin*V0,T,cin*V0,hexA(COL.coral,.6),1.6,[6,4]);
+      ch.curve(Qfn,COL.calc1,2.8); ch.dot(0,Q0,COL.ink,5);
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      renderVisual();
+    }
+    recompute();
     render();
   }
 });
 
-add({ id:'loan-amortization', cat:'c1', tag:'live', title:'Loan Payoff — Continuous Repayment Model', diff:'inter', ch:'Application · finance',
-  questions:['Why is the equilibrium balance S* = payment/rate an unstable equilibrium?','If the payment rate is smaller than the initial interest accrual, what happens to the balance — does it ever hit zero?','How does raising the payment rate change the payoff time — linearly, or more dramatically than that?'],
-  blurb:'A loan accrues interest continuously at rate (fraction/year) and is paid down continuously at a fixed rate. S′ = rate·S − payment, S(0)=S₀. Solve for the payoff time, or work backward from a target number of years to the payment you\u2019d need.',
+function fmtUSD(x){ if(!isFinite(x))return '—'; const s=Math.abs(x).toFixed(2); const parts=s.split('.'); parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,','); return (x<0?'-':'')+'$'+parts[0]+'.'+parts[1]; }
+
+add({ id:'loan-amortization', cat:'c1', tag:'live', title:'Loan Payoff — Continuous Model vs. Real Monthly Payments', diff:'inter', ch:'Application · finance',
+  questions:['Why is the equilibrium balance S* = payment/rate an unstable equilibrium?','If the payment rate is smaller than the initial interest accrual, what happens to the balance — does it ever hit zero?','A real mortgage compounds and pays monthly (discrete), not continuously — why do the two models nonetheless agree closely, and why does the agreement improve for longer terms?'],
+  blurb:'First, the idealized continuous model S′ = rate·S − payment. Then, "in practice": how a real fixed-rate mortgage with discrete monthly payments compares — including the first 20 months of the actual amortization schedule.',
   build(host){
     const S0N=UI.number({label:'loan amount S₀ ($)',value:10000,step:'any',onchange:render});
     const rateN=UI.number({label:'annual interest rate (%)',value:6,step:'any',onchange:render});
-    const mode=UI.seg({label:'solve for…',options:[{label:'payoff time',value:'time'},{label:'required payment',value:'payment'}],value:'time',onchange:()=>{relabel();render();}});
+    const mode=UI.seg({label:'continuous model: solve for…',options:[{label:'payoff time',value:'time'},{label:'required payment',value:'payment'}],value:'time',onchange:render});
     const payN=UI.number({label:'payment rate ($/year)',value:800,step:'any',onchange:render});
     const yearsN=UI.number({label:'desired payoff years',value:15,step:'any',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
     const stats=UI.statsBox();
-    const plot=UI.plotCard('S(t) — loan balance over time',420);
-    host.appendChild(UI.appGrid([S0N,rateN,mode,payN,yearsN,steps,stats,UI.note('The equilibrium S* = payment/rate is <i>unstable</i>: if S₀ &lt; S*, the balance shrinks to 0 (paid off); if S₀ &gt; S*, it grows forever (never paid off) — the payment isn\u2019t covering the interest.')],[plot]));
+    const plot=UI.plotCard('S(t) — continuous-model balance over time',360);
+
+    const termN=UI.number({label:'in practice: loan term for comparison (years)',value:30,step:'any',min:1,onchange:render});
+    const cmpNote=diagramCard('In practice: monthly mortgage vs. continuous model',
+      `<div class="model-body" style="font-family:var(--mono);font-size:.86rem;line-height:1.7;">Real mortgages compound and are paid <b>monthly</b> (discrete), not continuously. Over the same loan amount, rate, and term, compare the standard monthly payment to what the continuous model predicts (its annual payment rate, divided by 12).</div>`);
+    const cmpStats=UI.statsBox();
+    const cmpPlot=UI.plotCard('monthly payment: discrete (mortgage) vs. continuous/12, as the term lengthens',320);
+    const amortTitle=document.createElement('div'); amortTitle.className='diagram-cap'; amortTitle.style.marginTop='4px'; amortTitle.textContent='First 20 months — standard mortgage amortization schedule';
+    const amortWrap=document.createElement('div'); amortWrap.className='amort-wrap'; amortWrap.style.maxHeight='420px'; amortWrap.style.overflowY='auto';
+    const amortCard=document.createElement('div'); amortCard.className='diagram-card'; amortCard.append(amortTitle,amortWrap);
+
+    host.appendChild(UI.appGrid(
+      [S0N,rateN,mode,payN,yearsN,steps,stats,UI.note('The equilibrium S* = payment/rate is <i>unstable</i>: if S₀ &lt; S*, the balance shrinks to 0 (paid off); if S₀ &gt; S*, it grows forever — the payment isn\u2019t covering the interest.'), termN],
+      [plot, cmpNote, cmpStats, cmpPlot, amortCard]));
     plot.enableZoom(render);
-    function relabel(){ const m=mode.get(); payN.parentElement? null:null; document.getElementById('payWrap')?.style; }
+
     function render(){
       const S0=S0N.get(), ratePct=rateN.get(), rr=ratePct/100; const m=mode.get();
       let payment;
@@ -1924,6 +2192,43 @@ add({ id:'loan-amortization', cat:'c1', tag:'live', title:'Loan Payoff — Conti
       ch.line(0,0,T,0,hexA(COL.slate,.5),1.2,[3,3]);
       ch.curve(S,COL.calc3,2.8); ch.dot(0,S0,COL.ink,5); if(payoffT!=null&&payoffT<=T) ch.dot(payoffT,0,COL.coral,6);
       ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+
+      /* ---- In practice: discrete monthly mortgage vs continuous/12 ---- */
+      const termYears = termN.get(); if(!(termYears>0)){ return; }
+      const nMonths = Math.round(termYears*12);
+      const rm = rr/12;
+      const Mdiscrete = Math.abs(rm)<1e-12? S0/nMonths : S0*rm/(1-Math.pow(1+rm,-nMonths));
+      const paymentContAnnual = rr*S0/(1-Math.exp(-rr*termYears));
+      const Mcontinuous = paymentContAnnual/12;
+      const diff = Mdiscrete-Mcontinuous;
+      cmpStats.set([
+        {k:'monthly payment (real mortgage)',v:fmtUSD(Mdiscrete),accent:1},
+        {k:'continuous model ÷ 12',v:fmtUSD(Mcontinuous),accent:1},
+        {k:'difference',v:fmtUSD(diff)+' ('+M.round(100*diff/Mdiscrete,2)+'%)'},
+        {k:'term used',v:termYears+' yr'}
+      ]);
+
+      const cch=cmpPlot.chart(); const Tlo=1,Thi=40; cch.setX(Tlo,Thi);
+      const fD=Ty=>{ const n=Math.round(Ty*12), rmL=rr/12; return Math.abs(rmL)<1e-12? S0/n : S0*rmL/(1-Math.pow(1+rmL,-n)); };
+      const fC=Ty=> (rr*S0/(1-Math.exp(-rr*Ty)))/12;
+      let cys=[]; for(let i=0;i<=200;i++){ const Ty=Tlo+(Thi-Tlo)*i/200; cys.push(fD(Ty),fC(Ty)); }
+      cys=cys.filter(isFinite); let clo=Math.min(...cys),chi=Math.max(...cys); const cpad=(chi-clo)*.12||1; cch.setY(clo-cpad,chi+cpad);
+      cch.clear(); cch.gridlines(niceTicks(Tlo,Thi,7),niceTicks(cch.ymin,cch.ymax,6)); cch.axes();
+      cch.curve(fD,COL.calc1,2.6); cch.curve(fC,COL.calc3,2.2);
+      cch.dot(termYears,Mdiscrete,COL.calc1,5); cch.dot(termYears,Mcontinuous,COL.calc3,5);
+      cch.axisX(niceTicks(Tlo,Thi,7)); cch.axisY(niceTicks(cch.ymin,cch.ymax,6));
+      const legend=cmpPlot.querySelector('.legend-note'); const lg=legend||document.createElement('div');
+      lg.className='legend-note'; lg.style.cssText='font-family:var(--mono);font-size:.72rem;color:var(--ink-soft);margin-top:6px;';
+      lg.innerHTML=`<span style="color:${COL.calc1}">■</span> monthly mortgage payment &nbsp; <span style="color:${COL.calc3}">■</span> continuous model ÷ 12 — the two curves converge as the term lengthens.`;
+      if(!legend) cmpPlot.appendChild(lg);
+
+      /* ---- Amortization table: first 20 months ---- */
+      let bal=S0, rowsHtml='';
+      for(let i=1;i<=Math.min(20,nMonths);i++){
+        const interest=bal*rm, principal=Mdiscrete-interest; bal=Math.max(0,bal-principal);
+        rowsHtml+=`<tr><td>${i}</td><td>${fmtUSD(Mdiscrete)}</td><td>${fmtUSD(interest)}</td><td>${fmtUSD(principal)}</td><td>${fmtUSD(bal)}</td></tr>`;
+      }
+      amortWrap.innerHTML=`<table class="amort-table"><thead><tr><th>Month</th><th>Payment</th><th>Interest</th><th>Principal</th><th>Balance</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
     }
     render();
   }
@@ -2511,7 +2816,10 @@ function applyDark(d){
     body.dark-override .abtn{background:var(--paper-2);color:var(--ink);}
     body.dark-override .back{background:var(--paper-2);}
     body.dark-override .search-box{background:var(--paper-2);}
-    body.dark-override .formula{background:var(--paper-2);}`;
+    body.dark-override .formula{background:var(--paper-2);}
+    body.dark-override .model-box{background:var(--paper-2);}
+    body.dark-override .diagram-card{background:var(--paper-2);}
+    body.dark-override .amort-table th{background:var(--paper);}`;
     icon.setAttribute('d','M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z');
   } else { darkStyle.textContent=''; icon.setAttribute('d','M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'); }
   document.body.classList.toggle('dark-override',d);
