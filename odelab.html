@@ -238,6 +238,10 @@ canvas{display:block;}
 .model-box.accent2{border-left:3px solid var(--c-calc2);}
 .model-box.accent3{border-left:3px solid var(--c-calc3);}
 .model-box .model-body{font-family:var(--mono);font-size:.9rem;line-height:1.9;overflow-x:auto;}
+.model-box .model-body .katex-display{margin:.5em 0;}
+.wronsk-rows{display:flex;flex-direction:column;gap:12px;}
+.wronsk-row .row-remove{margin-left:6px;border:none;background:none;color:var(--ink-faint);cursor:pointer;font-size:.82rem;padding:0 2px;line-height:1;transition:.15s;}
+.wronsk-row .row-remove:hover{color:var(--c-calc1);}
 .diagram-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-md);padding:18px;margin-bottom:14px;}
 .diagram-card .diagram-cap{font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:10px;}
 
@@ -935,7 +939,21 @@ function testLinearInY(f,tmin,tmax,ymin,ymax){
   return checks>=6 && ok/checks>0.85;
 }
 function symStrToTex(tr){ let s; try{ s=Sym.str(tr); }catch(e){ return '?'; }
-  return s.replace(/·/g,'\\cdot ').replace(/−/g,'-'); }
+  return s.replace(/·/g,'\cdot ').replace(/−/g,'-'); }
+/* generic n×n determinant by cofactor expansion (n is small in every caller here) */
+function detN(m){
+  const n=m.length;
+  if(n===1) return m[0][0];
+  if(n===2) return m[0][0]*m[1][1]-m[0][1]*m[1][0];
+  let det=0;
+  for(let j=0;j<n;j++){
+    const minor=m.slice(1).map(row=>row.filter((_,k)=>k!==j));
+    det += (j%2===0?1:-1)*m[0][j]*detN(minor);
+  }
+  return det;
+}
+/* build a LaTeX pmatrix from a 2D array of already-tex'd cell strings */
+function texPmatrix(rows){ return '\\begin{pmatrix}'+rows.map(r=>r.join(' & ')).join(' \\\\ ')+'\\end{pmatrix}'; }
 
 function drawSlopeField(ch,f,col,nx,ny){ nx=nx||22; ny=ny||15; const ctx=ch.ctx; ctx.save(); ctx.strokeStyle=col||hexA(COL.slate,.45); ctx.lineWidth=1.2;
   for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++){ const t=ch.xmin+(ch.xmax-ch.xmin)*i/nx, y=ch.ymin+(ch.ymax-ch.ymin)*j/ny; const m=f(t,y); if(!isFinite(m))continue;
@@ -1278,38 +1296,93 @@ add({ id:'second-order', cat:'c2', tag:'interactive', title:'2nd-Order Linear: C
   }
 });
 
-add({ id:'wronskian', cat:'c2', tag:'live', title:'Wronskian of Two Solutions', diff:'inter', ch:'Linear independence',
-  questions:['If W(t₀) ≠ 0 at even one point, why does that force y₁ and y₂ to be linearly independent everywhere?','Abel\u2019s formula says W(t) = W(t₀)·e^{−∫p dt} for y″+p(t)y′+q(t)y=0 — why can W never cross zero unless it is identically zero?','For constant coefficients y″+by′+cy=0, Abel\u2019s formula gives W(t)=C e^{−bt}. How does that match what you compute directly from y₁,y₂ below?'],
-  blurb:'Enter two solutions y₁(t), y₂(t) of the same linear ODE (e.g. from a characteristic-equation fundamental set) and compute their Wronskian W(t) = y₁y₂′ − y₁′y₂, both as a live number and as a curve. A nonzero Wronskian anywhere certifies linear independence.',
+add({ id:'wronskian', cat:'c2', tag:'live', title:'Wronskian of Solutions', diff:'inter', ch:'Linear independence',
+  questions:['If W(t₀) ≠ 0 at even one point, why does that force the yᵢ to be linearly independent everywhere?','Abel\u2019s formula says W(t) = W(t₀)·e^{−∫p dt} for y″+p(t)y′+q(t)y=0 — why can W never cross zero unless it is identically zero?','For constant coefficients y″+by′+cy=0, Abel\u2019s formula gives W(t)=C e^{−bt}. How does that match what you compute directly from y₁,y₂ below?'],
+  blurb:'Enter two or more solutions y₁(t), y₂(t), … of the same linear ODE (e.g. from a characteristic-equation fundamental set) — add as many as you like — and compute their Wronskian: the determinant of the matrix of the functions and their derivatives up to order n−1. A Wronskian that is not identically zero certifies linear independence.',
   build(host){
+    const MAXN=5;
     const presets=[
-      {label:'e^{r₁t}, e^{r₂t}  (real roots, a=1,b=-3,c=2)',y1:'exp(-1*t)',y2:'exp(-2*t)',note:'From r²+3r+2=0: roots r=-1,-2.'},
-      {label:'e^{rt}, t·e^{rt}  (repeated root r=-2)',y1:'exp(-2*t)',y2:'t*exp(-2*t)',note:'From r²+4r+4=0: repeated root r=-2.'},
-      {label:'e^{αt}cos(βt), e^{αt}sin(βt)  (complex roots -0.3±2i)',y1:'exp(-0.3*t)*cos(2*t)',y2:'exp(-0.3*t)*sin(2*t)',note:'From r²+0.6r+4.09=0: roots -0.3±2i.'},
-      {label:'1, t  (y″=0)',y1:'1',y2:'t',note:'Trivial fundamental set for y″=0.'}
+      {label:'e^{r₁t}, e^{r₂t}  (real roots, a=1,b=-3,c=2)',ys:['exp(-1*t)','exp(-2*t)'],note:'From r²+3r+2=0: roots r=-1,-2.'},
+      {label:'e^{rt}, t·e^{rt}  (repeated root r=-2)',ys:['exp(-2*t)','t*exp(-2*t)'],note:'From r²+4r+4=0: repeated root r=-2.'},
+      {label:'e^{αt}cos(βt), e^{αt}sin(βt)  (complex roots -0.3±2i)',ys:['exp(-0.3*t)*cos(2*t)','exp(-0.3*t)*sin(2*t)'],note:'From r²+0.6r+4.09=0: roots -0.3±2i.'},
+      {label:'1, t, t²  (three solutions of y‴=0)',ys:['1','t','t^2'],note:'A fundamental set for y‴=0 — three solutions, a 3×3 Wronskian.'},
+      {label:'1, t  (y″=0)',ys:['1','t'],note:'Trivial fundamental set for y″=0.'}
     ];
-    const psel=UI.select({label:'preset fundamental sets',options:presets.map((p,i)=>({label:p.label,value:String(i)})),value:'0',onchange:v=>{ const p=presets[+v]; y1in.set(p.y1); y2in.set(p.y2); presetNote.textContent=p.note; render(); }});
-    const y1in=UI.text({label:'y₁(t)',value:presets[0].y1,hint:'a function of t only',onchange:render});
-    const y2in=UI.text({label:'y₂(t)',value:presets[0].y2,hint:'a function of t only',onchange:render});
-    const t0N=UI.number({label:'evaluate W at t =',value:0,step:'any',onchange:render});
+    let sols = presets[0].ys.slice();
+    const psel=UI.select({label:'preset fundamental sets',options:presets.map((p,i)=>({label:p.label,value:String(i)})),value:'0',onchange:v=>{ const p=presets[+v]; sols=p.ys.slice(); presetNote.textContent=p.note; renderRows(); render(); }});
+    const rowsWrap=document.createElement('div'); rowsWrap.className='wronsk-rows';
+    const addBtn=UI.buttons([{label:'+ add solution',onclick:()=>{ if(sols.length>=MAXN)return; sols.push('t^'+sols.length); renderRows(); render(); }}]);
+    const t0N=UI.number({label:'evaluate at t =',value:0,step:'any',onchange:render});
     const presetNote=document.createElement('div'); presetNote.className='hint'; presetNote.textContent=presets[0].note;
-    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const matrixBox=modelBox('W(y₁,…,y_n)(t) — definition & matrix','','accent1');
+    const resultBox=modelBox('Evaluated at t = t₀ — determinant & conclusion','','accent2');
     const stats=UI.statsBox();
-    const plot=UI.plotCard('Wronskian W(t) — a horizontal band at 0 would signal dependence',420);
-    host.appendChild(UI.appGrid([psel,y1in,y2in,presetNote,t0N,steps,stats,UI.note('The Wronskian is <code>W = y₁y₂′ − y₁′y₂</code>, computed as a 2×2 determinant of the solutions and their derivatives. For any two solutions of the <i>same</i> linear ODE, Abel\u2019s theorem says W is either never zero or always zero — so checking one point suffices.')],[plot]));
+    const plot=UI.plotCard('Wronskian W(t) — a curve pinned to 0 everywhere signals dependence',360);
+    host.appendChild(UI.appGrid(
+      [psel,rowsWrap,addBtn,t0N,presetNote,UI.note('For solutions of the <i>same</i> linear ODE, Abel\u2019s theorem says W is either never zero or always zero — so one point would suffice. Since these functions need not come from a common ODE, this tool also scans a range of t and calls it "dependent" only if W stays ≈0 throughout.')],
+      [matrixBox,plot,resultBox,stats]));
     plot.enableZoom(render);
+
+    function renderRows(){
+      rowsWrap.innerHTML='';
+      sols.forEach((s,idx)=>{
+        const w=document.createElement('div'); w.className='ctrl wronsk-row';
+        w.innerHTML='<label>y<sub>'+(idx+1)+'</sub>(t)'+(sols.length>2?' <button type="button" class="row-remove" title="remove this solution">\u2715</button>':'')+'</label><input type="text" value="'+s.replace(/"/g,'&quot;')+'">';
+        const inp=w.querySelector('input');
+        inp.addEventListener('input',()=>{ sols[idx]=inp.value; render(); });
+        const rem=w.querySelector('.row-remove');
+        if(rem) rem.onclick=()=>{ sols.splice(idx,1); renderRows(); render(); };
+        rowsWrap.appendChild(w);
+      });
+    }
+    renderRows();
+
     function render(){
-      let y1,y2,tr1,tr2,dtr1,dtr2;
-      try{ tr1=Sym.simp(Sym.parse(y1in.get().toLowerCase(),['t'])); dtr1=Sym.simp(Sym.diff(tr1,'t')); y1=Sym.compile(y1in.get(),['t']); }catch(e){ return; }
-      try{ tr2=Sym.simp(Sym.parse(y2in.get().toLowerCase(),['t'])); dtr2=Sym.simp(Sym.diff(tr2,'t')); y2=Sym.compile(y2in.get(),['t']); }catch(e){ return; }
-      const dy1=t=>M.nderiv(y1,t), dy2=t=>M.nderiv(y2,t);
-      const W=t=>y1(t)*dy2(t)-dy1(t)*y2(t);
+      const n=sols.length; if(n<2) return;
+      let trees=[];
+      try{ for(let i=0;i<n;i++) trees.push(Sym.simp(Sym.parse(sols[i].toLowerCase(),['t']))); }
+      catch(e){ matrixBox.querySelector('.model-body').innerHTML='<span style="color:'+COL.coral+'">Couldn\u2019t parse one of the functions — check the syntax (use t, +, -, *, /, ^, sin, cos, exp, \u2026).</span>'; resultBox.querySelector('.model-body').innerHTML=''; stats.set([]); return; }
+      // D[i][j] = the j-th derivative (tree) of y_i, for j = 0..n-1
+      const D=trees.map(tr=>{ const row=[tr]; for(let j=1;j<n;j++) row.push(Sym.simp(Sym.diff(row[j-1],'t'))); return row; });
+      function evalAt(t){ const mat=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++) row.push(Sym.ev(D[i][j],{t:t})); mat.push(row); } return mat; }
+      function W(t){ return detN(evalAt(t)); }
+
       const t0=t0N.get(); const Wt0=W(t0);
-      let y1p,y2p; try{ y1p=Sym.str(tr1); y2p=Sym.str(tr2); }catch(e){ y1p=y1in.get(); y2p=y2in.get(); }
-      steps.innerHTML=`<b>1.</b> y₁ = ${y1p},&nbsp; y₁′ = ${(()=>{try{return Sym.str(dtr1);}catch(e){return '(numeric)';}})()}<br><b>2.</b> y₂ = ${y2p},&nbsp; y₂′ = ${(()=>{try{return Sym.str(dtr2);}catch(e){return '(numeric)';}})()}<br><b>3.</b> W(t) = y₁y₂′ − y₁′y₂`;
-      const indep = Math.abs(Wt0) > 1e-6*Math.max(1,Math.abs(y1(t0))+Math.abs(y2(t0)));
-      stats.set([{k:'W('+nf(t0,2)+')',v:M.round(Wt0,5),accent:1},{k:'conclusion',v:indep?'linearly independent':'looks dependent here — try another t',accent:1}]);
-      const T0=-2,T1=6; const ch=plot.chart(); ch.setX(T0,T1); let ws=[]; for(let i=0;i<=300;i++){const w=W(T0+(T1-T0)*i/300); if(isFinite(w))ws.push(w);} let wlo=Math.min(0,M.min(ws)),whi=Math.max(0,M.max(ws)); const pad=(whi-wlo)*.15||1; ch.setY(wlo-pad,whi+pad);
+
+      // ---- symbolic definition + matrix (general labels, then the actual expressions) ----
+      const primeOf=j=> j===0?'':(j===1?"'":'^{('+j+')}');
+      const labelRows=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++) row.push('y_{'+(i+1)+'}'+primeOf(j)+'(t)'); labelRows.push(row); }
+      const symRows=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++){ let ts; try{ ts=symStrToTex(D[i][j]); }catch(e){ ts='?'; } row.push('\\displaystyle '+ts); } symRows.push(row); }
+      matrixBox.querySelector('.model-body').innerHTML =
+        dtex('\\displaystyle W(y_1,\\ldots,y_{'+n+'})(t)=\\det'+texPmatrix(labelRows)) +
+        dtex('\\displaystyle {}='+'\\det'+texPmatrix(symRows));
+
+      // ---- numeric substitution at t0 + determinant + verdict ----
+      const mat0=evalAt(t0);
+      const numRows=mat0.map(row=>row.map(v=>'\\displaystyle '+(isFinite(v)?nf(v,4):'\\text{undef}')));
+      const T0=-2,T1=6;
+      let wVals=[]; for(let i=0;i<=300;i++){ const t=T0+(T1-T0)*i/300; const w=W(t); if(isFinite(w)) wVals.push(w); }
+      const maxAbsW = wVals.length? Math.max.apply(null,wVals.map(Math.abs)) : 0;
+      let independent=false;
+      for(let i=0;i<=60;i++){ const t=T0+(T1-T0)*i/60; const mat=evalAt(t); const w=detN(mat);
+        const scale=Math.max(1, mat[0].reduce((s,v)=>s+Math.abs(v),0));
+        if(isFinite(w) && Math.abs(w) > 1e-6*Math.pow(scale,n)){ independent=true; break; } }
+      resultBox.querySelector('.model-body').innerHTML =
+        dtex('\\displaystyle W('+nf(t0,2)+')=\\det'+texPmatrix(numRows)+'='+(isFinite(Wt0)?nf(Wt0,5):'\\text{undefined}')) +
+        '<div style="margin-top:10px;font-family:var(--body);font-size:.92rem;line-height:1.5;">'+
+        (independent
+          ? '<b style="color:var(--c-calc2)">Linearly independent</b> — W(t) is not identically zero on t\u2208['+T0+','+T1+'] (max|W| \u2248 '+nf(maxAbsW,5)+').'
+          : '<b style="color:'+COL.coral+'">Linearly dependent</b> — W(t) \u2248 0 across t\u2208['+T0+','+T1+']. Try widening the range or re-checking the functions.')
+        +'</div>';
+
+      stats.set([
+        {k:'W('+nf(t0,2)+')',v:isFinite(Wt0)?M.round(Wt0,5):'\u2014',accent:1},
+        {k:'# solutions',v:n},
+        {k:'conclusion',v:independent?'independent':'dependent (here)',accent:1}
+      ]);
+
+      const ch=plot.chart(); ch.setX(T0,T1);
+      let wlo=Math.min(0,...wVals),whi=Math.max(0,...wVals); const pad=(whi-wlo)*.15||1; ch.setY(wlo-pad,whi+pad);
       ch.clear(); ch.gridlines(niceTicks(T0,T1,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); ch.curve(W,COL.calc2,2.8); ch.dot(t0,Wt0,COL.coral,5);
       ch.axisX(niceTicks(T0,T1,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
     }
@@ -1565,8 +1638,8 @@ function matExprInverse(A){ const det=matExprDet(A); if(exprIsZero(det)) return 
       for(let r=0;r<n;r++){ if(r===col) continue; const f=G[r][col]; for(let k=0;k<2*n;k++) G[r][k]-=f*G[col][k]; } }
     const invNum=G.map(row=>row.slice(n)); return {det, inv:invNum, exact:false, detNum}; }
 }
-function matExprToTex(A){ const rows=A.map(row=>row.map(v=>exprToTex(v)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
-function matNumToTex(A){ const rows=A.map(row=>row.map(v=>nf(v,4)).join(' & ')).join(' \\\\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
+function matExprToTex(A){ const rows=A.map(row=>row.map(v=>exprToTex(v)).join(' & ')).join(' \\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
+function matNumToTex(A){ const rows=A.map(row=>row.map(v=>nf(v,4)).join(' & ')).join(' \\ '); return `\\begin{pmatrix}${rows}\\end{pmatrix}`; }
 /* editable m×n matrix input panel used by the Matrix Operations applet */
 function buildMatPanel(name,initM,initN){
   const el=document.createElement('div'); el.className='mat-panel';
@@ -1944,22 +2017,58 @@ add({ id:'logistic-application', cat:'c1', tag:'live', title:'Logistic Growth �
     const P0S=UI.slider({label:'initial population P₀',min:0.1,max:100,step:0.1,value:5,fmt:v=>v.toFixed(1),oninput:render});
     const tS=UI.slider({label:'time horizon',min:2,max:60,step:1,value:20,fmt:v=>v,oninput:render});
     const target=UI.number({label:'solve: time to reach population…',value:40,step:'any',onchange:render});
-    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
-    const stats=UI.statsBox();
+
+    // general symbolic model — sits ABOVE the graph
+    const genModel=modelBox('General model (symbols)','','accent1');
+    genModel.querySelector('.model-body').innerHTML =
+      dtex('\\displaystyle \\frac{dP}{dt}=rP\\left(1-\\frac{P}{K}\\right),\\qquad P(0)=P_0') +
+      dtex('\\displaystyle P(t)=\\frac{K\\,P_0}{P_0+(K-P_0)\\,e^{-rt}}') +
+      '<div style="font-family:var(--body);font-size:.86rem;color:var(--ink-soft);margin-top:6px;line-height:1.5;">Separate variables and integrate; the constant is fixed by P(0)=P₀. To find the time to hit a target P, invert:</div>' +
+      dtex('\\displaystyle t=-\\frac{1}{r}\\,\\ln\\!\\left[\\frac{P_0\\,(K-P)}{P\\,(K-P_0)}\\right]');
+
     const plot=UI.plotCard('P(t) approaching the carrying capacity K',420);
-    host.appendChild(UI.appGrid([rS,KS,P0S,tS,target,steps,stats,UI.note('P=0 is an <b>unstable</b> equilibrium, P=K is <b>stable</b> — every positive P₀ is drawn toward K. The curve is S-shaped: it inflects (grows fastest) exactly at P=K/2.')],[plot]));
+
+    // numeric model + worked solution — sit BELOW the graph
+    const numModel=modelBox('Your model (numbers substituted)','','accent2');
+    const solBox=modelBox('解答 · worked solution','','accent3');
+    const stats=UI.statsBox();
+
+    host.appendChild(UI.appGrid(
+      [rS,KS,P0S,tS,target,UI.note('P=0 is an <b>unstable</b> equilibrium, P=K is <b>stable</b> — every positive P₀ is drawn toward K. The curve is S-shaped: it inflects (grows fastest) exactly at P=K/2.')],
+      [genModel, plot, numModel, solBox, stats]));
     plot.enableZoom(render);
+
     function render(){
       const r=rS.get(),K=KS.get(),P0=P0S.get(),T=tS.get(),Ptar=target.get();
       const P=t=>K*P0/(P0+(K-P0)*Math.exp(-r*t));
-      steps.innerHTML=`<b>1.</b> separate & integrate:&nbsp; P(t) = K P₀ / ( P₀ + (K − P₀) e^{−rt} )<br><b>2.</b> here: P(t) = ${nf(K)}·${nf(P0)} / ( ${nf(P0)} + ${nf(K-P0)} e^{−${nf(r)}t} )`;
+
+      // numeric model (values plugged in)
+      numModel.querySelector('.model-body').innerHTML =
+        dtex('\\displaystyle \\frac{dP}{dt}='+nf(r)+'\\,P\\left(1-\\frac{P}{'+nf(K)+'}\\right),\\qquad P(0)='+nf(P0)) +
+        dtex('\\displaystyle P(t)=\\frac{'+nf(K)+'\\cdot'+nf(P0)+'}{'+nf(P0)+'+'+nf(K-P0)+'\\,e^{-'+nf(r)+'t}}');
+
+      // worked solution steps
+      let sol =
+        '<b>1.</b> Separate &amp; integrate the logistic ODE to get '+
+        itex('P(t)=\\dfrac{K P_0}{P_0+(K-P_0)e^{-rt}}')+'.<br>'+
+        '<b>2.</b> Substitute '+itex('r='+nf(r))+', '+itex('K='+nf(K))+', '+itex('P_0='+nf(P0))+':<br>'+
+        dtex('\\displaystyle P(t)=\\frac{'+nf(K)+'\\cdot'+nf(P0)+'}{'+nf(P0)+'+'+nf(K-P0)+'e^{-'+nf(r)+'t}}');
+
       const rows=[{k:'P(0)',v:M.round(P0,3)},{k:'P('+T+')',v:M.round(P(T),3),accent:1},{k:'carrying capacity K',v:K,accent:1}];
-      if(P0>0 && P0<K){ const tinf=Math.log((K-P0)/P0)/r; rows.push({k:'inflection (fastest growth)',v:'t = '+M.round(tinf,2)+' at P=K/2'}); }
+      if(P0>0 && P0<K){ const tinf=Math.log((K-P0)/P0)/r;
+        sol += '<b>3.</b> Inflection (fastest growth) at '+itex('P=K/2')+', i.e. '+dtex('\\displaystyle t=\\frac{1}{r}\\ln\\!\\frac{K-P_0}{P_0}='+M.round(tinf,3));
+        rows.push({k:'inflection (fastest growth)',v:'t = '+M.round(tinf,2)+' at P=K/2'});
+      }
       if(Ptar>0 && Ptar<K && P0>0 && P0<K){ const tt=-Math.log( (P0*(K-Ptar))/(Ptar*(K-P0)) )/r;
-        steps.innerHTML+=`<br><b>3.</b> solve P(t)=${nf(Ptar)} for t:&nbsp; t = −ln[ P₀(K−P)/(P(K−P₀)) ]/r = <b style="color:var(--c-calc2)">${isFinite(tt)&&tt>=0?M.round(tt,3):'already passed / unreachable'}</b>`;
+        sol += '<b>4.</b> Time to reach '+itex('P='+nf(Ptar))+':'+
+          dtex('\\displaystyle t=-\\frac{1}{'+nf(r)+'}\\ln\\!\\left[\\frac{'+nf(P0)+'('+nf(K)+'-'+nf(Ptar)+')}{'+nf(Ptar)+'('+nf(K)+'-'+nf(P0)+')}\\right]='+(isFinite(tt)&&tt>=0?M.round(tt,3):'\\text{already passed}'));
         if(isFinite(tt)) rows.push({k:'time to reach '+nf(Ptar),v: tt>=0? M.round(tt,3): 'already past this value',accent:1});
-      } else if(Ptar>=K){ steps.innerHTML+=`<br><b>3.</b> target ${nf(Ptar)} ≥ K = ${nf(K)} is never reached (P → K but never exceeds it).`; }
+      } else if(Ptar>=K){
+        sol += '<b>4.</b> Target '+itex(nf(Ptar))+' \\geq K='+nf(K)+' is never reached ('+itex('P\\to K')+' but never exceeds it).';
+      }
+      solBox.querySelector('.model-body').innerHTML = sol;
       stats.set(rows);
+
       const ch=plot.chart(); ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){const y=P(T*i/300); if(isFinite(y))ys.push(y);} let ylo=Math.min(0,M.min(ys)),yhi=Math.max(K,M.max(ys)); const pad=(yhi-ylo)*.12||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
       ch.line(0,K,T,K,hexA(COL.coral,.6),1.6,[6,4]);
