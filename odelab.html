@@ -133,7 +133,13 @@ canvas{display:block;}
 .ctrl{display:flex;flex-direction:column;gap:6px;}
 .ctrl label{font-size:.82rem;font-weight:600;display:flex;justify-content:space-between;align-items:baseline;}
 .ctrl label .val{font-family:var(--mono);color:var(--ink-soft);font-weight:500;}
-.ctrl input[type=range]{width:100%;accent-color:var(--accent,var(--c-calc1));}
+.ctrl input[type=range]{width:100%;accent-color:var(--accent,var(--c-calc1));cursor:pointer;}
+.ctrl input[type=range]::-webkit-slider-runnable-track{
+  background:linear-gradient(to right, var(--accent,var(--c-calc1)) var(--range-fill,0%), var(--line) var(--range-fill,0%));
+  border-radius:4px; height:4px;
+}
+.ctrl input[type=range]::-moz-range-progress{background:var(--accent,var(--c-calc1));}
+.ctrl input[type=range]::-moz-range-track{background:var(--line);height:4px;border-radius:4px;}
 .ctrl input[type=number],.ctrl input[type=text],.ctrl select,.ctrl textarea{font-family:var(--mono);font-size:.88rem;padding:9px 11px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);width:100%;}
 .ctrl textarea{min-height:90px;resize:vertical;line-height:1.5;}
 .ctrl .hint{font-size:.74rem;color:var(--ink-faint);}
@@ -629,7 +635,9 @@ const UI = {
     return g; },
   slider({label,min,max,step=1,value,fmt=(v)=>v,oninput}){ const w=document.createElement('div'); w.className='ctrl';
     w.innerHTML=`<label>${label}<span class="val"></span></label><input type="range" min="${min}" max="${max}" step="${step}" value="${value}">`;
-    const inp=w.querySelector('input'), val=w.querySelector('.val'); const upd=()=>val.textContent=fmt(+inp.value); upd();
+    const inp=w.querySelector('input'), val=w.querySelector('.val');
+    const upd=()=>{ val.textContent=fmt(+inp.value); const pct=((+inp.value - +inp.min)/((+inp.max - +inp.min)||1)*100).toFixed(1)+'%'; inp.style.setProperty('--range-fill',pct); };
+    upd();
     inp.addEventListener('input',()=>{ upd(); oninput(+inp.value); }); w.get=()=>+inp.value; w.set=(v)=>{inp.value=v;upd();}; w.setFmt=(f)=>{w._f=f;}; return w; },
   text({label,value,hint,onchange,mono=true}){ const w=document.createElement('div'); w.className='ctrl';
     w.innerHTML=`<label>${label}</label><input type="text" value="${value}">${hint?`<span class="hint">${hint}</span>`:''}`;
@@ -939,7 +947,7 @@ function testLinearInY(f,tmin,tmax,ymin,ymax){
   return checks>=6 && ok/checks>0.85;
 }
 function symStrToTex(tr){ let s; try{ s=Sym.str(tr); }catch(e){ return '?'; }
-  return s.replace(/·/g,'\cdot ').replace(/−/g,'-'); }
+  return s.replace(/·/g,'\\cdot ').replace(/−/g,'-').replace(/exp((-?[^)]+))/g,'e^{$1}'); }
 /* generic n×n determinant by cofactor expansion (n is small in every caller here) */
 function detN(m){
   const n=m.length;
@@ -986,13 +994,14 @@ add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields
       {label:'Clear curves',onclick:()=>{ ics=[]; lastClick=null; render(); }}
     ]);
     const stats=UI.statsBox();
+    const dfModelBox=modelBox('Model — updates as you type y′ = f(t, y)','','accent1');
     const plot=UI.plotCard('slope field · click to drop an initial condition',420);
     const genBox=makeSolBox('general solution');
     const parBox=makeSolBox('particular solution');
     host.appendChild(UI.appGrid(
       [fin,tminN,tmaxN,yminN,ymaxN,t0N,y0N,addBtn,stats,
        UI.note('Each short segment is the slope f(t,y) at that point. A solution runs tangent to the field everywhere, so a single initial condition determines the whole curve. The dashed teal curve is drawn exactly where f(t,y)=0. <b>Click the plot</b> to drop an initial condition (or type one on the left); scroll to zoom.')],
-      [plot,genBox,parBox]));
+      [dfModelBox,plot,genBox,parBox]));
     plot.enableZoom(render);
     const cv=plot.canvas; cv.style.cursor='crosshair'; let down=null;
     cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
@@ -1003,7 +1012,7 @@ add({ id:'direction-field', cat:'c1', tag:'interactive', title:'Direction Fields
       const f=fin.fn(); if(!f)return;
       const tmin=tminN.get(),tmax=tmaxN.get(),ymin=yminN.get(),ymax=ymaxN.get();
       if(![tmin,tmax,ymin,ymax].every(isFinite) || tmin>=tmax || ymin>=ymax)return;
-
+      dfModelBox.querySelector('.model-body').innerHTML=dtex(`\\displaystyle \\frac{dy}{dt} = ${rawTex(fin.get())}`);
       const ch=plot.chart(); ch.setX(tmin,tmax).setY(ymin,ymax); ch.clear();
       ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
       drawSlopeField(ch,f,null,30,20);
@@ -1080,13 +1089,15 @@ add({ id:'separable', cat:'c1', tag:'explore', title:'Separable Equations', diff
     const ic=UI.text({label:'initial condition  y(t₀)=y₀',value:'0, 0.3',hint:'t₀, y₀',onchange:render});
     const win=UI.text({label:'t-window',value:'-1, 6',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const liveModel=modelBox('Model — updates as you type g(t), p(y)','','accent1');
     const plot=UI.plotCard('slope field of y′ = g(t)·p(y) with the solution through (t₀, y₀)',360);
     const sol=makeSolBox('particular solution (implicit)');
-    host.appendChild(UI.appGrid([gin,pin,ic,win,steps,UI.note('Separate: dy/p(y) = g(t) dt. Integrate both sides, then use y(t₀)=y₀ to fix the constant. The curve is computed numerically (RK4) so it is exact even when the integrals have no elementary form.')],[plot,sol]));
+    host.appendChild(UI.appGrid([gin,pin,ic,win,steps,UI.note('Separate: dy/p(y) = g(t) dt. Integrate both sides, then use y(t₀)=y₀ to fix the constant. The curve is computed numerically (RK4) so it is exact even when the integrals have no elementary form.')],[liveModel,plot,sol]));
     plot.enableZoom(render);
     function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
     function render(){ const g=gin.fn(), p=pin.fn(); if(!g||!p)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
       const f=(t,y)=>g(t)*p(y); const [t0,y0]=icp;
+      liveModel.querySelector('.model-body').innerHTML = dtex(`\\displaystyle \\frac{dy}{dt} = \\bigl(${rawTex(gin.get())}\\bigr)\\bigl(${rawTex(pin.get())}\\bigr),\\qquad y(${nf(t0,2)})=${nf(y0,2)}`);
       const Gi=tryInt(gin.get(),'t'); const Hi=tryInt('1/('+pin.get()+')','y');
       let html=`<b>1.</b> separate:&nbsp; dy / (${pin.get()}) = (${gin.get()}) dt<br>`;
       html+=`<b>2.</b> integrate:&nbsp; ${Hi?('∫ dy/p = '+Hi):'∫ dy/p(y)'} = ${Gi?('∫ g dt = '+Gi):'∫ g(t) dt'} + C<br>`;
@@ -1133,13 +1144,15 @@ add({ id:'integrating-factor', cat:'c1', tag:'explore', title:'First-Order Linea
     const ic=UI.text({label:'initial condition  y(t₀)=y₀',value:'0, 1',hint:'t₀, y₀',onchange:render});
     const win=UI.text({label:'t-window',value:'0, 6',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.9';
+    const liveModel=modelBox('Model — updates as you type p(t), g(t)','','accent1');
     const plot=UI.plotCard('solution through the initial point, over the slope field',360);
     const sol=makeSolBox('particular solution');
-    host.appendChild(UI.appGrid([pin,gin,ic,win,steps,UI.note('The trick: μ(t)=e^{∫p dt} is chosen so that (μy)′ = μy′ + μp y = μg. Then μy = ∫ μg dt + C, so y = (∫ μg dt + C)/μ. The constant is set by the initial condition.')],[plot,sol]));
+    host.appendChild(UI.appGrid([pin,gin,ic,win,steps,UI.note('The trick: μ(t)=e^{∫p dt} is chosen so that (μy)′ = μy′ + μp y = μg. Then μy = ∫ μg dt + C, so y = (∫ μg dt + C)/μ. The constant is set by the initial condition.')],[liveModel,plot,sol]));
     plot.enableZoom(render);
     function tryInt(src,v){ try{ const r=Sym.integrateSimple(Sym.parse(src,[v])); return r?Sym.str(r):null; }catch(e){ return null; } }
     function render(){ const p=pin.fn(), g=gin.fn(); if(!p||!g)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return;
       const f=(t,y)=>g(t)-p(t)*y; const [t0,y0]=icp;
+      liveModel.querySelector('.model-body').innerHTML = dtex(`\\displaystyle \\frac{dy}{dt} + \\bigl(${rawTex(pin.get())}\\bigr) y = ${rawTex(gin.get())},\\qquad y(${nf(t0,2)})=${nf(y0,2)}`);
       const Pi=tryInt(pin.get(),'t');
       let html=`<b>1.</b> integrating factor:&nbsp; μ = e^{∫(${pin.get()})dt}${Pi?(' = e^{'+Pi+'}'):''}<br>`;
       html+=`<b>2.</b> rewrite:&nbsp; (μ·y)′ = μ·(${gin.get()})<br>`;
@@ -1266,6 +1279,7 @@ add({ id:'second-order', cat:'c2', tag:'interactive', title:'2nd-Order Linear: C
     const ic=UI.text({label:'initial conditions  y(0), y′(0)',value:'1, 0',hint:'two numbers',onchange:render});
     const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
     const regimeBox=document.createElement('div'); regimeBox.style.cssText='font-family:var(--mono);font-size:.82rem;padding:10px 12px;border-radius:10px;border:1px solid var(--line);';
+    const odeModelBox2=modelBox('ODE model (updates with a, b, c)','','accent1');
     const plot=UI.plotCard('the solution y(t) — add equations to compare',460);
     const solB=makeSolBox('particular solution');
     const legend=document.createElement('div'); legend.style.cssText='display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:.76rem;';
@@ -1275,14 +1289,19 @@ add({ id:'second-order', cat:'c2', tag:'interactive', title:'2nd-Order Linear: C
         saved.push({a,b,c,y0:icp[0],v0:icp[1],color:palette[saved.length%palette.length]}); render(); }},
       {label:'Clear comparison',onclick:()=>{ saved=[]; render(); }}
     ]);
-    host.appendChild(UI.appGrid([aN,bN,cN,ic,addBtn,steps,regimeBox,UI.note('Substituting y=e^{rt} gives the characteristic equation ar²+br+c=0 (discriminant Δ=b²−4ac). <b>Δ&gt;0</b> → real distinct roots → <b style="color:'+COL.amber+'">overdamped</b> (no oscillation). <b>Δ=0</b> → a repeated root → <b style="color:'+COL.coral+'">critically damped</b> (fastest non-oscillating return). <b>Δ&lt;0</b> → complex roots α±βi → <b style="color:'+COL.calc2+'">underdamped</b>: α&lt;0 decaying oscillation, α&gt;0 growing oscillation, α=0 sustained oscillation.')],[plot,solB,legend]));
+    host.appendChild(UI.appGrid([aN,bN,cN,ic,addBtn,steps,regimeBox,UI.note('Substituting y=e^{rt} gives the characteristic equation ar²+br+c=0 (discriminant Δ=b²−4ac). <b>Δ&gt;0</b> → real distinct roots → <b style="color:'+COL.amber+'">overdamped</b> (no oscillation). <b>Δ=0</b> → a repeated root → <b style="color:'+COL.coral+'">critically damped</b> (fastest non-oscillating return). <b>Δ&lt;0</b> → complex roots α±βi → <b style="color:'+COL.calc2+'">underdamped</b>: α&lt;0 decaying oscillation, α&gt;0 growing oscillation, α=0 sustained oscillation.')],[odeModelBox2,plot,solB,legend]));
     plot.enableZoom(render);
     function render(){ const a=aN.get(),b=bN.get(),c=cN.get(); if(Math.abs(a)<1e-9)return; const icp=parseAB(ic.get()); if(!icp)return; const [y0,v0]=icp;
       const info=analyzeHomogeneous(a,b,c,y0,v0);
+      // Build display-style ODE model
+      function signTerm(coef,body){ if(Math.abs(coef)<1e-9)return ''; const s=coef>0?'+':'-'; const v=Math.abs(coef); return ` ${s} ${Math.abs(v-1)<1e-9?'':nf(v,2)}${body}`; }
+      const odeStr=`${nf(a,2)}y'' ${signTerm(b,"y'")} ${signTerm(c,'y')} = 0,\\qquad y(0)=${nf(y0,2)},\\; y'(0)=${nf(v0,2)}`;
+      const charStr=`${nf(a,2)}r^2 ${signTerm(b,'r')} ${signTerm(c,'')||'+ 0'} = 0 \\quad (\\Delta=${M.round(b*b-4*a*c,3)})`;
+      odeModelBox2.querySelector('.model-body').innerHTML=dtex(`\\displaystyle ${odeStr}`)+dtex(`\\displaystyle \\text{characteristic: } ${charStr}`);
       steps.innerHTML=`<b>1.</b> characteristic equation:&nbsp; ${M.round(a,2)}r² + ${M.round(b,2)}r + ${M.round(c,2)} = 0&nbsp; (Δ=${M.round(b*b-4*a*c,3)})<br><b>2.</b> roots:&nbsp; ${info.rootStr}<br><b>3.</b> fit y(0)=${M.round(y0,2)}, y′(0)=${M.round(v0,2)}:<br>&nbsp;&nbsp;<b style="color:var(--c-calc2)">${info.gen}</b>`;
       regimeBox.style.borderColor=REGIME_COLOR[info.regime]; regimeBox.style.color=REGIME_COLOR[info.regime];
       regimeBox.innerHTML=`<b>regime: ${info.regime}</b>${info.oscType?'<br>'+info.oscType:''}`;
-      solB.set(`y(t) = ${info.parTex}`, `Solves ${nf(a)}y'' ${b>=0?'+':'-'} ${nf(Math.abs(b))}y' ${c>=0?'+':'-'} ${nf(Math.abs(c))}y = 0 with y(0)=${nf(y0,2)},\\; y'(0)=${nf(v0,2)}. Regime: <b>${info.regime}</b>.`);
+      solB.set(`\\displaystyle y(t) = ${info.parTex}`, `Solves ${nf(a)}y'' ${b>=0?'+':'-'} ${nf(Math.abs(b))}y' ${c>=0?'+':'-'} ${nf(Math.abs(c))}y = 0 with y(0)=${nf(y0,2)},\\; y'(0)=${nf(v0,2)}. Regime: <b>${info.regime}</b>.`);
       const T=10;
       const all=[{a,b,c,y0,v0,color:COL.ink,label:'current (unsaved)',dash:[5,3]}].concat(saved.map((s,i)=>({...s,label:'eq. '+(i+1),dash:[]})));
       let ys=[]; const infos=all.map(e=>{ const inf=analyzeHomogeneous(e.a,e.b,e.c,e.y0,e.v0); for(let i=0;i<=200;i++){const y=inf.sol(T*i/200); if(isFinite(y))ys.push(y);} return inf; });
@@ -1352,14 +1371,14 @@ add({ id:'wronskian', cat:'c2', tag:'live', title:'Wronskian of Solutions', diff
       // ---- symbolic definition + matrix (general labels, then the actual expressions) ----
       const primeOf=j=> j===0?'':(j===1?"'":'^{('+j+')}');
       const labelRows=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++) row.push('y_{'+(i+1)+'}'+primeOf(j)+'(t)'); labelRows.push(row); }
-      const symRows=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++){ let ts; try{ ts=symStrToTex(D[i][j]); }catch(e){ ts='?'; } row.push('\\displaystyle '+ts); } symRows.push(row); }
+      const symRows=[]; for(let j=0;j<n;j++){ const row=[]; for(let i=0;i<n;i++){ let ts; try{ ts=symStrToTex(D[i][j]); }catch(e){ ts='?'; } row.push('\\small '+ts); } symRows.push(row); }
       matrixBox.querySelector('.model-body').innerHTML =
         dtex('\\displaystyle W(y_1,\\ldots,y_{'+n+'})(t)=\\det'+texPmatrix(labelRows)) +
         dtex('\\displaystyle {}='+'\\det'+texPmatrix(symRows));
 
       // ---- numeric substitution at t0 + determinant + verdict ----
       const mat0=evalAt(t0);
-      const numRows=mat0.map(row=>row.map(v=>'\\displaystyle '+(isFinite(v)?nf(v,4):'\\text{undef}')));
+      const numRows=mat0.map(row=>row.map(v=>(isFinite(v)?nf(v,4):'\\text{undef}')));
       const T0=-2,T1=6;
       let wVals=[]; for(let i=0;i<=300;i++){ const t=T0+(T1-T0)*i/300; const w=W(t); if(isFinite(w)) wVals.push(w); }
       const maxAbsW = wVals.length? Math.max.apply(null,wVals.map(Math.abs)) : 0;
@@ -1400,11 +1419,44 @@ add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations
     const fS=UI.slider({label:'forcing amplitude F₀',min:0,max:4,step:0.1,value:0,fmt:v=>v.toFixed(1),oninput:render});
     const wS=UI.slider({label:'forcing frequency ω',min:0.1,max:5,step:0.1,value:2,fmt:v=>v.toFixed(1),oninput:render});
     const stats=UI.statsBox();
+    const vibModelBox=modelBox('ODE model (updates with sliders)','','accent1');
+    const vibSolBox=makeSolBox('solution (homogeneous + steady-state)');
     const plot=UI.plotCard('displacement y(t)',360);
-    host.appendChild(UI.appGrid([mS,gS,kS,fS,wS,stats,UI.note('Natural frequency ω₀=√(k/m). The free response is <b>under-damped</b> (oscillates, γ²&lt;4mk), <b>critically damped</b> (γ²=4mk), or <b>over-damped</b> (γ²&gt;4mk). With forcing F₀cos(ωt), the steady amplitude peaks when ω≈ω₀ — that is resonance, and weak damping makes the peak huge.')],[plot]));
+    host.appendChild(UI.appGrid([mS,gS,kS,fS,wS,stats,UI.note('Natural frequency ω₀=√(k/m). The free response is <b>under-damped</b> (oscillates, γ²&lt;4mk), <b>critically damped</b> (γ²=4mk), or <b>over-damped</b> (γ²&gt;4mk). With forcing F₀cos(ωt), the steady amplitude peaks when ω≈ω₀ — that is resonance, and weak damping makes the peak huge.')],[vibModelBox,plot,vibSolBox]));
     plot.enableZoom(render);
     function render(){ const m=mS.get(),g=gS.get(),k=kS.get(),F0=fS.get(),w=wS.get();
       const w0=Math.sqrt(k/m); const disc=g*g-4*m*k; const regime=Math.abs(disc)<1e-6?'critically damped':disc>0?'over-damped':'under-damped';
+      // Build ODE model display
+      const bStr = g===0?'':(g>0?`+${nf(g)}y'`:`${nf(g)}y'`);
+      const cStr = k===0?'':(k>0?`+${nf(k)}y`:`${nf(k)}y`);
+      const rhs = F0===0?'0':`${nf(F0)}\\cos(${nf(w)}t)`;
+      vibModelBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle ${nf(m)}y'' ${bStr} ${cStr} = ${rhs}`)+
+        dtex(`\\displaystyle \\omega_0 = \\sqrt{\\tfrac{k}{m}} = \\sqrt{\\tfrac{${nf(k)}}{${nf(m)}}} = ${M.round(w0,4)},\\qquad \\zeta = \\frac{\\gamma}{2\\sqrt{mk}} = ${M.round(g/(2*Math.sqrt(m*k)),4)}`);
+      // Compute homogeneous solution tex
+      const info=analyzeHomogeneous(m,g,k,1,0); // y(0)=1,y'(0)=0 for display
+      let solHtml='';
+      // Homogeneous part
+      const homTex = info.R.kind==='real'
+        ? `y_h = C_1 e^{${M.round(info.R.r1,3)}t} + C_2 e^{${M.round(info.R.r2,3)}t}`
+        : info.R.kind==='repeated'
+        ? `y_h = (C_1 + C_2 t)\\,e^{${M.round(info.R.r,3)}t}`
+        : `y_h = e^{${M.round(info.R.re,3)}t}\\!\\left(C_1\\cos ${M.round(info.R.im,3)}t + C_2\\sin ${M.round(info.R.im,3)}t\\right)`;
+      solHtml+=dtex(`\\displaystyle ${homTex}\\quad \\text{(${regime})}`);
+      if(F0>0){
+        const denom=(k-m*w*w)*(k-m*w*w)+g*g*w*w;
+        const isRes=denom<1e-6;
+        if(isRes){
+          solHtml+=dtex(`\\displaystyle y_p = \\frac{F_0}{2m\\omega_0}\\,t\\sin(\\omega_0 t)\\quad\\text{(resonance: amplitude grows)}`);
+        } else {
+          const A=(k-m*w*w)/denom*F0, B=-g*w/denom*F0;
+          const amp=Math.sqrt(A*A+B*B);
+          solHtml+=dtex(`\\displaystyle y_p = \\frac{${nf(F0)}}{\\sqrt{(${nf(k)}-${nf(m)}\\omega^2)^2+(${nf(g)}\\omega)^2}}\\cos(\\omega t-\\phi),\\quad A_{ss}=${M.round(amp,4)}`);
+        }
+      }
+      vibSolBox.querySelector('.sol-math').innerHTML=solHtml;
+      vibSolBox.querySelector('.sol-note').style.display='';
+      vibSolBox.querySelector('.sol-note').innerHTML=`Regime: <b>${regime}</b>${F0>0?'. Steady-state amplitude shown; add y_h with constants from ICs for the complete solution.':'. No forcing — this is the free response.'}`;
       const F=(t,p)=>[p[1],(F0*Math.cos(w*t)-g*p[1]-k*p[0])/m];
       const data=ODE.flow(F,[1,0],0,28,1400);
       const ys=data.map(d=>d[1]).filter(isFinite);
@@ -1767,12 +1819,14 @@ add({ id:'exact-equations', cat:'c1', tag:'explore', title:'Exact Equations', di
     const Nin=makeFnInput('N(x, y)','x + 2*y',['x','y'],()=>render(),'coefficient of dy');
     const win=UI.text({label:'window  [−L, L]',value:'4',hint:'a single number',onchange:render});
     const verdict=UI.note(''); const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.85';
+    const liveModel=modelBox('Model — updates as you type M(x,y), N(x,y)','','accent1');
     const plot=UI.plotCard('level curves F(x,y)=C — the solution family',380);
     const sol=makeSolBox('general solution');
-    host.appendChild(UI.appGrid([Min,Nin,win,verdict,steps,UI.note('Exactness test: ∂M/∂y must equal ∂N/∂x. Then a potential exists with F_x=M, F_y=N, built by F(x,y)=∫M dx (treating y as constant) + the missing y-only piece. Each solution is a level curve F=C.')],[plot,sol]));
+    host.appendChild(UI.appGrid([Min,Nin,win,verdict,steps,UI.note('Exactness test: ∂M/∂y must equal ∂N/∂x. Then a potential exists with F_x=M, F_y=N, built by F(x,y)=∫M dx (treating y as constant) + the missing y-only piece. Each solution is a level curve F=C.')],[liveModel,plot,sol]));
     plot.enableZoom(render);
     function pd(f,x,y,dir){ const h=1e-4; return dir==='x'?(f(x+h,y)-f(x-h,y))/(2*h):(f(x,y+h)-f(x,y-h))/(2*h); }
     function render(){ const M_=Min.fn(), N_=Nin.fn(); if(!M_||!N_)return; const L=parseFloat(win.get())||4;
+      liveModel.querySelector('.model-body').innerHTML = dtex(`\\displaystyle \\bigl(${rawTex(Min.get())}\\bigr)\\,dx \\;+\\; \\bigl(${rawTex(Nin.get())}\\bigr)\\,dy \\;=\\; 0`);
       // exactness test over a few points
       let maxd=0; for(const[x,y] of [[1,1],[-1,.5],[.3,-1],[2,1.5]]){ maxd=Math.max(maxd,Math.abs(pd(M_,x,y,'y')-pd(N_,x,y,'x'))); }
       const exact=maxd<1e-3;
@@ -1835,11 +1889,21 @@ add({ id:'modeling', cat:'c1', tag:'interactive', title:'First-Order Models in t
   blurb:'The same first-order machinery models cooling coffee, a mixing tank, an RC circuit, a falling skydiver, and a growing population. Pick a scenario and watch it evolve.',
   build(host){
     const scen={
-      cool:{name:'Newton cooling (coffee)', vars:['k (rate)',0.4,0.05,1.5,'env temp',20,0,100,'start temp',90,0,100], f:(p)=>(t,T)=>-p[0]*(T-p[1]), y0:p=>p[2], ylab:'temperature', steady:p=>p[1], eq:p=>`T′ = −${p[0].toFixed(2)}(T − ${p[1]})`},
-      tank:{name:'Mixing tank (salt)', vars:['inflow conc',1,0,3,'flow rate',2,0.2,5,'tank volume',10,1,30], f:(p)=>(t,Q)=>p[0]*p[1]-p[1]*Q/p[2], y0:p=>0, ylab:'salt amount Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = ${p[0]}·${p[1]} − ${p[1]}·Q/${p[2]}`},
-      rc:{name:'RC circuit (charge)', vars:['source V',5,0,12,'resistance R',1,0.2,5,'capacitance C',1,0.2,5], f:(p)=>(t,Q)=>(p[0]-Q/p[2])/p[1], y0:p=>0, ylab:'charge Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = (${p[0]} − Q/${p[2]})/${p[1]}`},
-      sky:{name:'Skydiver (terminal velocity)', vars:['gravity g',9.8,1,15,'drag c',0.25,0.02,1,'mass m',75,40,120], f:(p)=>(t,v)=>p[0]-p[1]/p[2]*v*v, y0:p=>0, ylab:'velocity v', steady:p=>Math.sqrt(p[0]*p[2]/p[1]), eq:p=>`v′ = ${p[0]} − (${p[1]}/${p[2]})v²`},
-      pop:{name:'Logistic population', vars:['rate r',0.8,0.1,2,'capacity K',10,1,20,'start P₀',1,0.1,20], f:(p)=>(t,P)=>p[0]*P*(1-P/p[1]), y0:p=>p[2], ylab:'population P', steady:p=>p[1], eq:p=>`P′ = ${p[0]}·P(1 − P/${p[1]})`}
+      cool:{name:'Newton cooling (coffee)', vars:['k (rate)',0.4,0.05,1.5,'env temp',20,0,100,'start temp',90,0,100], f:(p)=>(t,T)=>-p[0]*(T-p[1]), y0:p=>p[2], ylab:'temperature', steady:p=>p[1], eq:p=>`T′ = −${p[0].toFixed(2)}(T − ${p[1]})`,
+        modelTex:p=>`\\displaystyle \\frac{dT}{dt}=-${nf(p[0])}\\,(T-${nf(p[1])}),\\qquad T(0)=${nf(p[2])}`,
+        solTex:p=>`\\displaystyle T(t)=${nf(p[1])}+${nf(p[2]-p[1])}\\,e^{-${nf(p[0])}t}`},
+      tank:{name:'Mixing tank (salt)', vars:['inflow conc',1,0,3,'flow rate',2,0.2,5,'tank volume',10,1,30], f:(p)=>(t,Q)=>p[0]*p[1]-p[1]*Q/p[2], y0:p=>0, ylab:'salt amount Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = ${p[0]}·${p[1]} − ${p[1]}·Q/${p[2]}`,
+        modelTex:p=>`\\displaystyle \\frac{dQ}{dt}=${nf(p[0]*p[1])}-\\frac{${nf(p[1])}}{${nf(p[2])}}\\,Q,\\qquad Q(0)=0`,
+        solTex:p=>`\\displaystyle Q(t)=${nf(p[0]*p[2])}\\left(1-e^{-${nf(p[1]/p[2],4)}t}\\right)`},
+      rc:{name:'RC circuit (charge)', vars:['source V',5,0,12,'resistance R',1,0.2,5,'capacitance C',1,0.2,5], f:(p)=>(t,Q)=>(p[0]-Q/p[2])/p[1], y0:p=>0, ylab:'charge Q', steady:p=>p[0]*p[2], eq:p=>`Q′ = (${p[0]} − Q/${p[2]})/${p[1]}`,
+        modelTex:p=>`\\displaystyle \\frac{dQ}{dt}=\\frac{${nf(p[0])}}{${nf(p[1])}}-\\frac{1}{${nf(p[1]*p[2],4)}}\\,Q,\\qquad Q(0)=0`,
+        solTex:p=>`\\displaystyle Q(t)=${nf(p[0]*p[2])}\\left(1-e^{-t/${nf(p[1]*p[2],4)}}\\right)`},
+      sky:{name:'Skydiver (terminal velocity)', vars:['gravity g',9.8,1,15,'drag c',0.25,0.02,1,'mass m',75,40,120], f:(p)=>(t,v)=>p[0]-p[1]/p[2]*v*v, y0:p=>0, ylab:'velocity v', steady:p=>Math.sqrt(p[0]*p[2]/p[1]), eq:p=>`v′ = ${p[0]} − (${p[1]}/${p[2]})v²`,
+        modelTex:p=>`\\displaystyle m\\frac{dv}{dt}=mg-cv^{2}:\\quad \\frac{dv}{dt}=${nf(p[0])}-\\frac{${nf(p[1])}}{${nf(p[2])}}v^{2},\\qquad v(0)=0`,
+        solTex:p=>{ const vT=Math.sqrt(p[0]*p[2]/p[1]); return `\\displaystyle v(t)=${nf(vT)}\\,\\tanh\\!\\left(\\frac{${nf(p[0])}}{${nf(vT)}}\\,t\\right)`; }},
+      pop:{name:'Logistic population', vars:['rate r',0.8,0.1,2,'capacity K',10,1,20,'start P₀',1,0.1,20], f:(p)=>(t,P)=>p[0]*P*(1-P/p[1]), y0:p=>p[2], ylab:'population P', steady:p=>p[1], eq:p=>`P′ = ${p[0]}·P(1 − P/${p[1]})`,
+        modelTex:p=>`\\displaystyle \\frac{dP}{dt}=${nf(p[0])}\\,P\\left(1-\\frac{P}{${nf(p[1])}}\\right),\\qquad P(0)=${nf(p[2])}`,
+        solTex:p=>`\\displaystyle P(t)=\\frac{${nf(p[1])}\\cdot${nf(p[2])}}{${nf(p[2])}+${nf(p[1]-p[2])}\\,e^{-${nf(p[0])}t}}`}
     };
     let key='cool';
     const sel=UI.select({label:'scenario',options:Object.keys(scen).map(k=>({label:scen[k].name,value:k})),value:key,onchange:v=>{key=v;buildSliders();render();}});
@@ -1848,7 +1912,9 @@ add({ id:'modeling', cat:'c1', tag:'interactive', title:'First-Order Models in t
     const eqn=document.createElement('div'); eqn.className='formula'; eqn.style.fontSize='1rem';
     const stats=UI.statsBox(); let sls=[];
     const plot=UI.plotCard('the quantity over time, approaching its steady state',360);
-    host.appendChild(UI.appGrid([sel,sliderHost,tEnd,eqn,stats],[plot]));
+    const modelOut=modelBox('Model (this scenario, numbers substituted)','','accent1');
+    const solOut=makeSolBox('general solution');
+    host.appendChild(UI.appGrid([sel,sliderHost,tEnd,eqn,stats],[plot,modelOut,solOut]));
     plot.enableZoom(render);
     function buildSliders(){ sliderHost.innerHTML=''; sls=[]; const v=scen[key].vars;
       for(let i=0;i<v.length;i+=4){ const s=UI.slider({label:v[i],min:v[i+2],max:v[i+3],step:(v[i+3]-v[i+2])/100,value:v[i+1],fmt:x=>x.toFixed(2),oninput:render}); sliderHost.appendChild(s); sls.push(s); } }
@@ -1862,6 +1928,8 @@ add({ id:'modeling', cat:'c1', tag:'interactive', title:'First-Order Models in t
       ch.line(0,S.steady(p),T,S.steady(p),hexA(COL.coral,.6),1.6,[6,4]);
       ch.pline(c.ts.map(t=>ch.X(t)),c.ys.map(y=>ch.Y(y)),COL.calc1,2.8); ch.dot(0,y0,COL.ink,4);
       ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      modelOut.querySelector('.model-body').innerHTML = dtex(S.modelTex(p));
+      solOut.set(S.solTex(p).replace(/^\\displaystyle\s*/,''),'Closed-form solution for this scenario, with your current slider values substituted — this is exactly the curve plotted above.');
     }
     render();
   }
@@ -1916,7 +1984,8 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
     const readout=document.createElement('div'); readout.className='readout-row';
     const tScrub=UI.slider({label:'t (hours, relative to discovery)',min:-4,max:4,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:renderVisual});
     const scrubRow=document.createElement('div'); scrubRow.className='scrub-row';
-    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),-4,4,0.02,renderVisual);
+    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),
+      ()=>+tScrub.querySelector('input').min,()=>+tScrub.querySelector('input').max,7,renderVisual);
     scrubRow.append(playBtn);
     const visualCard=document.createElement('div'); visualCard.className='diagram-card';
     visualCard.append(Object.assign(document.createElement('div'),{className:'diagram-cap',textContent:'Live figure — drag the time slider through the estimated time of death'}),visual,tScrub,scrubRow,readout);
@@ -1929,10 +1998,10 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
     <div style="text-align:center;margin-top:12px;font-family:var(--mono);font-size:.86rem;color:var(--ink-soft);">dT/dt = −k(T − T_env)&nbsp; — cooling rate is proportional to how far T is above room temperature</div>`);
 
     const genModel=modelBox('General model (symbols)',
-      `T′(t) = −k(T − T_env),&nbsp; T(0)=T₀<br><br>
-       T(t) = T_env + (T₀ − T_env)·e^{−kt}<br><br>
-       fit k from a second reading T(t₁)=T₁:&nbsp; k = (1/t₁)·ln[ (T₀−T_env) / (T₁−T_env) ]<br><br>
-       time of death t*: solve T(t*) = T_body&nbsp; ⟹&nbsp; t* = −(1/k)·ln[ (T_body−T_env) / (T₀−T_env) ]`,'accent1');
+      dtex('\\displaystyle T\'(t) = -k\\,(T-T_{env}),\\qquad T(0)=T_0')+
+      dtex('\\displaystyle T(t) = T_{env} + (T_0-T_{env})\\,e^{-kt}')+
+      dtex('\\displaystyle k = \\frac{1}{t_1}\\ln\\!\\left[\\frac{T_0-T_{env}}{T_1-T_{env}}\\right]')+
+      dtex('\\displaystyle t^{*} = -\\frac{1}{k}\\ln\\!\\left[\\frac{T_{body}-T_{env}}{T_0-T_{env}}\\right]'),'accent1');
     const numModel=modelBox('Your model (numbers substituted)','','accent2');
     const fullSol=modelBox('Full solution & interpretation','','accent3');
 
@@ -1975,8 +2044,9 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
         fullSol.querySelector('.model-body').innerHTML=''; stats.set([]); renderVisual(); return;
       }
       numModel.querySelector('.model-body').innerHTML=
-        `T(t) = ${nf(env)} + ${nf(num0)}·e^{−kt}<br>k = ln(${nf(num0)}/${nf(num1)})/${nf(t1)} = <b style="color:var(--c-calc2)">${M.round(k,4)} hr⁻¹</b>`+
-        (tstar!=null? `<br>t* = −ln((${nf(body-env)})/${nf(num0)})/${M.round(k,4)} = <b style="color:var(--c-calc1)">${M.round(tstar,3)} hr</b>` : '');
+        dtex(`\\displaystyle T(t) = ${nf(env)} + ${nf(num0)}\\,e^{-kt}`)+
+        dtex(`\\displaystyle k = \\ln\\!\\left(\\frac{${nf(num0)}}{${nf(num1)}}\\right)\\Big/${nf(t1)} = ${M.round(k,4)}\\ \\text{hr}^{-1}`)+
+        (tstar!=null? dtex(`\\displaystyle t^{*} = -\\ln\\!\\left(\\frac{${nf(body-env)}}{${nf(num0)}}\\right)\\Big/${M.round(k,4)} = ${M.round(tstar,3)}\\ \\text{hr}`) : '');
 
       let clockLine='';
       if(tstar!=null){
@@ -1984,9 +2054,10 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
         if(foundMin!=null){ const deathMin=foundMin+tstar*60; clockLine=`<br><b>5.</b> Body found at ${clockN.get()}, and t*=${M.round(tstar,2)} hr ⟹ estimated time of death ≈ <b style="color:var(--c-coral,${COL.coral})">${formatClock(deathMin)}</b>.`; }
       }
       fullSol.querySelector('.model-body').innerHTML=
-        `<b>1.</b> T(t) = T_env + (T₀−T_env)e^{−kt} = ${nf(env)} + ${nf(num0)} e^{−kt}.<br>`+
-        `<b>2.</b> Fit k from T(${nf(t1)}) = ${nf(T1)}: e^{−k(${nf(t1)})} = ${nf(num1)}/${nf(num0)} ⟹ k = ${M.round(k,4)} hr⁻¹.<br>`+
-        (tstar!=null? `<b>3.</b> Solve ${nf(body)} = ${nf(env)} + ${nf(num0)} e^{−kt*} for t*: t* = ${M.round(tstar,3)} hr ${tstar<0?'(negative ⟹ before discovery, as expected)':'(positive — check your inputs; death would be after discovery)'}.<br>`+
+        `<b>1.</b> `+dtex(`\\displaystyle T(t) = T_{env} + (T_0-T_{env})e^{-kt} = ${nf(env)} + ${nf(num0)}\\,e^{-kt}`)+
+        `<b>2.</b> Fit `+itex('k')+' from '+itex(`T(${nf(t1)}) = ${nf(T1)}`)+': '+dtex(`\\displaystyle e^{-k(${nf(t1)})} = \\frac{${nf(num1)}}{${nf(num0)}} \\;\\Longrightarrow\\; k = ${M.round(k,4)}\\ \\text{hr}^{-1}`)+
+        (tstar!=null? '<b>3.</b> Solve '+itex(`${nf(body)} = ${nf(env)} + ${nf(num0)}\\,e^{-kt^{*}}`)+' for '+itex('t^{*}')+': '+dtex(`\\displaystyle t^{*} = ${M.round(tstar,3)}\\ \\text{hr}`)+
+          `<span style="font-family:var(--body);font-size:.86rem;">${tstar<0?'(negative ⟹ before discovery, as expected)':'(positive — check your inputs; death would be after discovery)'}</span><br>`+
           `<b>4.</b> So death occurred about <b style="color:var(--c-calc1)">${M.round(Math.abs(tstar),2)} hours (${Math.round(Math.abs(tstar)*60)} minutes)</b> ${tstar<0?'before':'after'} the body was found.${clockLine}`
           : `<b>3.</b> Body temperature ${nf(body)}°C must exceed the room temperature to back-solve a time of death.`);
 
@@ -2090,14 +2161,22 @@ function modelBox(title,bodyHTML,accent){ const w=document.createElement('div');
 function diagramCard(caption,innerHTML){ const w=document.createElement('div'); w.className='diagram-card';
   w.innerHTML=`<div class="diagram-cap">${caption}</div>${innerHTML}`; return w; }
 function scrubSlider({label,min,max,step,value,fmt,oninput}){ const w=UI.slider({label,min,max,step,value,fmt,oninput}); return w; }
-function playButton(getT,setT,tmin,tmax,step,onFrame){
+/* getMin/getMax may be plain numbers OR zero-arg functions (so the sweep always reflects the
+   *current* dynamic bounds of a slider, even after recompute() moves them). durationSec is how
+   long a full sweep across [min,max] should take, in real seconds — independent of the range's
+   size — so playback speed feels consistent no matter what the current min/max happen to be. */
+function playButton(getT,setT,getMin,getMax,durationSec,onFrame){
   const btn=document.createElement('button'); btn.className='abtn'; btn.textContent='▶ Play';
   let playing=false, raf=null, last=0;
-  function frame(ts){ if(!playing)return; if(!last)last=ts; const dt=ts-last; last=ts;
-    let t=getT()+step*(dt/60); if(t>tmax){ t=tmin; } setT(t); onFrame();
+  const bound=v=>typeof v==='function'?v():v;
+  function frame(ts){ if(!playing)return; if(!last)last=ts; const dtSec=Math.min((ts-last)/1000,0.12); last=ts;
+    const tmin=bound(getMin), tmax=bound(getMax), span=Math.max(tmax-tmin,1e-9);
+    let t=getT()+(span/Math.max(durationSec,0.5))*dtSec;
+    if(t>=tmax){ t=tmin; } setT(t); onFrame();
     raf=requestAnimationFrame(frame); }
   btn.onclick=()=>{ playing=!playing; btn.textContent=playing?'⏸ Pause':'▶ Play'; last=0;
     if(playing) raf=requestAnimationFrame(frame); else if(raf) cancelAnimationFrame(raf); };
+  btn.stopPlaying=()=>{ if(playing){ playing=false; btn.textContent='▶ Play'; if(raf)cancelAnimationFrame(raf); } };
   return btn;
 }
 
@@ -2143,7 +2222,8 @@ add({ id:'mixing-tank-live', cat:'c1', tag:'live', title:'Mixing Tank (Brine) �
     const readout=document.createElement('div'); readout.className='readout-row';
     const tScrub=UI.slider({label:'t (minutes)',min:0,max:100,step:1,value:0,fmt:v=>v.toFixed(1),oninput:renderVisual});
     const scrubRow=document.createElement('div'); scrubRow.className='scrub-row';
-    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),0,100,1,renderVisual);
+    const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),
+      ()=>+tScrub.querySelector('input').min,()=>+tScrub.querySelector('input').max,7,renderVisual);
     scrubRow.append(playBtn);
     const visualCard=document.createElement('div'); visualCard.className='diagram-card';
     visualCard.append(Object.assign(document.createElement('div'),{className:'diagram-cap',textContent:'Live tank — drag the time slider or press play'}),visual,tScrub,scrubRow,readout);
@@ -2158,11 +2238,12 @@ add({ id:'mixing-tank-live', cat:'c1', tag:'live', title:'Mixing Tank (Brine) �
     <div style="text-align:center;margin-top:12px;font-family:var(--mono);font-size:.86rem;color:var(--ink-soft);">dQ/dt = (rate in) − (rate out) = c_in·r_in − (r_out/V(t))·Q</div>`);
 
     const genModel=modelBox('General model (symbols)',
-      `V(t) = V₀ + (r_in − r_out)·t<br>Q′(t) + (r_out / V(t))·Q = c_in·r_in,&nbsp; Q(0)=Q₀<br><br>
-       <u>if r_in = r_out</u> (constant volume V=V₀):<br>
-       &nbsp; Q(t) = c_in·V₀ + (Q₀ − c_in·V₀)·e^{−(r_out/V₀) t}<br><br>
-       <u>if r_in ≠ r_out</u> (integrating factor μ(t)=V(t)^{r_out/(r_in−r_out)}):<br>
-       &nbsp; Q(t) = c_in·V(t) + (Q₀ − c_in·V₀)·(V₀ / V(t))^{ r_out/(r_in−r_out) }`,'accent1');
+      dtex('\\displaystyle V(t) = V_0 + (r_{in}-r_{out})\\,t')+
+      dtex('\\displaystyle \\frac{dQ}{dt} + \\frac{r_{out}}{V(t)}\\,Q = c_{in}\\,r_{in},\\qquad Q(0)=Q_0')+
+      '<div style="margin:.5em 0 .25em;font-family:var(--mono);font-size:.8rem;color:var(--ink-soft)"><b>If r_in = r_out</b> (constant volume V=V₀):</div>'+
+      dtex('\\displaystyle Q(t) = c_{in}V_0 + (Q_0-c_{in}V_0)\\,e^{-(r_{out}/V_0)\\,t}')+
+      '<div style="margin:.5em 0 .25em;font-family:var(--mono);font-size:.8rem;color:var(--ink-soft)"><b>If r_in ≠ r_out</b> (integrating factor μ(t) = V(t)<sup>r_out/(r_in−r_out)</sup>):</div>'+
+      dtex('\\displaystyle Q(t) = c_{in}V(t) + (Q_0-c_{in}V_0)\\left(\\frac{V_0}{V(t)}\\right)^{r_{out}/(r_{in}-r_{out})}'),'accent1');
     const numModel=modelBox('Your model (numbers substituted)','',  'accent2');
     const fullSol=modelBox('Full solution & interpretation','','accent3');
 
@@ -2205,8 +2286,12 @@ add({ id:'mixing-tank-live', cat:'c1', tag:'live', title:'Mixing Tank (Brine) �
       recompute();
       const sameRate = Math.abs(k)<1e-7;
       numModel.querySelector('.model-body').innerHTML = sameRate?
-        `V(t) = ${nf(V0)} (constant, since r_in = r_out = ${nf(rin)})<br>Q′ = ${nf(cin)}·${nf(rin)} − (${nf(rout)}/${nf(V0)})·Q = ${nf(cin*rin,4)} − ${nf(rout/V0,5)}Q,&nbsp; Q(0)=${nf(Q0)}<br>Q(t) = ${nf(cin*V0,3)} + (${nf(Q0)} − ${nf(cin*V0,3)})·e^{−${nf(rout/V0,5)}t}`
-        : `V(t) = ${nf(V0)} + (${nf(rin)} − ${nf(rout)})t = ${nf(V0)} ${k>=0?'+':'−'} ${nf(Math.abs(k),3)}t<br>Q′ + (${nf(rout)}/V(t))·Q = ${nf(cin*rin,4)},&nbsp; Q(0)=${nf(Q0)}<br>Q(t) = ${nf(cin)}·V(t) + (${nf(Q0)} − ${nf(cin*V0,3)})·(${nf(V0)}/V(t))^{${nf(rout/k,4)}}`;
+        dtex(`\\displaystyle V(t)=${nf(V0)}\\ (\\text{constant, }r_{in}=r_{out}=${nf(rin)})`)+
+        dtex(`\\displaystyle \\frac{dQ}{dt} = ${nf(cin*rin,4)} - ${nf(rout/V0,5)}\\,Q,\\qquad Q(0)=${nf(Q0)}`)+
+        dtex(`\\displaystyle Q(t) = ${nf(cin*V0,3)} + ${nf(Q0-cin*V0,3)}\\,e^{-${nf(rout/V0,5)}\\,t}`)
+        : dtex(`\\displaystyle V(t)=${nf(V0)}${k>=0?'+':'-'}${nf(Math.abs(k),3)}\\,t`)+
+          dtex(`\\displaystyle \\frac{dQ}{dt} + \\frac{${nf(rout)}}{V(t)}\\,Q = ${nf(cin*rin,4)},\\qquad Q(0)=${nf(Q0)}`)+
+          dtex(`\\displaystyle Q(t)=${nf(cin)}\\,V(t)+${nf(Q0-cin*V0,3)}\\left(\\frac{${nf(V0)}}{V(t)}\\right)^{${nf(rout/k,4)}}`);
 
       const rows=[{k:'V(t) formula',v: sameRate? 'constant = '+nf(V0) : (k>0?'growing':'draining'), accent:1}];
       if(sameRate) rows.push({k:'steady state Q*',v:M.round(cin*V0,3),accent:1});
@@ -2225,15 +2310,16 @@ add({ id:'mixing-tank-live', cat:'c1', tag:'live', title:'Mixing Tank (Brine) �
         solveLine = `With time-varying volume, solve Q(t)=${nf(Ptar)} numerically for t (no simple closed form to isolate t in general). Scrub the time slider above, or read the value off the plot, to find where the curve crosses Q=${nf(Ptar)}.`;
       }
 
+      const Qss3=cin*V0; const kk3=V0>1e-9?rout/V0:0;
       fullSol.querySelector('.model-body').innerHTML = sameRate?
-        `<b>1.</b> Since r_in = r_out, V(t)=V₀ is constant — this is the classic linear ODE Q′+kQ=c_in r_in with k=r_out/V₀.<br>`+
-        `<b>2.</b> Integrating factor μ=e^{kt} gives Q(t) = Q* + (Q₀−Q*)e^{−kt}, Q* = c_in·V₀ = ${nf(cin*V0,3)} kg.<br>`+
+        `<b>1.</b> Since r_in = r_out, V(t) = V₀ is constant → linear ODE with integrating factor μ = e^{(r_out/V₀)t}:`+
+        dtex(`\\displaystyle Q(t) = Q^{*}+(Q_0-Q^{*})e^{-${nf(kk3,5)}\\,t},\\qquad Q^{*}=c_{in}V_0=${nf(Qss3,3)}\\ \\text{kg}`)+
         `<b>3.</b> ${solveLine}<br>`+
-        `<b>4.</b> As t→∞, Q(t) → Q* = ${nf(cin*V0,3)} kg — the tank settles at the incoming concentration times its volume.`
-        : `<b>1.</b> Here r_in≠r_out, so V(t)=V₀+(r_in−r_out)t is not constant — the ODE Q′+(r_out/V(t))Q=c_in r_in has a time-varying coefficient.<br>`+
-        `<b>2.</b> Using integrating factor μ(t)=V(t)^{r_out/(r_in−r_out)} and integrating gives the closed form shown in "your model" above.<br>`+
+        `<b>4.</b> As `+itex('t\\to\\infty')+', '+itex(`Q(t)\\to Q^*=${nf(Qss3,3)}`)+` kg — steady-state concentration c_in flows in = flows out.`
+        : `<b>1.</b> r_in ≠ r_out → V(t) varies → time-varying coefficient ODE. Integrating factor: `+itex(`\\mu(t)=V(t)^{${nf(rout/k,4)}}`)+`<br>`+
+        `<b>2.</b> Solution (see "your model" above for the numbers).<br>`+
         `<b>3.</b> ${solveLine}<br>`+
-        `<b>4.</b> ${k<0? `The tank runs dry at t ≈ ${M.round(V0/(-k),2)} min (V(t)=0) — the model stops applying beyond that.` : `The tank volume grows without bound; physically it would eventually overflow, so treat large t with that in mind.`}`;
+        `<b>4.</b> ${k<0? `The tank runs dry at t ≈ ${M.round(V0/(-k),2)} min — model stops there.` : `Volume grows without bound; physically it would overflow.`}`;
 
       stats.set(rows);
       const T = tDomain;
@@ -2374,6 +2460,49 @@ add({ id:'bacteria-growth', cat:'c1', tag:'live', title:'Bacteria & Infection Gr
   }
 });
 
+/* -------- animated parachute SVG for skydiver tool -------- */
+function skydiverSVG({vFrac, vTex, tTex}){
+  // vFrac: 0=just started (slow), 1=near terminal (fast).  The chute opens from closed→open.
+  const f=M.clamp(vFrac,0,1);
+  // canopy spread: 0 deg = closed cigar, 90 deg = fully open half-disk
+  const spread = 20 + f*70; // degrees
+  const cx=90, cy=60, R=44;
+  const toRad=d=>d*Math.PI/180;
+  // two canopy arc endpoints
+  const leftAng  = 180 + spread;
+  const rightAng = 360 - spread;
+  const lx = cx + R*Math.cos(toRad(leftAng)),  ly = cy + R*Math.sin(toRad(leftAng));
+  const rx = cx + R*Math.cos(toRad(rightAng)), ry = cy + R*Math.sin(toRad(rightAng));
+  // rigging lines from canopy tips to harness (roughly centre below canopy)
+  const hx=cx, hy=cy+R+22;
+  // parachute color deepens with speed (blue→orange)
+  const chuteCol = lerpColor('#7EC8E3','#F59E0B', f);
+  // body below harness
+  const bx=hx, by=hy+10;
+
+  // speed indicator bar (20px wide, 60px tall)
+  const barH=Math.round(f*60);
+
+  return `<svg viewBox="0 0 180 220" width="180" height="220" style="display:block;margin:0 auto">
+    <!-- speed bar -->
+    <rect x="155" y="40" width="14" height="60" rx="4" fill="var(--line)" stroke="var(--ink-faint)" stroke-width="1"/>
+    <rect x="155" y="${100-barH}" width="14" height="${barH}" rx="4" fill="${hexA(COL.coral,.85)}"/>
+    <text x="162" y="112" font-family="var(--mono)" font-size="9" fill="var(--ink-faint)" text-anchor="middle">v</text>
+
+    <!-- canopy arc -->
+    <path d="M ${lx.toFixed(1)} ${ly.toFixed(1)} A ${R} ${R} 0 ${spread>90?1:0} 1 ${rx.toFixed(1)} ${ry.toFixed(1)}" fill="${chuteCol}" fill-opacity="0.85" stroke="${COL.ink}" stroke-width="1.8"/>
+    <!-- rigging -->
+    <line x1="${lx.toFixed(1)}" y1="${ly.toFixed(1)}" x2="${hx}" y2="${hy}" stroke="${COL.faint}" stroke-width="1.2"/>
+    <line x1="${rx.toFixed(1)}" y1="${ry.toFixed(1)}" x2="${hx}" y2="${hy}" stroke="${COL.faint}" stroke-width="1.2"/>
+    <line x1="${cx}" y1="${cy+R}" x2="${hx}" y2="${hy}" stroke="${COL.faint}" stroke-width="1.2"/>
+    <!-- body -->
+    <ellipse cx="${bx}" cy="${by+10}" rx="8" ry="14" fill="${COL.calc2}" stroke="${COL.ink}" stroke-width="1.4"/>
+    <circle cx="${bx}" cy="${by-2}" r="7" fill="${hexA(COL.ink,.15)}" stroke="${COL.ink}" stroke-width="1.4"/>
+    <!-- readout -->
+    <text x="90" y="200" font-family="var(--mono)" font-size="11" fill="var(--ink)" text-anchor="middle">v(${tTex} s) = ${vTex} m/s</text>
+  </svg>`;
+}
+
 add({ id:'skydiver-model', cat:'c1', tag:'live', title:'Falling Body with Air Resistance — Terminal Velocity', diff:'inter', ch:'Application · falling body',
   questions:['Why does v′=0 exactly when v = mg/γ — and why is that the *only* equilibrium for linear drag?','Is the approach to terminal velocity ever exact, or only in the limit t→∞?','With quadratic drag instead (∝v²), does the terminal velocity formula change the way you\u2019d guess?'],
   blurb:'A falling object of mass m feels gravity and a drag force. With linear drag (coefficient γ): m v′ = mg − γv. Find the terminal velocity and the velocity at any time — and compare against quadratic drag (∝v²) on the same plot.',
@@ -2384,22 +2513,43 @@ add({ id:'skydiver-model', cat:'c1', tag:'live', title:'Falling Body with Air Re
     const tQN=UI.number({label:'evaluate v at t = (s)',value:5,step:'any',onchange:render});
     const cmp=UI.seg({label:'also show',options:[{label:'linear drag only',value:'lin'},{label:'+ quadratic drag',value:'both'}],value:'lin',onchange:render});
     const cN=UI.slider({label:'quadratic drag c (kg/m), if shown',min:0.05,max:3,step:0.05,value:0.7,fmt:v=>v.toFixed(2),oninput:render});
-    const steps=document.createElement('div'); steps.className='formula'; steps.style.lineHeight='1.95';
     const stats=UI.statsBox();
-    const plot=UI.plotCard('v(t) — linear drag (blue) vs quadratic drag (violet, if shown)',420);
-    host.appendChild(UI.appGrid([mN,gN,gamN,tQN,cmp,cN,steps,stats,UI.note('Linear drag: v_T = mg/γ, and v(t) = v_T(1 − e^{−γt/m}) exactly. Quadratic drag (mv′=mg−cv²) has v_T = √(mg/c) and an approach shaped like tanh — similar terminal speed idea, different curve shape near t=0.')],[plot]));
+    // animated skydiver panel
+    const skyVis=document.createElement('div'); skyVis.style.cssText='text-align:center;margin-bottom:4px;';
+    const odeModelBox=modelBox('ODE model','','accent1');
+    const solModelBox=makeSolBox('general solution');
+    const plot=UI.plotCard('v(t) — linear drag (blue) vs quadratic drag (violet, if shown)',380);
+    host.appendChild(UI.appGrid(
+      [mN,gN,gamN,tQN,cmp,cN,stats,UI.note('Linear drag: v_T = mg/γ, and v(t) = v_T(1 − e^{−γt/m}) exactly. Quadratic drag (mv′=mg−cv²) has v_T = √(mg/c) and an approach shaped like tanh — similar terminal speed idea, different curve shape near t=0.')],
+      [skyVis, odeModelBox, plot, solModelBox]));
     plot.enableZoom(render);
     function render(){
       const m=mN.get(),g=gN.get(),gam=gamN.get(),tQ=tQN.get(),c=cN.get();
       if(![m,g,gam,tQ,c].every(isFinite)||m<=0||gam<=0) return;
       const vT=m*g/gam;
       const v=t=>vT*(1-Math.exp(-gam*t/m));
-      steps.innerHTML=`<b>(a)</b> v_T = mg/γ = ${nf(m)}(${nf(g)})/${nf(gam)} = <b style="color:var(--c-calc1)">${M.round(vT,2)} m/s</b><br>`+
-        `<b>(b)</b> v(t) = v_T(1 − e^{−γt/m}). At t=${nf(tQ)}: γt/m = ${nf(gam*tQ/m,4)} ⟹ v(${nf(tQ)}) = ${M.round(vT,2)}(1 − e^{−${nf(gam*tQ/m,4)}}) = <b style="color:var(--c-calc2)">${M.round(v(tQ),2)} m/s</b>`;
-      const rows=[{k:'terminal velocity v_T',v:M.round(vT,3)+' m/s',accent:1},{k:'v('+nf(tQ)+' s)',v:M.round(v(tQ),3)+' m/s',accent:1},{k:'% of terminal reached',v:M.round(100*v(tQ)/vT,1)+'%'}];
+      const vAtTq=v(tQ);
+      // update parachute animation
+      skyVis.innerHTML=skydiverSVG({vFrac:vAtTq/vT, vTex:M.round(vAtTq,2), tTex:nf(tQ,2)});
+      // ODE model box (above plot)
+      odeModelBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle m\\,\\frac{dv}{dt} = mg - \\gamma v, \\qquad v(0)=0`)+
+        dtex(`\\displaystyle ${nf(m)}\\,\\frac{dv}{dt} = ${nf(m)}(${nf(g)}) - ${nf(gam)}\\,v`);
+      const rows=[{k:'terminal velocity v_T',v:M.round(vT,3)+' m/s',accent:1},{k:'v('+nf(tQ)+' s)',v:M.round(vAtTq,3)+' m/s',accent:1},{k:'% of terminal reached',v:M.round(100*vAtTq/vT,1)+'%'}];
       let vQ=null,vTq=null;
       if(cmp.get()==='both'){ vTq=Math.sqrt(m*g/c); vQ=t=>vTq*Math.tanh(g*t/vTq); rows.push({k:'quadratic v_T',v:M.round(vTq,3)+' m/s'}); }
       stats.set(rows);
+      // solution box (below plot)
+      const linSolTex=`\\displaystyle v_T = \\frac{mg}{\\gamma} = \\frac{${nf(m)}\\cdot${nf(g)}}{${nf(gam)}} = ${M.round(vT,3)}\\ \\text{m/s}`;
+      const linFnTex=`\\displaystyle v(t) = ${M.round(vT,3)}\\!\\left(1 - e^{-${nf(gam/m,4)}t}\\right)`;
+      const evalTex=`\\displaystyle v(${nf(tQ,2)}) = ${M.round(vT,3)}\\!\\left(1 - e^{-${nf(gam*tQ/m,4)}}\\right) = ${M.round(vAtTq,3)}\\ \\text{m/s}`;
+      let solHtml=dtex(linSolTex)+dtex(linFnTex)+dtex(evalTex);
+      if(vQ){
+        const quadSolTex=`\\displaystyle v_T^{\\text{quad}}=\\sqrt{\\frac{mg}{c}}=\\sqrt{\\frac{${nf(m)}\\cdot${nf(g)}}{${nf(c)}}}=${M.round(vTq,3)}\\ \\text{m/s},\\quad v(t)=${M.round(vTq,3)}\\tanh\\!\\left(\\frac{${nf(g)}}{${M.round(vTq,3)}}\\,t\\right)`;
+        solHtml+=dtex(quadSolTex);
+      }
+      solModelBox.set('',null);
+      solModelBox.querySelector('.sol-math').innerHTML=solHtml;
       const T=Math.max(tQ*1.4, 5/gam*m, vTq?vTq*0.6:0, 8);
       const ch=plot.chart(); ch.setX(0,T); let ys=[]; for(let i=0;i<=300;i++){ ys.push(v(T*i/300)); if(vQ)ys.push(vQ(T*i/300)); } ys=ys.filter(isFinite); let ylo=0,yhi=Math.max(vT,vTq||0,M.max(ys)); const pad=(yhi-ylo)*.1||1; ch.setY(ylo-pad,yhi+pad);
       ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
@@ -2914,6 +3064,7 @@ function showHome(){ viewEl.style.display='none'; homeEl.style.display='block'; 
 function goApplet(id){ location.hash='/'+id; }
 
 let _dark=false;
+let _rz; // shared resize-debounce timer handle (also used by applyDark to avoid a racing rebuild)
 const darkStyle=document.createElement('style'); darkStyle.id='dark-override-style'; document.head.appendChild(darkStyle);
 function applyDark(d){
   _dark=d; const icon=document.getElementById('darkIcon');
@@ -2934,8 +3085,15 @@ function applyDark(d){
   document.body.classList.toggle('dark-override',d);
   COL.paper = d? '#1A2230' : '#F7FAFA'; COL.grid=d?'#1B2330':'#E4ECEC'; COL.line=d?'#2A3340':'#D8E3E3';
   COL.ink=d?'#EAF0F5':'#15233A'; COL.soft=d?'#A8B4C2':'#445268'; COL.faint=d?'#6B7888':'#82909F';
-  if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); }
-  else heroAnim();
+  // Wait a frame so the browser finishes the style/layout recalc triggered by the class toggle
+  // before we re-measure canvas widths and redraw — rebuilding synchronously in the same tick
+  // can read a stale clientWidth and paint a squashed frame that then "snaps" a moment later,
+  // which is exactly what looked like a jittery/shaky plot right after switching themes.
+  clearTimeout(_rz); // a pending width-based rebuild from the resize handler would race this one
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); }
+    else heroAnim();
+  }));
 }
 function toggleDark(){ _dark=!_dark; try{localStorage.setItem('cl-dark',_dark?'1':'0');}catch(e){} applyDark(_dark); }
 
@@ -3024,7 +3182,7 @@ try{ if(localStorage.getItem('cl-dark')==='1'){ _dark=true; } }catch(e){}
 applyDark(_dark);
 heroAnim();
 route();
-let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>{ if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); } else heroAnim(); },180); });
+window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>{ if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); } else heroAnim(); },180); });
 
 const searchWrap=document.querySelector('.search-wrap');
 if(searchWrap){
