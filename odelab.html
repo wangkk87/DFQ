@@ -1973,11 +1973,16 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
   questions:['Why does the cooling rate k not depend on the starting temperature, only on the environment?','Two temperature readings pin down k. What goes wrong if both readings are taken very close together in time?','Why is the estimated time of death always *before* the body was found, never after?'],
   blurb:'T(t) = T_env + (T₀ − T_env)e^{−kt}. Set the room temperature and two temperature readings — watch the figure cool live — then see the full model: schematic, general ODE, your numbers substituted, and the complete step-by-step solution for the time of death.',
   build(host){
-    const envN=UI.number({label:'room / environment temp T_env (°C)',value:20,step:'any',onchange:()=>{recompute();render();}});
-    const t0N=UI.number({label:'temp at discovery, T(0) (°C)',value:27,step:'any',onchange:()=>{recompute();render();}});
-    const t1hN=UI.number({label:'hours after discovery of 2nd reading',value:1,step:'any',min:0.01,onchange:()=>{recompute();render();}});
-    const t1N=UI.number({label:'temp at that later reading (°C)',value:25,step:'any',onchange:()=>{recompute();render();}});
-    const bodyN=UI.number({label:'normal body temp (°C)',value:37,step:'any',onchange:()=>{recompute();render();}});
+    // Forward ref — assigned after playBtn is created below
+    let playBtnRef = null;
+    const restartPlay=()=>requestAnimationFrame(()=>{ if(playBtnRef&&playBtnRef.textContent.includes('Play')) playBtnRef.click(); });
+    const stopAndRerender=()=>{ if(playBtnRef) playBtnRef.stopPlaying(); recompute(); render(); restartPlay(); };
+
+    const envN=UI.number({label:'room / environment temp T_env (°C)',value:20,step:'any',onchange:stopAndRerender});
+    const t0N=UI.number({label:'temp at discovery, T(0) (°C)',value:27,step:'any',onchange:stopAndRerender});
+    const t1hN=UI.number({label:'hours after discovery of 2nd reading',value:1,step:'any',min:0.01,onchange:stopAndRerender});
+    const t1N=UI.number({label:'temp at that later reading (°C)',value:25,step:'any',onchange:stopAndRerender});
+    const bodyN=UI.number({label:'normal body temp (°C)',value:37,step:'any',onchange:stopAndRerender});
     const clockN=UI.text({label:'clock time body found (optional, e.g. 2:00 AM)',value:'2:00 AM',hint:'used only to show an actual estimated time of death',onchange:()=>{render();}});
 
     const visual=document.createElement('div'); visual.className='live-visual';
@@ -1986,6 +1991,7 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
     const scrubRow=document.createElement('div'); scrubRow.className='scrub-row';
     const playBtn=playButton(()=>tScrub.get(),v=>tScrub.set(M.round(v,2)),
       ()=>+tScrub.querySelector('input').min,()=>+tScrub.querySelector('input').max,7,renderVisual);
+    playBtnRef=playBtn;
     scrubRow.append(playBtn);
     const visualCard=document.createElement('div'); visualCard.className='diagram-card';
     visualCard.append(Object.assign(document.createElement('div'),{className:'diagram-cap',textContent:'Live figure — drag the time slider through the estimated time of death'}),visual,tScrub,scrubRow,readout);
@@ -2014,6 +2020,7 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
 
     let env,T0,t1,T1,body,k,Tfn,tstar,valid=false;
     function recompute(){
+      const wasValid=valid;
       env=envN.get(); T0=t0N.get(); t1=t1hN.get(); T1=t1N.get(); body=bodyN.get();
       valid = [env,T0,t1,T1,body].every(isFinite) && t1>0;
       if(!valid) return;
@@ -2022,9 +2029,16 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
       k=Math.log(num0/num1)/t1;
       Tfn = t=>env+num0*Math.exp(-k*t);
       tstar = body>env? -Math.log((body-env)/num0)/k : null;
-      const tmin=Math.min(-0.5,(tstar!=null?tstar-0.5:-0.5)), tmax=t1+1;
-      tScrub.querySelector('input').min=M.round(tmin,2); tScrub.querySelector('input').max=M.round(tmax,2);
-      tScrub.set(0);
+      const tmin=M.round(Math.min(-0.5,(tstar!=null?tstar-0.5:-0.5)),2);
+      const tmax=M.round(t1+1,2);
+      // Only reset slider position when parameters actually change (not on every frame)
+      const prevMin=+tScrub.querySelector('input').min, prevMax=+tScrub.querySelector('input').max;
+      tScrub.querySelector('input').min=tmin; tScrub.querySelector('input').max=tmax;
+      // Rebuild the --range-fill after changing bounds
+      const cur=tScrub.get();
+      if(!wasValid || Math.abs(prevMin-tmin)>0.1 || Math.abs(prevMax-tmax)>0.1){
+        tScrub.set(tmin); // start from the beginning when domain changes
+      }
     }
 
     function renderVisual(){
@@ -2033,7 +2047,15 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
       const frac=(Tt-env)/(body-env||1);
       const roomFrac=M.clamp((env-10)/25,0,1);
       visual.innerHTML = bodySVG({frac,roomFrac});
-      readout.innerHTML = `<span>T(t) = <b>${M.round(Tt,2)}°C</b></span><span>t = <b>${M.round(t,2)} hr</b> (relative to discovery)</span>${tstar!=null?`<span>time of death at t = <b>${M.round(tstar,2)} hr</b></span>`:''}`;
+      // Near time of death? highlight
+      const atDeath = tstar!=null && Math.abs(t-tstar)<0.08;
+      const deathLabel = tstar!=null
+        ? `<span style="color:${atDeath?COL.coral:'inherit'};font-weight:${atDeath?700:400}">estimated time of death: t* = <b>${M.round(tstar,2)} hr</b> before/after discovery</span>`
+        : '';
+      readout.innerHTML =
+        `<span>T(t) = <b>${M.round(Tt,2)}°C</b></span>`+
+        `<span>current slider t = <b>${M.round(t,2)} hr</b></span>`+
+        deathLabel;
     }
 
     function render(){
@@ -2062,7 +2084,7 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
           : `<b>3.</b> Body temperature ${nf(body)}°C must exceed the room temperature to back-solve a time of death.`);
 
       const rows=[{k:'cooling constant k',v:M.round(k,4)+' /hr',accent:1}];
-      if(tstar!=null) rows.push({k:'time of death',v:`${M.round(Math.abs(tstar),2)} hr before discovery`,accent:1});
+      if(tstar!=null) rows.push({k:'time of death t*',v:`${M.round(Math.abs(tstar),2)} hr ${tstar<0?'before':'after'} discovery`,accent:1});
       stats.set(rows);
 
       const tmin=Math.min(-0.5,(tstar!=null?tstar-0.5:-0.5)), tmax=t1+2;
@@ -2076,6 +2098,8 @@ add({ id:'newton-cooling-app', cat:'c1', tag:'live', title:"Newton's Law of Cool
     }
     recompute();
     render();
+    // Auto-start the animation
+    requestAnimationFrame(()=>{ if(playBtnRef&&playBtnRef.textContent.includes('Play')) playBtnRef.click(); });
   }
 });
 
