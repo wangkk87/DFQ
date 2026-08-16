@@ -1001,7 +1001,19 @@ function testLinearInY(f,tmin,tmax,ymin,ymax){
   return checks>=6 && ok/checks>0.85;
 }
 function symStrToTex(tr){ let s; try{ s=Sym.str(tr); }catch(e){ return '?'; }
-  return s.replace(/·/g,'\\cdot ').replace(/−/g,'-').replace(/exp((-?[^)]+))/g,'e^{$1}'); }
+  s = s.replace(/·/g,'\\cdot ').replace(/−/g,'-').replace(/exp\((-?[^)]+)\)/g,'e^{$1}');
+  // "1\cdot X" -> "X", "-1\cdot X" -> "-X": a bare unit coefficient reads as noise, not math
+  s = s.replace(/(^|[\s+(-])1\\cdot\s*/g,'$1').replace(/-1\\cdot\s*/g,'-');
+  s = s.replace(/\+\s*-/g,'- '); // "+ -3" -> "- 3"
+  // Function names must become real LaTeX control sequences (\ln, \sin, ...) -- left as bare
+  // text like "ln(...)" they're indistinguishable to KaTeX from three italic variables l·n·(...)
+  // multiplied together, which is exactly the "ln(abs(y))" mis-render this replaces.
+  s = s.replace(/\bln\(abs\(([^()]*)\)\)/g,'\\ln\\left|$1\\right|');
+  s = s.replace(/\babs\(([^()]*)\)/g,'\\left|$1\\right|');
+  s = s.replace(/\bln\(/g,'\\ln(');
+  s = s.replace(/\b(sin|cos|tan|sec|csc|cot|sinh|cosh|tanh)\(/g,'\\$1(');
+  s = s.replace(/\bsqrt\(([^()]*)\)/g,'\\sqrt{$1}');
+  return s; }
 /* generic n×n determinant by cofactor expansion (n is small in every caller here) */
 function detN(m){
   const n=m.length;
@@ -1102,11 +1114,11 @@ function updateSolutionBoxes(f,rawSrc,tmin,tmax,ymin,ymax,ics,genBox,parBox){
     if(G&&H){
       const Gtex=symStrToTex(G), Htex=symStrToTex(H);
       genBox.set(`${Htex} \\;=\\; ${Gtex} \\;+\\; C`,
-        `Separable: <code>dy / (${hTex}) = (${gTex}) dt</code>. Integrating both sides gives this implicit family, with $C$ an arbitrary constant.`);
+        `Separable: ${itex(`\\dfrac{dy}{${hTex}} = ${gTex}\\,dt`)}. Integrating both sides gives this implicit family, with ${itex('C')} an arbitrary constant.`);
       if(lastIC){ const [t0,y0]=lastIC;
         try{ const C = Sym.ev(H,y0) - Sym.ev(G,t0);
           if(isFinite(C)) parBox.set(`${Htex} \\;=\\; ${Gtex} \\;+\\; ${nf(C,3)}`,
-            `Through <b>(${nf(t0,2)}, ${nf(y0,2)})</b>: plugging into the general solution and solving gives $C=${nf(C,3)}$.`);
+            `Through <b>(${nf(t0,2)}, ${nf(y0,2)})</b>: plugging into the general solution and solving gives ${itex(`C=${nf(C,3)}`)}.`);
           else parBox.set('\\text{(not defined at this point)}','Pick a point away from a pole of f(t,y) to get a numeric particular solution.');
         }catch(e){ parBox.set('\\text{---}','Could not evaluate the closed form at this point; the plotted curve above is still exact.'); }
       } else parBox.set('\\text{---}','Add an initial condition to see the particular solution through it.');
@@ -1121,7 +1133,7 @@ function updateSolutionBoxes(f,rawSrc,tmin,tmax,ymin,ymax,ics,genBox,parBox){
 
   if(testLinearInY(f,tmin,tmax,ymin,ymax)){
     genBox.set(`y' + p(t)\\,y = g(t)`,
-      'This equation is linear in y. It can be solved exactly with an integrating factor \\(\\mu(t)=e^{\\int p\\,dt}\\) — see the dedicated "First-Order Linear: Integrating Factor" tool above for the full symbolic steps.');
+      `This equation is linear in y. It can be solved exactly with an integrating factor ${itex('\\mu(t)=e^{\\int p\\,dt}')} — see the dedicated "First-Order Linear: Integrating Factor" tool above for the full symbolic steps.`);
     parBox.set(lastIC? `y(${nf(lastIC[0],2)})=${nf(lastIC[1],2)}` : '\\text{---}',
       lastIC? 'Particular solution through this point, traced numerically (RK4) above.' : 'Add an initial condition to see its numerically-traced solution curve above.');
     return;
