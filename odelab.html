@@ -792,6 +792,59 @@ const Sym = (function(){
       case '^': prec=3; s=str(tr.a,4)+'^'+str(tr.b,3,'r'); break; }
     const needP=prec<parent||(prec===parent&&side==='r'&&(parent===1||parent===2)&&(tr.k==='-'||tr.k==='/'));
     return needP?'('+s+')':s; }
+  /* ----- Taylor-coefficient extraction: pulls the polynomial coefficients (ascending, c0+c1*x+c2*x^2+...)
+     out of a Sym tree that is a polynomial purely in `vn`, by repeated differentiation at 0 (c_k = f^(k)(0)/k!).
+     Guards against being handed a non-polynomial (e.g. sin(y)) two ways: it refuses trees that mention any
+     variable other than vn, and it re-checks the reconstructed polynomial against the original tree at a
+     few sample points -- if they don't match to high precision, this wasn't a polynomial and we bail (null). */
+  function polyCoeffsOf(tree,vn,maxDeg){ maxDeg=maxDeg||6;
+    if(!symOnlyVar(tree,vn))return null;
+    let c=[],d=tree,fact=1;
+    for(let k=0;k<=maxDeg;k++){
+      let v; try{ v=ev(d,{[vn]:0}); }catch(e){ return null; }
+      if(!isFinite(v))return null;
+      c.push(v/fact); d=simp(diff(d,vn)); fact*=(k+1);
+    }
+    let n=c.length-1; while(n>0&&Math.abs(c[n])<1e-9)n--; c=c.slice(0,n+1);
+    for(const xv of [0.4123,-1.271,2.037,-0.618,3.11]){
+      let want; try{ want=ev(tree,{[vn]:xv}); }catch(e){ continue; }
+      if(!isFinite(want))continue;
+      let got=0,p=1; for(let i=0;i<c.length;i++){ got+=c[i]*p; p*=xv; }
+      if(Math.abs(want-got)>1e-6*Math.max(1,Math.abs(want)))return null;
+    }
+    return c; }
+  function polyDeriv(c){ return c.slice(1).map((v,i)=>v*(i+1)); }
+  function polyEval(c,x){ let r=0,p=1; for(let i=0;i<c.length;i++){ r+=c[i]*p; p*=x; } return r; }
+  /* ----- integrate a rational function P(vn)/Q(vn) by partial fractions, whenever Q factors into
+     DISTINCT real linear factors (the common textbook case: 1/(y(1-y)), 1/((y-1)(y-2)), 1/(4-y^2), ...).
+     Long-divides first so deg(P) < deg(Q), then uses A_i = R(r_i)/Q'(r_i) at each root r_i of Q, giving
+     P/Q = quotient + sum_i A_i/(x-r_i), whose antiderivative is (integral of quotient) + sum_i A_i ln|x-r_i|.
+     Repeated or non-real roots aren't handled here -- returns null and the caller falls back gracefully to
+     the numerically-traced curve, same as any other integral this tool can't find a closed form for. */
+  function integrateRational(numTr,denTr,vn){
+    const P=polyCoeffsOf(numTr,vn), Q=polyCoeffsOf(denTr,vn);
+    if(!P||!Q||Q.length<2)return null;
+    const qDeg=Q.length-1, qLead=Q[qDeg];
+    let rem=P.slice(), quotient=[];
+    while(rem.length-1>=qDeg && rem.some(v=>Math.abs(v)>1e-9)){
+      const rDeg=rem.length-1, coef=rem[rDeg]/qLead, shift=rDeg-qDeg;
+      quotient[shift]=(quotient[shift]||0)+coef;
+      for(let i=0;i<Q.length;i++) rem[i+shift]-=coef*Q[i];
+      let n=rem.length-1; while(n>0&&Math.abs(rem[n])<1e-9)n--; rem=rem.slice(0,n+1);
+    }
+    const roots=polyRealRoots(Q);
+    if(roots.length!==qDeg)return null;
+    for(let i=1;i<roots.length;i++) if(Math.abs(roots[i]-roots[i-1])<1e-6)return null;
+    const Qp=polyDeriv(Q);
+    const A=roots.map(r=>{ const dv=polyEval(Qp,r); if(Math.abs(dv)<1e-9)return null; return polyEval(rem,r)/dv; });
+    if(A.some(a=>a===null))return null;
+    let result=null;
+    quotient.forEach((c0,i)=>{ if(!c0)return; const term=i===0?mul(N(c0),V(vn)):div(mul(N(c0),pow(V(vn),N(i+1))),N(i+1));
+      result=result?add(result,term):term; });
+    A.forEach((a,i)=>{ const r=roots[i]; const inner=r>=0?sub(V(vn),N(r)):add(V(vn),N(-r));
+      const term=mul(N(a),fn('ln',fn('abs',inner))); result=result?add(result,term):term; });
+    return result?simp(result):null;
+  }
   function integrateSimple(tr,vn){ vn=vn||'x'; tr=simp(tr); const VX=()=>V(vn);
     if(tr.k==='n')return mul(tr,VX());
     if(tr.k==='v'&&tr.n===vn)return div(pow(VX(),N(2)),N(2));
@@ -806,6 +859,7 @@ const Sym = (function(){
       const lin=Math.abs(ev(d2,0))<1e-9&&Math.abs(ev(d2,1))<1e-9;
       if(!lin||Math.abs(k)<1e-12){ if(tr.n==='exp'&&g.k==='v'&&g.n===vn)return fn('exp',VX()); return null; }
       switch(tr.n){ case 'exp':return simp(div(fn('exp',g),N(k))); case 'sin':return simp(div(neg(fn('cos',g)),N(k))); case 'cos':return simp(div(fn('sin',g),N(k))); default:return null; } }
+    if(tr.k==='/'){ const r=integrateRational(tr.a,tr.b,vn); if(r)return r; }
     return null; }
   function compile(src, vars=['x']){ const lv=vars.map(v=>v.toLowerCase()); const t=parse((src||'').toLowerCase(), lv);
     return function(){ const args=arguments; const env={}; lv.forEach((v,i)=>env[v]=args[i]); return ev(t,env); }; }
@@ -2191,16 +2245,22 @@ function scrubSlider({label,min,max,step,value,fmt,oninput}){ const w=UI.slider(
    size — so playback speed feels consistent no matter what the current min/max happen to be. */
 function playButton(getT,setT,getMin,getMax,durationSec,onFrame){
   const btn=document.createElement('button'); btn.className='abtn'; btn.textContent='▶ Play';
-  let playing=false, raf=null, last=0;
+  let playing=false, raf=null, last=0, curT=null;
   const bound=v=>typeof v==='function'?v():v;
   function frame(ts){ if(!playing)return; if(!last)last=ts; const dtSec=Math.min((ts-last)/1000,0.12); last=ts;
     const tmin=bound(getMin), tmax=bound(getMax), span=Math.max(tmax-tmin,1e-9);
-    let t=getT()+(span/Math.max(durationSec,0.5))*dtSec;
-    if(t>=tmax){ t=tmin; } setT(t); onFrame();
+    // Keep our own full-precision running time and only ever WRITE it to the slider, never read it
+    // back -- a <input type=range step=...> silently snaps every programmatic .value write to the
+    // nearest step, and each frame's advance is far smaller than that step, so reading getT() back
+    // every frame (as this used to) just snapped straight back to the same point forever: the
+    // slider looked frozen no matter how long Play ran.
+    if(curT==null) curT=getT();
+    curT=curT+(span/Math.max(durationSec,0.5))*dtSec;
+    if(curT>=tmax){ curT=tmin; } setT(curT); onFrame();
     raf=requestAnimationFrame(frame); }
-  btn.onclick=()=>{ playing=!playing; btn.textContent=playing?'⏸ Pause':'▶ Play'; last=0;
+  btn.onclick=()=>{ playing=!playing; btn.textContent=playing?'⏸ Pause':'▶ Play'; last=0; curT=null;
     if(playing) raf=requestAnimationFrame(frame); else if(raf) cancelAnimationFrame(raf); };
-  btn.stopPlaying=()=>{ if(playing){ playing=false; btn.textContent='▶ Play'; if(raf)cancelAnimationFrame(raf); } };
+  btn.stopPlaying=()=>{ if(playing){ playing=false; btn.textContent='▶ Play'; if(raf)cancelAnimationFrame(raf); } curT=null; };
   return btn;
 }
 
@@ -3090,7 +3150,7 @@ function goApplet(id){ location.hash='/'+id; }
 let _dark=false;
 let _rz; // shared resize-debounce timer handle (also used by applyDark to avoid a racing rebuild)
 const darkStyle=document.createElement('style'); darkStyle.id='dark-override-style'; document.head.appendChild(darkStyle);
-function applyDark(d){
+function applyDark(d,opts){
   _dark=d; const icon=document.getElementById('darkIcon');
   if(d){
     darkStyle.textContent=`body.dark-override{--paper:#11161F;--paper-2:#1A2230;--ink:#EAF0F5;--ink-soft:#A8B4C2;--ink-faint:#65728200;--ink-faint:#6B7888;--line:#2A3340;--grid:#1B2330;--white:#1A2230;--shadow-sm:0 1px 2px rgba(0,0,0,.3);--shadow-md:0 4px 16px rgba(0,0,0,.4);--shadow-lg:0 12px 32px rgba(0,0,0,.5);}
@@ -3109,6 +3169,13 @@ function applyDark(d){
   document.body.classList.toggle('dark-override',d);
   COL.paper = d? '#1A2230' : '#F7FAFA'; COL.grid=d?'#1B2330':'#E4ECEC'; COL.line=d?'#2A3340':'#D8E3E3';
   COL.ink=d?'#EAF0F5':'#15233A'; COL.soft=d?'#A8B4C2':'#445268'; COL.faint=d?'#6B7888':'#82909F';
+  // Skip the redraw below on the initial page-load call: COL is already correct at this point
+  // (set synchronously above, before route() has opened anything), so there's nothing stale to
+  // fix yet. Without this guard, loading straight into a #/tool-id URL would call openApplet()
+  // a *second* time a couple frames after the first (route() already opened it once) -- silently
+  // building every live/animated tool twice, with two competing play loops fighting over (and
+  // orphaning) sliders. Only a genuine later toggleDark() click needs this redraw.
+  if(opts&&opts.skipRedraw)return;
   // Wait a frame so the browser finishes the style/layout recalc triggered by the class toggle
   // before we re-measure canvas widths and redraw — rebuilding synchronously in the same tick
   // can read a stale clientWidth and paint a squashed frame that then "snaps" a moment later,
@@ -3203,7 +3270,7 @@ renderVisitCounter();
 /* ----------------------------- INIT --------------------------------- */
 renderCatalog();
 try{ if(localStorage.getItem('cl-dark')==='1'){ _dark=true; } }catch(e){}
-applyDark(_dark);
+applyDark(_dark,{skipRedraw:true});
 heroAnim();
 route();
 window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>{ if(viewEl.style.display==='block'){ const id=location.hash.slice(2); if(id)openApplet(decodeURIComponent(id)); } else heroAnim(); },180); });
