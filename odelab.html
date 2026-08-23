@@ -3270,13 +3270,17 @@ function heroAnim(){
 }
 
 /* -------------------- (7) SITE-WIDE VISIT COUNTER --------------------- */
-let _visitCount=0;
-try{
-  _visitCount=parseInt(localStorage.getItem('cl-visit-count')||'0',10)||0;
-  _visitCount++;
-  localStorage.setItem('cl-visit-count',String(_visitCount));
-}catch(e){ _visitCount=1; }
-function renderVisitCounter(){ const t=document.getElementById('visitCountNum'); if(t) t.textContent=_visitCount.toLocaleString(); }
+async function renderVisitCounter(){
+  const t=document.getElementById('visitCountNum');
+  try{
+    const res = await fetch('https://cal-lab-counter.wangkk87.workers.dev/?site=odelab');
+    const data = await res.json();
+    if(t) t.textContent = data.count.toLocaleString();
+  }catch(e){
+    console.error('Visit counter fetch failed:', e);
+    if(t) t.textContent = '—';
+  }
+}
 renderVisitCounter();
 
 /* ----------------------------- INIT --------------------------------- */
