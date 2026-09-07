@@ -1033,9 +1033,12 @@ function drawSlopeField(ch,f,col,nx,ny){ nx=nx||22; ny=ny||15; const ctx=ch.ctx;
   for(let i=0;i<=nx;i++)for(let j=0;j<=ny;j++){ const t=ch.xmin+(ch.xmax-ch.xmin)*i/nx, y=ch.ymin+(ch.ymax-ch.ymin)*j/ny; const m=f(t,y); if(!isFinite(m))continue;
     const px=ch.X(t),py=ch.Y(y); let dx=ch.X(t+1)-ch.X(t), dy=ch.Y(y+m)-ch.Y(y); const L=Math.hypot(dx,dy)||1, s=8/L; dx*=s; dy*=s;
     ctx.beginPath(); ctx.moveTo(px-dx,py-dy); ctx.lineTo(px+dx,py+dy); ctx.stroke(); } ctx.restore(); }
-function drawSolCurve(ch,f,t0,y0,col,w){ const c=ODE.curve(f,t0,y0,ch.xmin,ch.xmax,(ch.xmax-ch.xmin)/700);
-  const xs=[],ys=[]; const pad=(ch.ymax-ch.ymin)*4; for(let i=0;i<c.ts.length;i++){ const Y=c.ys[i]; if(Y<ch.ymin-pad||Y>ch.ymax+pad){ if(xs.length){ch.pline(xs.slice(),ys.slice(),col,w||2.4); xs.length=0;ys.length=0;} continue; } xs.push(ch.X(c.ts[i])); ys.push(ch.Y(Y)); }
-  if(xs.length)ch.pline(xs,ys,col,w||2.4); }
+function drawSolCurve(ch,f,t0,y0,col,w){ const c=ODE.curve(f,t0,y0,ch.xmin,ch.xmax,(ch.xmax-ch.xmin)/700); drawCurveObj(ch,c,col,w); }
+// Like drawSolCurve, but takes an already-computed {ts,ys} curve object -- lets us trace extra
+// branches (e.g. a second solution through the same point) without recomputing from scratch.
+function drawCurveObj(ch,c,col,w,dash){
+  const xs=[],ys=[]; const pad=(ch.ymax-ch.ymin)*4; for(let i=0;i<c.ts.length;i++){ const Y=c.ys[i]; if(Y<ch.ymin-pad||Y>ch.ymax+pad){ if(xs.length){ch.pline(xs.slice(),ys.slice(),col,w||2.4,dash||[]); xs.length=0;ys.length=0;} continue; } xs.push(ch.X(c.ts[i])); ys.push(ch.Y(Y)); }
+  if(xs.length)ch.pline(xs,ys,col,w||2.4,dash||[]); }
 function parseAB(s){ const p=(s||'').split(/[\s,]+/).map(Number).filter(x=>!isNaN(x)); return p.length>=2?[p[0],p[1]]:null; }
 
 /* =====================================================================
@@ -1932,18 +1935,46 @@ add({ id:'existence-uniqueness', cat:'c1', tag:'interactive', title:'Existence &
     const win=UI.text({label:'t-window',value:'-3, 3',onchange:render});
     const verdict=UI.note('');
     const plot=UI.plotCard('slope field and the solution(s) through the point',360);
-    host.appendChild(UI.appGrid([sel,fin,ic,win,verdict,UI.note('Picard\u2019s theorem: if f and ∂f/∂y are continuous in a box around (t₀,y₀), exactly one solution passes through it. Where ∂f/∂y blows up (like y^{1/3} at y=0), uniqueness can fail — several solutions share the same start.')],[plot]));
+    const branchNote=UI.note(''); branchNote.style.display='none';
+    host.appendChild(UI.appGrid([sel,fin,ic,win,verdict,UI.note('Picard\u2019s theorem: if f and ∂f/∂y are continuous in a box around (t₀,y₀), exactly one solution passes through it. Where ∂f/∂y blows up (like y^{1/3} at y=0), uniqueness can fail — several solutions share the same start.'),branchNote],[plot]));
     plot.enableZoom(render);
     function render(){ const f=fin.fn(); if(!f)return; const icp=parseAB(ic.get()), wp=parseAB(win.get()); if(!icp||!wp)return; const [t0,y0]=icp;
-      const h=1e-4; const fy=(f(t0,y0+h)-f(t0,y0-h))/(2*h); const ok=isFinite(fy)&&Math.abs(fy)<1e3;
+      // A single finite-difference derivative at one fixed step is not enough to detect an unbounded
+      // ∂f/∂y: at a true singularity (like y^{1/3} at y=0, where ∂f/∂y = (1/3)|y|^{-2/3} -> ∞) a fixed
+      // step h still returns some finite number -- e.g. h=1e-4 gives ≈464, which a naive "<1000" check
+      // would wrongly call safe. So instead we take the difference quotient at two step sizes and check
+      // whether it keeps growing as h shrinks (the signature of a real blow-up) rather than settling
+      // down to a stable value (a genuine, finite derivative).
+      const h1=1e-3, h2=1e-6;
+      const fy=(f(t0,y0+h2)-f(t0,y0-h2))/(2*h2);
+      const fyCoarse=(f(t0,y0+h1)-f(t0,y0-h1))/(2*h1);
+      const growing=isFinite(fy)&&isFinite(fyCoarse)&&Math.abs(fy)>3*Math.abs(fyCoarse)+10;
+      const ok=isFinite(fy)&&Math.abs(fy)<1e3&&!growing;
       verdict.innerHTML=ok?`<b style="color:${COL.calc2}">Unique solution guaranteed near (${M.round(t0,2)}, ${M.round(y0,2)})</b> — ∂f/∂y ≈ ${M.round(fy,3)} is finite and continuous there.`:`<b style="color:${COL.coral}">Uniqueness may fail at (${M.round(t0,2)}, ${M.round(y0,2)})</b> — ∂f/∂y is unbounded, so the theorem\u2019s hypothesis breaks.`;
       verdict.style.borderLeftColor=ok?COL.calc2:COL.coral;
       const ch=plot.chart(); ch.setX(wp[0],wp[1]); const c=ODE.curve(f,t0,y0,wp[0],wp[1]); const ys=c.ys.filter(v=>isFinite(v)&&Math.abs(v)<50);
       let ylo=Math.min(y0-2,M.min(ys)),yhi=Math.max(y0+2,M.max(ys)); ch.setY(ylo,yhi);
       ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes(); drawSlopeField(ch,f);
       drawSolCurve(ch,f,t0,y0,COL.calc1,2.8);
-      // for the cube-root failure at (0,0): also show the flat solution y=0 and a shifted branch
-      if(!ok && Math.abs(y0)<1e-6){ ch.line(wp[0],0,wp[1],0,hexA(COL.coral,.85),2.4); }
+      // When the hypothesis fails right at an equilibrium (f(t0,y0)=0 but ∂f/∂y unbounded there,
+      // like y'=y^{1/3} at y=0), the constant solution y=y0 is only ONE of several solutions through
+      // this point. To make the non-uniqueness visible rather than just asserted, nudge the start a
+      // hair up and a hair down and let RK4 trace whichever branch that nudge lands on. If a second
+      // branch genuinely exists, these nudged curves will visibly peel away from the flat line right
+      // at (t0,y0); if the point is just an ordinary (stable) equilibrium, they'll snap straight back
+      // to it and the plot will look unchanged.
+      let branchesShown=false;
+      if(!ok && Math.abs(f(t0,y0))<1e-6){
+        ch.line(wp[0],y0,wp[1],y0,hexA(COL.coral,.85),2.4);
+        const span=Math.max(wp[1]-wp[0],1e-6), eps=span*3e-4+1e-6;
+        [eps,-eps].forEach(e=>{
+          const c2=ODE.curve(f,t0,y0+e,wp[0],wp[1]);
+          const dev=M.max(c2.ys.map((v,i)=>isFinite(v)?Math.abs(v-y0):0));
+          if(dev>1e-3*Math.max(1,Math.abs(yhi-ylo))){ drawCurveObj(ch,c2,COL.amber,2.4,[7,4]); branchesShown=true; }
+        });
+      }
+      branchNote.style.display=branchesShown?'':'none';
+      if(branchesShown) branchNote.innerHTML=`<b style="color:${COL.amber}">Dashed curves:</b> nudging the start up/down by an infinitesimal amount and integrating shows other solutions genuinely pass through the same point — this is what \u201cuniqueness fails\u201d looks like, not just the flat solution alone.`;
       ch.dot(t0,y0,COL.coral,5); ch.axisX(niceTicks(ch.xmin,ch.xmax,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
     }
     render();
