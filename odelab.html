@@ -3304,9 +3304,9 @@ function heroAnim(){
 async function renderVisitCounter(){
   const t=document.getElementById('visitCountNum');
   try{
-    const res = await fetch('https://countapi.mileshilliard.com/api/v1/hit/wangkk87_odelab_math412_visits');
+    const res = await fetch('https://cal-lab-counter.wangkk87.workers.dev/?site=odelab');
     const data = await res.json();
-    if(t) t.textContent = Number(data.value).toLocaleString();
+    if(t) t.textContent = data.count.toLocaleString();
   }catch(e){
     console.error('Visit counter fetch failed:', e);
     if(t) t.textContent = '—';
