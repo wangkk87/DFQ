@@ -1384,6 +1384,37 @@ add({ id:'second-order', cat:'c2', tag:'interactive', title:'2nd-Order Linear: C
   }
 });
 
+add({ id:'rlc-damping', cat:'c2', tag:'interactive', title:'RLC Circuit: Under-, Critical & Over-Damping', diff:'intro', ch:'Application · RLC circuit',
+  questions:['Why does the underdamped charge cross zero and go negative — what is the inductor doing?','Why does the critically damped curve return to zero faster than any overdamped one, even though it has less resistance?','What happens when R = 0, and why does it never settle?'],
+  blurb:'The series RLC circuit L Q″ + R Q′ + (1/C) Q = 0 with L = 1, C = 1, Q(0) = 1, Q′(0) = 0. Drag the resistance R and compare your curve against fixed underdamped (R = 0.4), critically damped (R = 2), and overdamped (R = 6) references.',
+  build(host){
+    const rS=UI.slider({label:'resistance R',min:0,max:8,step:0.1,value:0.4,fmt:v=>v.toFixed(1),oninput:render});
+    const stats=UI.statsBox();
+    const exBox=document.createElement('div'); exBox.style.cssText='font-family:var(--mono);font-size:.82rem;padding:10px 12px;border-radius:10px;border:1px solid var(--line);';
+    const rlcModelBox=modelBox('ODE model (updates with R)','','accent1');
+    const plot=UI.plotCard('charge Q(t)',360);
+    const legend=document.createElement('div'); legend.style.cssText='display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mono);font-size:.76rem;';
+    const refs=[{R:0.4,color:COL.calc2,dash:[7,4],label:'underdamped R=0.4'},{R:2,color:COL.coral,dash:[2,3],label:'critically damped R=2'},{R:6,color:COL.amber,dash:[12,4],label:'overdamped R=6'}];
+    legend.innerHTML=refs.map(r=>`<span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="${r.color}" stroke-width="2" stroke-dasharray="${r.dash.join(',')}"/></svg>${r.label}</span>`).join('')+`<span style="display:flex;align-items:center;gap:6px;"><span style="width:22px;height:3px;background:${COL.ink};"></span>current R</span>`;
+    host.appendChild(UI.appGrid([rS,stats,exBox,UI.note('Damping ratio ζ = (R/2)√(C/L). <b style="color:'+COL.calc2+'">ζ&lt;1 underdamped</b>: charge sloshes back and forth between capacitor and inductor while decaying (radio tuning, ringing when you unplug a motor). <b style="color:'+COL.coral+'">ζ=1 critically damped</b>: fastest return with no overshoot (car shock absorbers, analog meters). <b style="color:'+COL.amber+'">ζ&gt;1 overdamped</b>: slow, sluggish return (hydraulic door closer); as ζ grows it looks like a first-order RC discharge (LED afterglow). R = 0 gives an undamped LC oscillator.')],[rlcModelBox,plot,legend]));
+    plot.enableZoom(render);
+    function q(R,t){ const a=R/2; if(Math.abs(a-1)<1e-6)return (1+a*t)*Math.exp(-a*t);
+      if(a<1){ const w=Math.sqrt(1-a*a); return Math.exp(-a*t)*(Math.cos(w*t)+a/w*Math.sin(w*t)); }
+      const s=Math.sqrt(a*a-1),r1=-a+s,r2=-a-s; return (r2*Math.exp(r1*t)-r1*Math.exp(r2*t))/(r2-r1); }
+    function render(){ const R=rS.get(), z=R/2;
+      let kind,ex; if(R===0){kind='undamped';ex='ideal LC, rings forever';} else if(Math.abs(z-1)<0.03){kind='critically damped';ex='shock absorber, analog meter';} else if(z<1){kind='underdamped';ex='radio tuning, unplug ringing';} else {kind='overdamped';ex=z>2.5?'≈ LED afterglow (1st-order RC)':'hydraulic door closer';}
+      rlcModelBox.querySelector('.model-body').innerHTML=dtex(`\\displaystyle Q'' + ${nf(R,2)}\\,Q' + Q = 0,\\qquad Q(0)=1,\\; Q'(0)=0`)+dtex(`\\displaystyle \\zeta = \\frac{R}{2}\\sqrt{\\tfrac{C}{L}} = ${M.round(z,3)},\\qquad R^2-\\tfrac{4L}{C} = ${M.round(R*R-4,3)}`);
+      stats.set([{k:'damping ratio ζ',v:M.round(z,2),accent:1},{k:'regime',v:kind,accent:1}]);
+      const kc=kind==='critically damped'?COL.coral:kind==='overdamped'?COL.amber:COL.calc2; exBox.style.borderColor=kc; exBox.style.color=kc; exBox.innerHTML=`<b>in real life:</b> ${ex}`;
+      const T=20, n=400; const ch=plot.chart(); ch.setX(0,T).setY(-0.8,1.1); ch.clear(); ch.gridlines(niceTicks(0,T,8),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      refs.forEach(r=>{ const px=[],py=[]; for(let i=0;i<=n;i++){ const t=ch.xmin+(ch.xmax-ch.xmin)*i/n; px.push(ch.X(t)); py.push(ch.Y(q(r.R,t))); } ch.pline(px,py,r.color,1.8,r.dash); });
+      ch.curve(t=>q(R,t),COL.ink,2.8,500); ch.dot(0,1,COL.ink,4);
+      ch.axisX(niceTicks(0,T,8)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+    }
+    render();
+  }
+});
+
 add({ id:'wronskian', cat:'c2', tag:'live', title:'Wronskian of Solutions', diff:'inter', ch:'Linear independence',
   questions:['If W(t₀) ≠ 0 at even one point, why does that force the yᵢ to be linearly independent everywhere?','Abel\u2019s formula says W(t) = W(t₀)·e^{−∫p dt} for y″+p(t)y′+q(t)y=0 — why can W never cross zero unless it is identically zero?','For constant coefficients y″+by′+cy=0, Abel\u2019s formula gives W(t)=C e^{−bt}. How does that match what you compute directly from y₁,y₂ below?'],
   blurb:'Enter two or more solutions y₁(t), y₂(t), … of the same linear ODE (e.g. from a characteristic-equation fundamental set) — add as many as you like — and compute their Wronskian: the determinant of the matrix of the functions and their derivatives up to order n−1. A Wronskian that is not identically zero certifies linear independence.',
