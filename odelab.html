@@ -1392,16 +1392,42 @@ add({ id:'rlc-damping', cat:'c2', tag:'interactive', title:'RLC Circuit: Under-,
     const stats=UI.statsBox();
     const exBox=document.createElement('div'); exBox.style.cssText='font-family:var(--mono);font-size:.82rem;padding:10px 12px;border-radius:10px;border:1px solid var(--line);';
     const rlcModelBox=modelBox('ODE model (updates with R)','','accent1');
+    const rlcDiagram=modelBox('circuit diagram',`<svg viewBox="0 0 600 235" style="width:100%;max-width:640px;display:block;margin:0 auto;" role="img" aria-label="Series RLC circuit: source, resistor, inductor and capacitor in one loop">
+<g style="stroke:var(--ink);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round">
+<path d="M110,105 V70 H180 L187,58 L200,82 L213,58 L226,82 L239,58 L252,82 L260,70 H310 a10,10 0 0 1 20,0 a10,10 0 0 1 20,0 a10,10 0 0 1 20,0 a10,10 0 0 1 20,0 H470 V117"/>
+<path d="M470,131 V180 H110 V145"/>
+<circle cx="110" cy="125" r="20"/>
+<path d="M100,125 q5,-8 10,0 t10,0"/>
+<path d="M448,117 H492" style="stroke-width:3.2"/><path d="M448,131 H492" style="stroke-width:3.2"/>
+<path d="M320,180 H262" style="stroke:var(--c-calc2);stroke-width:2.4"/><path d="M270,173 L260,180 L270,187" style="stroke:var(--c-calc2);stroke-width:2.4"/>
+</g>
+<text x="220" y="38" text-anchor="middle" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">RESISTOR</text>
+<text x="220" y="106" text-anchor="middle" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px"><tspan data-v="R">R = 0.4 Ω</tspan></text>
+<text x="220" y="122" text-anchor="middle" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">V = RQ′</text>
+<text x="350" y="38" text-anchor="middle" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">INDUCTOR</text>
+<text x="350" y="106" text-anchor="middle" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">L = 1 H</text>
+<text x="350" y="122" text-anchor="middle" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">V = LQ″</text>
+<text x="502" y="104" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">CAPACITOR</text>
+<text x="502" y="122" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">C = 1 F</text>
+<text x="502" y="138" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">V = Q/C</text>
+<text x="442" y="115" text-anchor="end" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">+Q</text>
+<text x="442" y="143" text-anchor="end" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">−Q</text>
+<text x="80" y="120" text-anchor="end" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">SOURCE</text>
+<text x="80" y="137" text-anchor="end" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">E(t)</text>
+<text x="291" y="203" text-anchor="middle" style="fill:var(--c-calc2);font-family:var(--mono);font-size:11.5px;font-weight:700">current I = Q′</text>
+<text x="300" y="228" text-anchor="middle" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">LQ″ + RQ′ + Q/C = E(t) · here E = 0, capacitor starts charged Q(0) = 1</text>
+</svg>`,'accent2');
     const plot=UI.plotCard('charge Q(t)',360);
     const legend=document.createElement('div'); legend.style.cssText='display:flex;flex-wrap:wrap;gap:14px;font-family:var(--mono);font-size:.76rem;';
     const refs=[{R:0.4,color:COL.calc2,dash:[7,4],label:'underdamped R=0.4'},{R:2,color:COL.coral,dash:[2,3],label:'critically damped R=2'},{R:6,color:COL.amber,dash:[12,4],label:'overdamped R=6'}];
     legend.innerHTML=refs.map(r=>`<span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="${r.color}" stroke-width="2" stroke-dasharray="${r.dash.join(',')}"/></svg>${r.label}</span>`).join('')+`<span style="display:flex;align-items:center;gap:6px;"><span style="width:22px;height:3px;background:${COL.ink};"></span>current R</span>`;
-    host.appendChild(UI.appGrid([rS,stats,exBox,UI.note('Damping ratio ζ = (R/2)√(C/L). <b style="color:'+COL.calc2+'">ζ&lt;1 underdamped</b>: charge sloshes back and forth between capacitor and inductor while decaying (radio tuning, ringing when you unplug a motor). <b style="color:'+COL.coral+'">ζ=1 critically damped</b>: fastest return with no overshoot (car shock absorbers, analog meters). <b style="color:'+COL.amber+'">ζ&gt;1 overdamped</b>: slow, sluggish return (hydraulic door closer); as ζ grows it looks like a first-order RC discharge (LED afterglow). R = 0 gives an undamped LC oscillator.')],[rlcModelBox,plot,legend]));
+    host.appendChild(UI.appGrid([rS,stats,exBox,UI.note('Damping ratio ζ = (R/2)√(C/L). <b style="color:'+COL.calc2+'">ζ&lt;1 underdamped</b>: charge sloshes back and forth between capacitor and inductor while decaying (radio tuning, ringing when you unplug a motor). <b style="color:'+COL.coral+'">ζ=1 critically damped</b>: fastest return with no overshoot (car shock absorbers, analog meters). <b style="color:'+COL.amber+'">ζ&gt;1 overdamped</b>: slow, sluggish return (hydraulic door closer); as ζ grows it looks like a first-order RC discharge (LED afterglow). R = 0 gives an undamped LC oscillator.')],[rlcDiagram,rlcModelBox,plot,legend]));
     plot.enableZoom(render);
     function q(R,t){ const a=R/2; if(Math.abs(a-1)<1e-6)return (1+a*t)*Math.exp(-a*t);
       if(a<1){ const w=Math.sqrt(1-a*a); return Math.exp(-a*t)*(Math.cos(w*t)+a/w*Math.sin(w*t)); }
       const s=Math.sqrt(a*a-1),r1=-a+s,r2=-a-s; return (r2*Math.exp(r1*t)-r1*Math.exp(r2*t))/(r2-r1); }
     function render(){ const R=rS.get(), z=R/2;
+      rlcDiagram.querySelector('[data-v="R"]').textContent='R = '+nf(R,2)+' Ω';
       let kind,ex; if(R===0){kind='undamped';ex='ideal LC, rings forever';} else if(Math.abs(z-1)<0.03){kind='critically damped';ex='shock absorber, analog meter';} else if(z<1){kind='underdamped';ex='radio tuning, unplug ringing';} else {kind='overdamped';ex=z>2.5?'≈ LED afterglow (1st-order RC)':'hydraulic door closer';}
       rlcModelBox.querySelector('.model-body').innerHTML=dtex(`\\displaystyle Q'' + ${nf(R,2)}\\,Q' + Q = 0,\\qquad Q(0)=1,\\; Q'(0)=0`)+dtex(`\\displaystyle \\zeta = \\frac{R}{2}\\sqrt{\\tfrac{C}{L}} = ${M.round(z,3)},\\qquad R^2-\\tfrac{4L}{C} = ${M.round(R*R-4,3)}`);
       stats.set([{k:'damping ratio ζ',v:M.round(z,2),accent:1},{k:'regime',v:kind,accent:1}]);
@@ -1520,11 +1546,35 @@ add({ id:'vibrations', cat:'c2', tag:'interactive', title:'Mechanical Vibrations
     const wS=UI.slider({label:'forcing frequency ω',min:0.1,max:5,step:0.1,value:2,fmt:v=>v.toFixed(1),oninput:render});
     const stats=UI.statsBox();
     const vibModelBox=modelBox('ODE model (updates with sliders)','','accent1');
+    const vibDiagram=modelBox('spring–mass–damper diagram',`<svg viewBox="0 0 600 225" style="width:100%;max-width:640px;display:block;margin:0 auto;" role="img" aria-label="Spring-mass-damper: wall, spring and damper attached to a mass on rollers, with a driving force">
+<g style="stroke:var(--ink);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round">
+<path d="M40,55 V180 H560"/>
+<path d="M40,65 l-12,12 M40,85 l-12,12 M40,105 l-12,12 M40,125 l-12,12 M40,145 l-12,12 M40,165 l-12,12"/>
+<path d="M40,118 H80 L90,106 L110,130 L130,106 L150,130 L170,106 L190,130 L210,106 L230,130 L240,118 H300"/>
+<path d="M40,152 H120 M200,142 H120 V162 H200 M175,145 V159 M175,152 H300"/>
+<rect x="300" y="100" width="100" height="70" rx="4" style="fill:var(--paper-2)"/>
+<circle cx="322" cy="175" r="5"/><circle cx="378" cy="175" r="5"/>
+<path d="M300,62 V96" style="stroke-dasharray:4 3;stroke:var(--ink-faint)"/>
+<path d="M300,76 H348" style="stroke:var(--c-calc2);stroke-width:2.2"/><path d="M341,70 L349,76 L341,82" style="stroke:var(--c-calc2);stroke-width:2.2"/>
+<path d="M400,135 H462" style="stroke:var(--coral,#F43F5E);stroke-width:2.6"/><path d="M454,127 L464,135 L454,143" style="stroke:var(--coral,#F43F5E);stroke-width:2.6"/>
+</g>
+<text x="160" y="95" text-anchor="middle" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">SPRING <tspan data-v="k" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">k = 4</tspan></text>
+<text x="160" y="202" text-anchor="middle" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">DAMPER <tspan data-v="g" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">γ = 0.3</tspan></text>
+<text x="350" y="131" text-anchor="middle" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">MASS</text>
+<text x="350" y="149" text-anchor="middle" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px"><tspan data-v="m">m = 1</tspan></text>
+<text x="356" y="72" style="fill:var(--c-calc2);font-family:var(--mono);font-size:11.5px;font-weight:700">y(t)</text>
+<text x="300" y="56" text-anchor="middle" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">equilibrium</text>
+<text x="472" y="122" style="fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700">FORCE</text>
+<text x="472" y="139" style="fill:var(--ink-soft);font-family:var(--mono);font-size:11.5px">F₀cos(ωt)</text>
+<text x="472" y="156" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px"><tspan data-v="F">F₀ = 0</tspan></text>
+<text x="300" y="220" text-anchor="middle" style="fill:var(--ink-faint);font-family:var(--mono);font-size:11px">m y″ + γ y′ + k y = F(t) · spring pulls back −ky, damper resists −γy′</text>
+</svg>`,'accent2');
     const vibSolBox=makeSolBox('solution (homogeneous + steady-state)');
     const plot=UI.plotCard('displacement y(t)',360);
-    host.appendChild(UI.appGrid([mS,gS,kS,fS,wS,stats,UI.note('Natural frequency ω₀=√(k/m). The free response is <b>under-damped</b> (oscillates, γ²&lt;4mk), <b>critically damped</b> (γ²=4mk), or <b>over-damped</b> (γ²&gt;4mk). With forcing F₀cos(ωt), the steady amplitude peaks when ω≈ω₀ — that is resonance, and weak damping makes the peak huge.')],[vibModelBox,plot,vibSolBox]));
+    host.appendChild(UI.appGrid([mS,gS,kS,fS,wS,stats,UI.note('Natural frequency ω₀=√(k/m). The free response is <b>under-damped</b> (oscillates, γ²&lt;4mk), <b>critically damped</b> (γ²=4mk), or <b>over-damped</b> (γ²&gt;4mk). With forcing F₀cos(ωt), the steady amplitude peaks when ω≈ω₀ — that is resonance, and weak damping makes the peak huge.')],[vibDiagram,vibModelBox,plot,vibSolBox]));
     plot.enableZoom(render);
     function render(){ const m=mS.get(),g=gS.get(),k=kS.get(),F0=fS.get(),w=wS.get();
+      const dv=(n,t)=>{ vibDiagram.querySelector('[data-v="'+n+'"]').textContent=t; }; dv('m','m = '+nf(m,2)); dv('k','k = '+nf(k,2)); dv('g','γ = '+nf(g,2)); dv('F',F0>0?('F₀ = '+nf(F0,2)+', ω = '+nf(w,2)):'F₀ = 0 (free)');
       const w0=Math.sqrt(k/m); const disc=g*g-4*m*k; const regime=Math.abs(disc)<1e-6?'critically damped':disc>0?'over-damped':'under-damped';
       // Build ODE model display
       const bStr = g===0?'':(g>0?`+${nf(g)}y'`:`${nf(g)}y'`);
