@@ -606,7 +606,10 @@ const CATS = {
       {t:'use',s:'Every car suspension is a damped second-order system, tuned so you don\u2019t keep bouncing after a pothole.'},
       {t:'fact',s:'The Tacoma Narrows Bridge (1940) shook itself apart through resonance — a forced second-order ODE gone wrong.'},
       {t:'fact',s:'A repeated root forces a solution like t·e^{rt} — the only time t sneaks into the exponential family.'},
-      {t:'use',s:'Pendulum clocks, guitar strings, and RLC radios are all governed by the same y″ + … = … template.'}
+      {t:'use',s:'Pendulum clocks, guitar strings, and RLC radios are all governed by the same y″ + … = … template.'},
+      {t:'fact',s:'A singer can shatter a wine glass by holding the glass\u2019s own natural pitch — resonance, with the \u201cmultiply by t\u201d case of undetermined coefficients.'},
+      {t:'use',s:'A washing machine shakes hardest while spinning up through its natural frequency; an off-centre clump forces it with amplitude m e \u03c9\u00b2.'},
+      {t:'fact',s:'Free\u2013free beams (railroad rails, a carrying pole) have no support at the ends: y″=y‴=0 there, which makes the boundary value problem an eigenvalue problem.'}
     ]},
   c3:{name:'The Laplace Transform', color:COL.calc3, n:'03', desc:'Turning calculus into algebra: transforms, step and impulse forcing, discontinuous inputs, and the convolution integral.',
     facts:[
@@ -2831,6 +2834,319 @@ add({ id:'undetermined-coefficients', cat:'c2', tag:'explore', title:'Method of 
   }
 });
 
+/* ---------- wine glass + singer: resonance in the method of undetermined coefficients ----------
+   y'' + 2 zeta w0 y' + w0^2 y = w0^2 x_s cos(w t)      (t in ms, y in micrometres, w in rad/ms)            */
+function glassSolution(w0,w,z,xs){
+  const D=Math.pow(w0*w0-w*w,2)+Math.pow(2*z*w0*w,2);
+  if(z<1e-12&&Math.abs(w-w0)<1e-12*w0) return {kind:'res',P:0,Q:0,y:t=>xs*w0/2*t*Math.sin(w0*t)};
+  const P=xs*w0*w0*(w0*w0-w*w)/D, Q=xs*w0*w0*2*z*w0*w/D;
+  if(z<1e-12) return {kind:'undamped',P,Q:0,C1:-P,C2:0,y:t=>P*(Math.cos(w*t)-Math.cos(w0*t))};
+  const wd=w0*Math.sqrt(1-z*z), C1=-P, C2=(-z*w0*P-w*Q)/wd;
+  return {kind:'damped',P,Q,C1,C2,wd,y:t=>Math.exp(-z*w0*t)*(C1*Math.cos(wd*t)+C2*Math.sin(wd*t))+P*Math.cos(w*t)+Q*Math.sin(w*t)}; }
+function drawGlassScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const yb=S.yb, y=S.cur, d=Math.max(-0.4,Math.min(0.4,y/yb*0.22)), frac=Math.min(1,Math.abs(y)/yb);
+  const rimCol=lerpColor('#4aa3df','#E11D48',frac);
+  const glassX=W*0.54, gt=H*0.28, bowl=Math.min(112,H*0.33), Wb=Math.min(50,W*0.085), stem=Math.min(76,H*0.22), baseY=gt+bowl+stem;
+  /* singer + sound waves */
+  const hx=Math.min(60,W*0.1), hy=H*0.45, tt=S.tau;
+  ctx.fillStyle='#e9c4a1'; ctx.strokeStyle=COL.ink; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(hx,hy,24,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#7a1f2b'; ctx.beginPath(); ctx.ellipse(hx+17,hy+7,5,3+4*Math.abs(Math.sin(tt*9)),0,0,7); ctx.fill();
+  ctx.fillStyle=COL.ink; ctx.beginPath(); ctx.arc(hx+7,hy-7,2.4,0,7); ctx.fill();
+  const mx=hx+24, my=hy+7, gap=Math.max(14,34*(520/S.f)), maxR=Math.max(40,glassX-Wb-mx-10), loud=Math.min(1,0.3+S.xs/20);
+  for(let k=0;k<7;k++){ const r=((tt*70+k*gap)%(gap*7)); if(r>maxR)continue; const a=(1-r/maxR)*loud; ctx.strokeStyle='rgba(245,158,11,'+a.toFixed(3)+')'; ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(mx,my,r+6,-0.7,0.7); ctx.stroke(); }
+  pxText(ctx,'\u266a '+nf(S.f,0)+' Hz',hx,hy+44,COL.soft,12,'center',true);
+  /* glass side view */
+  const wAt=u=>Wb*Math.sqrt(1-Math.pow(u,2.6))*(1+d*(1-u*0.75));
+  if(S.phase!=='shards'&&S.phase!=='done'||S.phase==='done'&&!S.broken){
+    ctx.save(); ctx.fillStyle='rgba(150,200,235,0.30)'; ctx.strokeStyle=rimCol; ctx.lineWidth=2.4; ctx.beginPath();
+    for(let i=0;i<=30;i++){ const u=i/30; ctx.lineTo(glassX-wAt(u),gt+bowl*u); } for(let i=30;i>=0;i--){ const u=i/30; ctx.lineTo(glassX+wAt(u),gt+bowl*u); } ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(glassX,gt,wAt(0),6,0,0,7); ctx.stroke(); ctx.restore(); }
+  ctx.strokeStyle=COL.soft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(glassX,gt+bowl); ctx.lineTo(glassX,baseY); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(glassX,baseY+4,Wb*0.85,7,0,0,7); ctx.stroke();
+  /* top view of the rim */
+  const R=Math.min(48,W*0.085), tx=W*0.86, ty=H*0.42; ctx.strokeStyle=hexA(COL.faint,.7); ctx.lineWidth=1; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(tx,ty,R,0,7); ctx.stroke(); ctx.setLineDash([]);
+  if(!(S.phase==='shards'||S.phase==='done'&&S.broken)){ ctx.strokeStyle=rimCol; ctx.lineWidth=3.4; ctx.beginPath(); ctx.ellipse(tx,ty,R*(1+d),R*(1-d),0,0,7); ctx.stroke(); }
+  pxText(ctx,'top view of the rim',tx,ty+R+22,COL.soft,11,'center'); pxText(ctx,'(wobble exaggerated)',tx,ty+R+37,COL.faint,10,'center');
+  /* cracks and shards */
+  if(S.phase==='crack'){ ctx.strokeStyle=COL.ink; ctx.lineWidth=1.8; S.cracks.forEach(c=>{ ctx.beginPath(); c.forEach((pt,i)=>{ const X=glassX+pt[0]*Wb, Y=gt+pt[1]*bowl; if(i)ctx.lineTo(X,Y); else ctx.moveTo(X,Y); }); ctx.stroke(); }); }
+  if(S.phase==='shards'||S.phase==='done'){ ctx.fillStyle='rgba(150,200,235,0.55)'; ctx.strokeStyle='#4aa3df'; ctx.lineWidth=1.2;
+    S.shards.forEach(s=>{ ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.a); ctx.beginPath(); ctx.moveTo(s.r,0); ctx.lineTo(-s.r*0.6,s.r*0.7); ctx.lineTo(-s.r*0.4,-s.r*0.8); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }); }
+  /* readouts */
+  pxText(ctx,'t = '+nf(S.t,1)+' ms',12,16,COL.soft,12,'left'); pxText(ctx,'y = '+nf(y,0)+' \u03bcm  ('+nf(frac*100,0)+'% of break)',12,34,frac>0.8?'#E11D48':COL.soft,12,'left',frac>0.8);
+  if(S.broken&&(S.phase==='shards'||S.phase==='done')) pxText(ctx,'SHATTERED at t = '+nf(S.tBreak,1)+' ms',W/2,H-16,'#E11D48',15,'center',true);
+  else if(S.phase==='done') pxText(ctx,'the glass survived '+nf(S.T,0)+' ms',W/2,H-16,COL.calc2,14,'center',true); }
+
+add({ id:'wine-glass-resonance', cat:'c2', tag:'live', title:'Shattering a Wine Glass \u2014 Resonance', diff:'inter', ch:'Application \u00b7 undetermined coefficients (resonance)',
+  questions:[
+    'Why does the guess y\u209a = P cos \u03c9t + Q sin \u03c9t fail when the singer matches the glass (\u03c9 = \u03c9\u2080) and there is no damping?',
+    'In the resonant case the fix is y\u209a = t(P cos \u03c9\u2080t + Q sin \u03c9\u2080t). What does the extra factor t say about the amplitude as time goes on?',
+    'A real glass has tiny but nonzero damping \u03b6. What caps the amplitude, and how long does it take to get near that cap?',
+    'Detune the singer by only a few Hz. Why does the glass now beat (swell and shrink) instead of growing without bound?'
+  ],
+  blurb:'The rim of a glass behaves like a spring\u2013mass\u2013damper driven by a sound wave: y\u2033 + 2\u03b6\u03c9\u2080y\u2032 + \u03c9\u2080\u00b2y = \u03c9\u2080\u00b2x_s cos \u03c9t. Tune the singer\u2019s pitch f against the glass\u2019s natural pitch f\u2080, set the damping, loudness and glass strength, and watch the rim wobble grow until the glass breaks. The solution is built by undetermined coefficients, including the \u201cmultiply by t\u201d resonance case. (Time and loudness are scaled so the effect plays out in about a second.)',
+  build(host){
+    const S={f:520,xs:5,yb:1000,T:500,cur:0,t:0,tau:0,phase:'run',broken:false,tBreak:0,cracks:[],shards:[],playing:true,speed:25,sol:null,pt:0};
+    let playBtn=null;
+    const f0S=UI.slider({label:'glass natural pitch f\u2080 (Hz)',min:300,max:900,step:1,value:520,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const fS=UI.slider({label:'singer\u2019s pitch f (Hz)',min:300,max:900,step:1,value:520,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const zS=UI.slider({label:'damping ratio \u03b6  (\u00d710\u207b\u00b3)',min:0,max:40,step:0.5,value:1.5,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const xS=UI.slider({label:'loudness: static push x_s = F\u2080/k (\u03bcm)',min:1,max:30,step:0.5,value:5,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const bS=UI.slider({label:'glass strength: breaks at |y| = (\u03bcm)',min:300,max:2000,step:50,value:1000,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const spS=UI.slider({label:'slow motion (simulated ms per real second)',min:5,max:80,step:1,value:25,fmt:v=>v.toFixed(0),oninput:v=>{ S.speed=v; }});
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>restart()},
+      {label:'Match pitch (resonance)',onclick:()=>{ fS.set(f0S.get()); restart(); }},
+      {label:'Detune by 4%',onclick:()=>{ fS.set(Math.round(f0S.get()*1.04)); restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('singer, wine glass (side view) and rim (top view) \u2014 slow motion',330);
+    const tPlot=UI.plotCard('rim displacement y(t) \u2014 dashed: envelope if tuned exactly, red: break level',300);
+    const fPlot=UI.plotCard('steady-state amplitude vs. the singer\u2019s pitch f',250);
+    const solBox=modelBox('Solution by undetermined coefficients','','accent3');
+    host.appendChild(UI.appGrid([f0S,fS,zS,xS,bS,spS,btns,stats,
+      UI.note('<b>Resonance:</b> when \u03c9 = \u03c9\u2080 the forcing has the same frequency as the free vibration, so the usual guess duplicates a homogeneous solution. With \u03b6 = 0 the amplitude then grows linearly, <i>x_s\u03c9\u2080t/2</i>. With \u03b6 &gt; 0 it saturates at <i>x_s/(2\u03b6)</i>. Try \u03b6 = 0, then detune the pitch to see beats instead.')],
+      [odeBox,stage,tPlot,fPlot,solBox]));
+
+    let data=null;
+    function restart(){
+      const f0=f0S.get(), f=fS.get(), z=zS.get()/1000, xs=xS.get(), yb=bS.get();
+      S.f=f; S.xs=xs; S.yb=yb; const w0=2*Math.PI*f0/1000, w=2*Math.PI*f/1000;
+      const sol=(f===f0)? glassSolution(w0,w0,z,xs) : glassSolution(w0,w,z,xs); S.sol=sol; S.w0=w0; S.w=w; S.z=z; S.f0=f0;
+      const dtp=0.05, N=Math.round(S.T/dtp); const ts=new Float64Array(N+1), ys=new Float64Array(N+1); S.tBreak=0; S.broken=false;
+      for(let i=0;i<=N;i++){ ts[i]=i*dtp; ys[i]=sol.y(ts[i]); if(!S.broken&&Math.abs(ys[i])>yb){ S.broken=true; S.tBreak=ts[i]; } }
+      data={ts,ys,N,dtp}; S.t=0; S.cur=0; S.phase='run'; S.shards=[]; S.pt=0;
+      const rnd=(function(){ let s=7; return ()=>{ s=(s*16807)%2147483647; return s/2147483647; }; })();
+      S.cracks=[]; for(let k=0;k<6;k++){ const pts=[[(rnd()*1.6-0.8),0]]; let u=0; while(u<1){ u+=0.12+rnd()*0.12; pts.push([pts[pts.length-1][0]+(rnd()-0.5)*0.35,Math.min(1,u)]); } S.cracks.push(pts); }
+      updateText(); updatePlots();
+    }
+    function updateText(){
+      const {w0,w,z,f0,f,xs,yb,sol}=S, r=f/f0, Dd=Math.pow(1-r*r,2)+Math.pow(2*z*r,2), A=xs/Math.sqrt(Dd), amp=A/xs;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle y'' + ${texNum(2*z*w0)}\\,y' + ${texNum(w0*w0)}\\,y = ${texNum(w0*w0*xs)}\\cos(${texNum(w)}\\,t),\\qquad y(0)=y'(0)=0`)+
+        dtex(`\\displaystyle \\big(m\\ddot y + c\\dot y + k y = F_0\\cos\\omega t:\\ \\ \\omega_0^2=\\tfrac km=${texNum(w0*w0)},\\ 2\\zeta\\omega_0=\\tfrac cm,\\ x_s=\\tfrac{F_0}{k}=${nf(xs)}\\,\\mu\\text{m}\\big)`);
+      let h=`<div><b>1. Homogeneous solution</b> (roots ${itex('r=-\\zeta\\omega_0\\pm i\\omega_d')}):</div>`+
+        dtex(z<1e-12?`\\displaystyle y_h=C_1\\cos ${texNum(w0)}t+C_2\\sin ${texNum(w0)}t`:`\\displaystyle y_h=e^{-${texNum(z*w0)}t}\\big(C_1\\cos ${texNum(sol.wd)}t+C_2\\sin ${texNum(sol.wd)}t\\big)`);
+      h+=`<div><b>2. Guess</b> ${itex('y_p=P\\cos\\omega t+Q\\sin\\omega t')} and match coefficients of cos and sin:</div>`+
+        dtex(`\\displaystyle (\\omega_0^2-\\omega^2)P+2\\zeta\\omega_0\\omega\\,Q=\\omega_0^2x_s,\\qquad -2\\zeta\\omega_0\\omega\\,P+(\\omega_0^2-\\omega^2)Q=0`);
+      if(sol.kind==='res'){
+        h+=`<div style="color:${COL.coral}"><b>3. Resonance!</b> With \u03b6 = 0 and \u03c9 = \u03c9\u2080 the left side vanishes for every P, Q: the guess duplicates ${itex('y_h')}. Multiply by t:</div>`+
+          dtex(`\\displaystyle y_p=t\\,(P\\cos\\omega_0t+Q\\sin\\omega_0t)\\ \\Longrightarrow\\ P=0,\\ Q=\\tfrac{x_s\\omega_0}{2}`)+
+          dtex(`\\displaystyle y(t)=\\tfrac{x_s\\omega_0}{2}\\,t\\sin\\omega_0t=${texNum(xs*w0/2)}\\,t\\sin(${texNum(w0)}\\,t)\\ \\ \\mu\\text{m}`)+
+          `<div>The envelope grows without bound by ${itex(`${texNum(xs*w0/2)}`)} \u03bcm per ms.</div>`;
+      } else {
+        h+=`<div><b>3. Solve for P, Q:</b></div>`+dtex(`\\displaystyle P=\\frac{\\omega_0^2x_s\\,(\\omega_0^2-\\omega^2)}{D},\\ \\ Q=\\frac{\\omega_0^2x_s\\cdot2\\zeta\\omega_0\\omega}{D},\\ \\ D=(\\omega_0^2-\\omega^2)^2+(2\\zeta\\omega_0\\omega)^2`)+
+          dtex(`\\displaystyle P=${texNum(sol.P)},\\qquad Q=${texNum(sol.Q)}`);
+        h+=`<div><b>4. Fit the rest start</b> ${itex('y(0)=y\\prime(0)=0')}:</div>`+
+          (sol.kind==='undamped'? dtex(`\\displaystyle y(t)=${texNum(sol.P)}\\,(\\cos ${texNum(w)}t-\\cos ${texNum(w0)}t)\\ \\ (\\text{beats})`)
+            : dtex(`\\displaystyle y(t)=e^{-${texNum(z*w0)}t}\\big(${texNum(sol.C1)}\\cos ${texNum(sol.wd)}t${sol.C2>=0?'+':'-'}${texNum(Math.abs(sol.C2))}\\sin ${texNum(sol.wd)}t\\big)${sol.P>=0?'+':'-'}${texNum(Math.abs(sol.P))}\\cos ${texNum(w)}t${sol.Q>=0?'+':'-'}${texNum(Math.abs(sol.Q))}\\sin ${texNum(w)}t`));
+      }
+      h+=`<div><b>5. Size of the steady wobble:</b></div>`+dtex(`\\displaystyle A_{ss}=\\frac{x_s}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${texNum(A)}\\ \\mu\\text{m}\\qquad (r=\\tfrac f{f_0}=${nf(r,4)},\\ \\text{amplification}=${texNum(amp)})`);
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'\u03c9\u2080 = 2\u03c0f\u2080',v:nf(w0,3)+' rad/ms'},{k:'pitch ratio r = f/f\u2080',v:nf(r,4),accent:1},{k:'steady amplitude',v:texNum(A,3)+' \u03bcm',accent:1},
+        {k:'amplification',v:'\u00d7'+texNum(amp,3)},{k:'outcome',v:S.broken?('breaks at '+nf(S.tBreak,1)+' ms'):('survives '+S.T+' ms'),accent:1}]);
+    }
+    function updatePlots(){ drawTPlot(); const {f0,z,xs,yb,f}=S; const c=fPlot.chart(); const lo=0.7*f0, hi=1.3*f0; const ymax=Math.max(1.6*yb,xs*3);
+      c.setX(lo,hi).setY(0,ymax); c.clear(); c.gridlines(niceTicks(lo,hi,7),niceTicks(0,ymax,5)); c.axes();
+      const Af=ff=>{ const r=ff/f0; return xs/Math.sqrt(Math.pow(1-r*r,2)+Math.pow(2*z*r,2)); };
+      c.line(lo,yb,hi,yb,hexA('#E11D48',.7),1.6,[6,4]); c.vline(f0,hexA(COL.faint,.8),1.4,[4,3]); clipToPlot(c); c.curve(Af,COL.calc1,2.6,600); c.ctx.restore();
+      c.vline(f,hexA(COL.amber,.9),2); c.dot(f,Math.min(ymax*0.98,Af(f)),COL.coral,5);
+      c.axisX(niceTicks(lo,hi,7)); c.axisY(niceTicks(0,ymax,5)); }
+    function drawTPlot(){ if(!data)return; const {ts,ys,N}=data, yb=S.yb; const c=tPlot.chart(); const lim=Math.max(1.35*yb,1e-9); c.setX(0,S.T).setY(-lim,lim); c.clear();
+      c.gridlines(niceTicks(0,S.T,8),niceTicks(-lim,lim,5)); c.axes(); c.line(0,yb,S.T,yb,hexA('#E11D48',.7),1.5,[6,4]); c.line(0,-yb,S.T,-yb,hexA('#E11D48',.7),1.5,[6,4]);
+      const {w0,z,xs}=S; const env=t=> z<1e-12? xs*w0*t/2 : xs/(2*z)*(1-Math.exp(-z*w0*t)); clipToPlot(c);
+      c.curve(env,hexA(COL.amber,.9),1.5,200); c.curve(t=>-env(t),hexA(COL.amber,.9),1.5,200);
+      const last=Math.min(N,Math.floor(S.t/data.dtp)); const px=[],py=[]; for(let i=0;i<=last;i++){ px.push(c.X(ts[i])); py.push(c.Y(ys[i])); }
+      if(px.length>1) c.pline(px,py,COL.calc1,1.6); c.ctx.restore(); c.dot(S.t,S.cur,COL.coral,5); c.axisX(niceTicks(0,S.T,8)); c.axisY(niceTicks(-lim,lim,5)); }
+    restart();
+    let acc=0;
+    runLoop(stage.canvas,dt=>{
+      S.tau+=dt;
+      if(S.playing){
+        if(S.phase==='run'){ S.t+=dt*S.speed; if(S.broken&&S.t>=S.tBreak){ S.t=S.tBreak; S.phase='crack'; S.pt=0; } else if(S.t>=S.T){ S.t=S.T; S.phase='done'; }
+          S.cur=S.sol.y(S.t); }
+        else if(S.phase==='crack'){ S.pt+=dt; if(S.pt>0.45){ S.phase='shards'; S.pt=0; const ch=stage.ctx2(); const gx=ch.W*0.54, gt=ch.H*0.28; S.shards=[]; for(let k=0;k<34;k++){ const u=Math.random(); S.shards.push({x:gx+(Math.random()-0.5)*80,y:gt+u*100,vx:(Math.random()-0.5)*260,vy:-60-Math.random()*220,a:Math.random()*6,va:(Math.random()-0.5)*9,r:5+Math.random()*9}); } } }
+        else if(S.phase==='shards'){ S.pt+=dt; S.shards.forEach(s=>{ s.vy+=700*dt; s.x+=s.vx*dt; s.y+=s.vy*dt; s.a+=s.va*dt; }); if(S.pt>3) S.phase='done'; }
+      }
+      drawGlassScene(stage.ctx2(),S);
+      acc+=dt; if(acc>0.05){ acc=0; drawTPlot(); }
+    });
+  }
+});
+
+
+/* ---------- washing machine, unbalanced load: M y'' + c y' + k y = m e w^2 cos(w t) ---------- */
+function drawWasherScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const floor=H-46, gapPx=40, sc=gapPx/S.gap, cx=W*0.5, mw=Math.min(210,W*0.34), mh=Math.min(190,H*0.64);
+  const off=Math.max(-3.2*gapPx,Math.min(3.2*gapPx,S.cur*sc)), hit=Math.abs(S.cur)>=S.gap, frac=Math.min(1,Math.abs(S.cur)/S.gap);
+  const bodyCol=lerpColor('#8aa4bd','#E11D48',hit?1:Math.min(0.7,frac*0.6));
+  /* floor and walls */
+  ctx.fillStyle='#8b8f98'; ctx.fillRect(0,floor,W,H-floor); ctx.strokeStyle=COL.ink; ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(0,floor); ctx.lineTo(W,floor); ctx.stroke();
+  const wl=Math.max(14,cx-mw/2-130), wr=cx+mw/2+gapPx;
+  function hatchWall(x,dir){ ctx.fillStyle='#a8abb3'; ctx.fillRect(dir>0?x:x-14,floor-mh-30,14,mh+30); ctx.strokeStyle='#6b6f78'; ctx.lineWidth=1;
+    for(let yy=floor-mh-30;yy<floor;yy+=9){ ctx.beginPath(); ctx.moveTo(dir>0?x:x-14,yy+9); ctx.lineTo(dir>0?x+14:x,yy); ctx.stroke(); }
+    ctx.strokeStyle=COL.ink; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x,floor-mh-30); ctx.lineTo(x,floor); ctx.stroke(); }
+  hatchWall(wl,-1); hatchWall(wr,1);
+  /* rest outline */
+  ctx.setLineDash([5,4]); ctx.strokeStyle=hexA(COL.faint,.9); ctx.lineWidth=1.2; ctx.strokeRect(cx-mw/2,floor-12-mh,mw,mh); ctx.setLineDash([]);
+  const bx=cx-mw/2+off, by=floor-12-mh;
+  /* spring + dashpot between left wall and machine */
+  const xl=bx; ctx.strokeStyle=COL.ink; ctx.lineWidth=2;
+  drawZigSpring(ctx,wl,floor-12-mh*0.72,xl,floor-12-mh*0.72,9,9); pxText(ctx,'k',wl+6,floor-12-mh*0.72-20,COL.soft,12,'left',true);
+  const dy=floor-12-mh*0.28, x0=wl+(xl-wl)*0.3, cw=Math.min(38,(xl-wl)*0.4);
+  ctx.beginPath(); ctx.moveTo(wl,dy); ctx.lineTo(x0,dy); ctx.stroke(); ctx.strokeRect(x0,dy-8,cw,16);
+  ctx.beginPath(); ctx.moveTo(x0+cw*0.5,dy); ctx.lineTo(xl,dy); ctx.stroke(); pxText(ctx,'c',wl+6,dy+22,COL.soft,12,'left',true);
+  /* machine body */
+  ctx.fillStyle=hexA(bodyCol,.35); ctx.strokeStyle=hit?'#E11D48':COL.ink; ctx.lineWidth=hit?3:2; ctx.beginPath(); ctx.rect(bx,by,mw,mh); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=COL.ink; ctx.fillRect(bx+8,floor-12,12,12); ctx.fillRect(bx+mw-20,floor-12,12,12);
+  pxText(ctx,'M',bx+mw-14,by+14,COL.soft,13,'center',true);
+  /* drum */
+  const R=Math.min(mw*0.38,mh*0.36), dcx=bx+mw/2, dcy=by+mh*0.52;
+  ctx.fillStyle='rgba(150,200,235,0.22)'; ctx.strokeStyle=COL.ink; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(dcx,dcy,R,0,7); ctx.fill(); ctx.stroke();
+  ctx.lineWidth=1; ctx.strokeStyle=hexA(COL.faint,.9); for(let k=0;k<4;k++){ const a=S.phi*0.0+k*Math.PI/2+S.phi; ctx.beginPath(); ctx.moveTo(dcx+R*0.18*Math.cos(a),dcy-R*0.18*Math.sin(a)); ctx.lineTo(dcx+R*0.97*Math.cos(a),dcy-R*0.97*Math.sin(a)); ctx.stroke(); }
+  const ep=R*0.88*Math.min(1,S.e/30), lx=dcx+ep*Math.cos(S.phi), ly=dcy-ep*Math.sin(S.phi), lr=7+S.m*2.2;
+  ctx.fillStyle='#b45309'; ctx.strokeStyle='#7c2d12'; ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(lx,ly,lr,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=COL.ink; ctx.beginPath(); ctx.arc(dcx,dcy,3,0,7); ctx.fill();
+  pxText(ctx,'wet clump m',lx+(Math.cos(S.phi)>=0?1:-1)*(lr+6),ly-lr-6,'#b45309',11,Math.cos(S.phi)>=0?'left':'right');
+  /* horizontal component of the centrifugal force, F(t) = m e w^2 cos(phi) */
+  const Fh=Math.cos(S.phi)*Math.min(1,S.wnow*S.wnow/(S.wmax*S.wmax)+0.12)*52; if(Math.abs(Fh)>3) drawArrowPx(ctx,dcx,by+mh-14,dcx+Fh,by+mh-14,'#f59e0b',3);
+  pxText(ctx,'F(t) = m e \u03c9\u00b2 cos \u03c9t',dcx,by+mh-30,COL.soft,10,'center');
+  /* readouts */
+  pxText(ctx,'t = '+nf(S.t,2)+' s',12,16,COL.soft,12,'left'); pxText(ctx,'spin = '+nf(S.rpmNow,0)+' rpm',12,34,COL.soft,12,'left');
+  pxText(ctx,'y = '+nf(S.cur,1)+' mm',12,52,hit?'#E11D48':COL.soft,12,'left',hit);
+  pxText(ctx,'wall clearance '+nf(S.gap,0)+' mm',wr-8,floor-mh-44,COL.soft,11,'right');
+  pxText(ctx,'(motion exaggerated \u00d7'+nf(sc*1,1)+' px/mm)',W-8,16,COL.faint,10,'right');
+  if(hit) pxText(ctx,'BANG \u2014 the machine hits the wall!',W/2,H-18,'#E11D48',15,'center',true);
+  else if(S.mode==='ramp'&&S.t>=S.T-1e-9) pxText(ctx,'peak so far: '+nf(S.peak,1)+' mm',W/2,H-18,COL.calc2,13,'center',true); }
+
+add({ id:'washer-unbalance', cat:'c2', tag:'live', title:'Washing Machine Spin Cycle \u2014 Unbalanced Load', diff:'inter', ch:'Application \u00b7 undetermined coefficients (forced vibration)',
+  questions:[
+    'The clump of wet clothes moves in a circle, but only its horizontal motion shakes the machine. Why does the forcing term look like m e \u03c9\u00b2 cos \u03c9t?',
+    'Why is the forcing amplitude proportional to \u03c9\u00b2 \u2014 and so what happens to the shaking when \u03c9 \u2192 \u221e?',
+    'The machine shakes violently at a particular spin speed on the way up. What does that speed have to do with the roots of the characteristic equation?',
+    'How would you reduce the shaking: a smaller clump, heavier machine, softer or stiffer suspension, more damping?'
+  ],
+  blurb:'During the spin cycle a lump of wet laundry of mass m sits at distance e from the axis of the drum. Its centrifugal force pushes the whole machine (mass M) back and forth against the suspension spring k and damper c: M y\u2033 + c y\u2032 + k y = m e \u03c9\u00b2 cos \u03c9t. Choose the spin speed, then watch the drum, or press \u201cspin-up ramp\u201d to see the machine pass through its resonance on the way to full speed.',
+  build(host){
+    const S={mode:'ramp',playing:true,speed:10,t:0,T:8,cur:0,peak:0,phi:0,rpmNow:0,wnow:0,wmax:1,gap:20,e:20,m:2,sol:null,data:null};
+    let playBtn=null;
+    const f0S=UI.slider({label:'suspension natural frequency f\u2080 (Hz)',min:3,max:12,step:0.1,value:6,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const zS=UI.slider({label:'damping ratio \u03b6',min:0,max:0.5,step:0.01,value:0.12,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const MS=UI.slider({label:'machine mass M (kg)',min:40,max:120,step:1,value:70,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const mS=UI.slider({label:'wet clump m (kg)',min:0.2,max:6,step:0.1,value:2,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const eS=UI.slider({label:'clump distance from axis e (cm)',min:5,max:30,step:1,value:20,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const rS=UI.slider({label:'final spin speed (rpm)',min:60,max:1400,step:10,value:1000,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const TrS=UI.slider({label:'spin-up time (s, ramp mode)',min:2,max:12,step:0.5,value:6,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const gS=UI.slider({label:'clearance to the wall (mm)',min:5,max:40,step:1,value:20,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const spS=UI.slider({label:'slow motion (% of real time)',min:3,max:100,step:1,value:10,fmt:v=>v.toFixed(0),oninput:v=>{ S.speed=v/100; }});
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>restart()},
+      {label:'Spin-up ramp 0 \u2192 target',onclick:()=>{ S.mode='ramp'; restart(); }},
+      {label:'Steady spin at target',onclick:()=>{ S.mode='steady'; restart(); }},
+      {label:'Spin exactly at resonance',onclick:()=>{ rS.set(Math.round(60*f0S.get())); S.mode='steady'; restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('washing machine on its suspension (front view) \u2014 slow motion',320);
+    const tPlot=UI.plotCard('machine displacement y(t) in mm \u2014 grey dashed: spin speed (scaled), red: wall',290);
+    const fPlot=UI.plotCard('steady-state shaking X versus spin speed',250);
+    const solBox=modelBox('Solution by undetermined coefficients','','accent3');
+    host.appendChild(UI.appGrid([f0S,zS,MS,mS,eS,rS,TrS,gS,spS,btns,stats,
+      UI.note('<b>Why \u03c9\u00b2?</b> A point mass m at radius e spinning at \u03c9 has horizontal acceleration \u2212e\u03c9\u00b2 cos \u03c9t, so the reaction on the machine is m e \u03c9\u00b2 cos \u03c9t. At low speed this is tiny; near \u03c9 = \u03c9\u2080 the machine resonates; at very high speed X \u2192 m e / M and the machine spins about its own centre of mass. That is why a washer shakes hardest while <i>speeding up</i> through \u03c9\u2080 and calms down at full speed.')],
+      [odeBox,stage,tPlot,fPlot,solBox]));
+
+    function restart(){
+      const f0=f0S.get(), z=zS.get(), M=MS.get(), m=mS.get(), e=eS.get(), rpm=rS.get(), Tr=TrS.get(), gap=gS.get();
+      const w0=2*Math.PI*f0; let wf=2*Math.PI*rpm/60; if(Math.abs(wf-w0)<1e-7*w0) wf=w0;
+      const U=m*e*10/M;                    /* mm : m e / M with e in cm -> metres, result in mm */
+      Object.assign(S,{f0,z,M,m:m,e,rpm,Tr,gap,w0,wf,U,wmax:wf});
+      S.T= S.mode==='ramp'? Tr+2 : 4;
+      const dtS=0.005;
+      if(S.mode==='steady'){
+        const sol=glassSolution(w0,wf,z,U*wf*wf/(w0*w0)); S.sol=sol;
+        const N=Math.round(S.T/dtS), ts=new Float64Array(N+1), ys=new Float64Array(N+1), ws=new Float64Array(N+1);
+        for(let i=0;i<=N;i++){ ts[i]=i*dtS; ys[i]=sol.y(ts[i]); ws[i]=wf; }
+        S.data={ts,ys,ws,N,dt:dtS};
+      } else {
+        S.sol=null; const sub=5, h=dtS/sub, N=Math.round(S.T/dtS);
+        const wOf=t=>t<Tr? wf*t/Tr : wf, phOf=t=>t<Tr? wf*t*t/(2*Tr) : wf*(t-Tr/2);
+        const acc=(t,y,v)=>-2*z*w0*v-w0*w0*y+U*Math.pow(wOf(t),2)*Math.cos(phOf(t));
+        let y=0,v=0,t=0; const ts=new Float64Array(N+1), ys=new Float64Array(N+1), ws=new Float64Array(N+1); ys[0]=0; ws[0]=0;
+        for(let i=1;i<=N;i++){ for(let s=0;s<sub;s++){
+            const k1y=v,k1v=acc(t,y,v), k2y=v+h/2*k1v,k2v=acc(t+h/2,y+h/2*k1y,v+h/2*k1v), k3y=v+h/2*k2v,k3v=acc(t+h/2,y+h/2*k2y,v+h/2*k2v), k4y=v+h*k3v,k4v=acc(t+h,y+h*k3y,v+h*k3v);
+            y+=h/6*(k1y+2*k2y+2*k3y+k4y); v+=h/6*(k1v+2*k2v+2*k3v+k4v); t+=h; }
+          ts[i]=i*dtS; ys[i]=y; ws[i]=wOf(ts[i]); }
+        S.data={ts,ys,ws,N,dt:dtS};
+      }
+      S.t=0; S.cur=0; S.peak=0; S.phi=0; S.rpmNow=0; S.wnow=0;
+      updateText(); updatePlots();
+    }
+    function curAt(t){ const d=S.data; if(S.mode==='steady') return S.sol.y(t); const x=Math.min(d.N,t/d.dt), i=Math.min(d.N-1,Math.floor(x)), a=x-i; return d.ys[i]*(1-a)+d.ys[i+1]*a; }
+    function phiAt(t){ return S.mode==='steady'? S.wf*t : (t<S.Tr? S.wf*t*t/(2*S.Tr) : S.wf*(t-S.Tr/2)); }
+    function wAt(t){ return S.mode==='steady'? S.wf : (t<S.Tr? S.wf*t/S.Tr : S.wf); }
+    function Xss(w){ const D=Math.pow(S.w0*S.w0-w*w,2)+Math.pow(2*S.z*S.w0*w,2); return D<1e-18? Infinity : S.U*w*w/Math.sqrt(D); }
+    function updateText(){
+      const {w0,wf,z,M,m,e,U,f0,rpm,sol}=S, r=wf/w0, k=M*w0*w0, c=2*z*M*w0, X=Xss(wf), rpm0=60*f0, F0=m*(e/100)*wf*wf;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle M\\,y'' + c\\,y' + k\\,y = m\\,e\\,\\omega^2\\cos\\omega t,\\qquad ${nf(M,0)}\\,y''+${texNum(c)}\\,y'+${texNum(k)}\\,y=${texNum(F0)}\\cos(${texNum(wf)}\\,t)\\ \\ (\\text{N, SI})`)+
+        dtex(`\\displaystyle y'' + ${texNum(2*z*w0)}\\,y' + ${texNum(w0*w0)}\\,y = ${texNum(U*wf*wf)}\\cos(${texNum(wf)}\\,t),\\qquad y(0)=y'(0)=0\\ \\ (y\\text{ in mm})`)+
+        dtex(`\\displaystyle \\omega_0=\\sqrt{k/M}=${texNum(w0)}\\ \\tfrac{\\text{rad}}{\\text{s}}\\ (=${nf(rpm0,0)}\\text{ rpm}),\\quad \\zeta=\\tfrac{c}{2\\sqrt{kM}}=${nf(z,2)},\\quad U=\\tfrac{me}{M}=${texNum(U)}\\text{ mm}`)+
+        (S.mode==='ramp'?`<div style="font-size:12px;color:${COL.soft}">Ramp mode: the spin speed grows as \u03c9(t) = \u03c9<sub>f</sub>t/T for t &lt; T (T = ${nf(S.Tr,1)} s), so the forcing is m e \u03c9(t)\u00b2 cos \u03c6(t) with \u03c6 = \u03c9<sub>f</sub>t\u00b2/(2T).</div>`:'');
+      let h=`<div><b>1. Homogeneous solution</b> (roots ${itex('r=-\\zeta\\omega_0\\pm i\\omega_d')}):</div>`+
+        dtex(z<1e-12?`\\displaystyle y_h=C_1\\cos ${texNum(w0)}t+C_2\\sin ${texNum(w0)}t`:`\\displaystyle y_h=e^{-${texNum(z*w0)}t}\\big(C_1\\cos ${texNum(w0*Math.sqrt(1-z*z))}t+C_2\\sin ${texNum(w0*Math.sqrt(1-z*z))}t\\big)`);
+      const stepTxt=S.mode==='ramp'?'At constant speed \u03c9 = \u03c9<sub>f</sub> (after the ramp)':'At the constant speed \u03c9';
+      h+=`<div><b>2. Guess</b> (${stepTxt}) ${itex('y_p=P\\cos\\omega t+Q\\sin\\omega t')}; matching the cos and sin terms:</div>`+
+        dtex(`\\displaystyle (\\omega_0^2-\\omega^2)P+2\\zeta\\omega_0\\omega\\,Q=U\\omega^2,\\qquad -2\\zeta\\omega_0\\omega\\,P+(\\omega_0^2-\\omega^2)Q=0`);
+      const resonant=(z<1e-12&&Math.abs(wf-w0)<1e-9*w0);
+      if(resonant){
+        h+=`<div style="color:${COL.coral}"><b>3. Resonance!</b> With \u03b6 = 0 and \u03c9 = \u03c9\u2080 the guess duplicates ${itex('y_h')}; multiply by t:</div>`+
+          dtex(`\\displaystyle y_p=t\\,(P\\cos\\omega_0t+Q\\sin\\omega_0t)\\ \\Rightarrow\\ P=0,\\ Q=\\tfrac{U\\omega_0}{2}`)+
+          dtex(`\\displaystyle y(t)=\\tfrac{U\\omega_0}{2}\\,t\\sin\\omega_0t=${texNum(U*w0/2)}\\,t\\sin(${texNum(w0)}\\,t)\\ \\text{mm}`)+`<div>The shaking grows without limit (until the machine hits something).</div>`;
+      } else {
+        const D=Math.pow(w0*w0-wf*wf,2)+Math.pow(2*z*w0*wf,2), P=U*wf*wf*(w0*w0-wf*wf)/D, Q=U*wf*wf*2*z*w0*wf/D;
+        h+=`<div><b>3. Solve for P, Q:</b></div>`+dtex(`\\displaystyle P=\\frac{U\\omega^2(\\omega_0^2-\\omega^2)}{D},\\ \\ Q=\\frac{U\\omega^2\\cdot 2\\zeta\\omega_0\\omega}{D},\\ \\ D=(\\omega_0^2-\\omega^2)^2+(2\\zeta\\omega_0\\omega)^2`)+
+          dtex(`\\displaystyle P=${texNum(P)},\\qquad Q=${texNum(Q)}\\ \\text{mm}`);
+        if(S.mode==='steady'&&sol){
+          h+=`<div><b>4. Start from rest</b> ${itex('y(0)=y\\prime(0)=0')}:</div>`+(sol.kind==='undamped'
+            ? dtex(`\\displaystyle y(t)=${texNum(sol.P)}\\,(\\cos ${texNum(wf)}t-\\cos ${texNum(w0)}t)\\ \\ (\\text{beats; no damping})`)
+            : dtex(`\\displaystyle y(t)=e^{-${texNum(z*w0)}t}\\big(${texNum(sol.C1)}\\cos ${texNum(sol.wd)}t${sol.C2>=0?'+':'-'}${texNum(Math.abs(sol.C2))}\\sin ${texNum(sol.wd)}t\\big)${sol.P>=0?'+':'-'}${texNum(Math.abs(sol.P))}\\cos ${texNum(wf)}t${sol.Q>=0?'+':'-'}${texNum(Math.abs(sol.Q))}\\sin ${texNum(wf)}t`));
+        } else h+=`<div><b>4. Ramp:</b> \u03c9 changes with t, so the right side is no longer a pure cosine and undetermined coefficients applies only stage by stage. The curve in the plot comes from numerically integrating the full equation (RK4); after the ramp it settles onto the steady solution above.</div>`;
+      }
+      h+=`<div><b>5. Steady shaking amplitude:</b></div>`+
+        dtex(`\\displaystyle X=\\frac{U\\omega^2}{\\sqrt{(\\omega_0^2-\\omega^2)^2+(2\\zeta\\omega_0\\omega)^2}}=\\frac{U\\,r^2}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${isFinite(X)?texNum(X):'\\infty'}\\ \\text{mm}\\quad (r=\\tfrac{\\omega}{\\omega_0}=${nf(r,3)})`)+
+        `<div>Limits: ${itex('X\\to 0')} as ${itex('r\\to0')}; near resonance ${itex('X\\approx U/(2\\zeta)='+(z>1e-12?texNum(U/(2*z)):'\\infty')+'\\text{ mm}')}; as ${itex('r\\to\\infty')}, ${itex('X\\to U='+texNum(U)+'\\text{ mm}')}.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      updateStats();
+    }
+    function updateStats(){ const {w0,wf,z,U,f0}=S, X=Xss(wf);
+      stats.set([{k:'\u03c9\u2080 = \u221a(k/M)',v:nf(w0,2)+' rad/s'},{k:'resonant spin speed',v:nf(60*f0,0)+' rpm',accent:1},{k:'r = \u03c9/\u03c9\u2080 (final)',v:nf(wf/w0,3)},
+        {k:'steady shaking X',v:isFinite(X)?texNum(X,3)+' mm':'\u221e',accent:1},{k:'peak so far',v:nf(S.peak,1)+' mm',accent:1},{k:'wall clearance',v:S.peak>=S.gap?'HIT':'ok'}]); }
+    function updatePlots(){ drawTPlot();
+      const {w0,z,U,gap}=S, wfmax=2*Math.PI*1400/60; let top=gap*1.5; const rp=[]; for(let i=0;i<=300;i++){ const rpm=1400*i/300, w=2*Math.PI*rpm/60, x=Xss(w); if(isFinite(x)) top=Math.max(top,Math.min(x,6*gap)); }
+      top=Math.min(top*1.1,6*gap); const c=fPlot.chart(); c.setX(0,1400).setY(0,top); c.clear(); c.gridlines(niceTicks(0,1400,7),niceTicks(0,top,5)); c.axes();
+      c.line(0,gap,1400,gap,hexA('#E11D48',.7),1.6,[6,4]); c.vline(60*S.f0,hexA(COL.faint,.9),1.4,[4,3]); clipToPlot(c); c.curve(rpm=>Xss(2*Math.PI*rpm/60),COL.calc1,2.6,600); c.ctx.restore();
+      c.vline(S.rpm,hexA(COL.amber,.9),2); const xf=Xss(S.wf); c.dot(S.rpm,Math.min(top*0.98,isFinite(xf)?xf:top),COL.coral,5);
+      c.axisX(niceTicks(0,1400,7)); c.axisY(niceTicks(0,top,5)); }
+    function drawTPlot(){ const d=S.data; if(!d)return; const c=tPlot.chart(); let mx=S.gap; for(let i=0;i<=d.N;i++) mx=Math.max(mx,Math.abs(d.ys[i])); const lim=Math.min(1.25*mx,1e6);
+      c.setX(0,S.T).setY(-lim,lim); c.clear(); c.gridlines(niceTicks(0,S.T,8),niceTicks(-lim,lim,5)); c.axes();
+      c.line(0,S.gap,S.T,S.gap,hexA('#E11D48',.7),1.5,[6,4]); c.line(0,-S.gap,S.T,-S.gap,hexA('#E11D48',.7),1.5,[6,4]);
+      clipToPlot(c); const wx=[],wy=[]; for(let i=0;i<=d.N;i+=4){ wx.push(c.X(d.ts[i])); wy.push(c.Y(d.ws[i]/S.wf*lim*0.9)); } c.pline(wx,wy,hexA(COL.faint,.9),1.3);
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)); const px=[],py=[]; for(let i=0;i<=last;i++){ px.push(c.X(d.ts[i])); py.push(c.Y(d.ys[i])); }
+      if(px.length>1) c.pline(px,py,COL.calc1,1.6); c.ctx.restore(); if(S.t<=S.T) c.dot(S.t,S.cur,COL.coral,5); c.axisX(niceTicks(0,S.T,8)); c.axisY(niceTicks(-lim,lim,5)); }
+    restart();
+    let acc=0, sacc=0;
+    runLoop(stage.canvas,dt=>{
+      if(S.playing){ S.t+=dt*S.speed; if(S.mode==='ramp'&&S.t>S.T) S.t=S.T;
+        S.cur=curAt(S.t); S.phi=phiAt(S.t); S.wnow=wAt(S.t); S.rpmNow=S.wnow*60/(2*Math.PI); S.peak=Math.max(S.peak,Math.abs(S.cur)); }
+      drawWasherScene(stage.ctx2(),S);
+      acc+=dt; if(acc>0.06){ acc=0; drawTPlot(); } sacc+=dt; if(sacc>0.25){ sacc=0; updateStats(); }
+    });
+  }
+});
+
+
 add({ id:'variation-of-parameters', cat:'c2', tag:'explore', title:'Variation of Parameters', diff:'adv', ch:'Variation of parameters',
   questions:['Why does this method work for any forcing g(t), even ones with no nice "guess"?','What role does the Wronskian W play, and what would a zero Wronskian mean?','How does varying the "constants" of the homogeneous solution produce a particular one?'],
   blurb:'When the forcing is messy, variation of parameters still delivers a particular solution — built from the two homogeneous solutions and their Wronskian.',
@@ -2864,6 +3180,182 @@ add({ id:'variation-of-parameters', cat:'c2', tag:'explore', title:'Variation of
     render();
   }
 });
+
+/* =====================================================================
+   NEW · ANIMATED APPLICATIONS  (free-free beam / wine glass / washing machine)
+   shared helpers first, then the free-free beam on an elastic foundation
+   ===================================================================== */
+function texNum(x,sig){ sig=sig||3; if(!isFinite(x))return String(x); if(x===0)return '0'; const a=Math.abs(x);
+  if(a>=1e-3&&a<1e5) return nf(x,Math.max(0,sig-1-Math.floor(Math.log10(a))));
+  const e=Math.floor(Math.log10(a)); const mnt=x/Math.pow(10,e); return nf(mnt,sig-1)+'\\times10^{'+e+'}'; }
+/* a plot-card whose canvas we paint ourselves (animation stage); ctx2() re-creates the Chart wrapper if the width changed */
+function animStage(title,h){ const card=UI.plotCard(title,h); let ch=null;
+  card.ctx2=function(){ if(!ch||Math.abs(card.canvas.clientWidth-ch.W)>2) ch=card.chart(); return ch; };
+  return card; }
+/* requestAnimationFrame loop that stops by itself once the canvas has been removed from the page */
+function runLoop(canvas,step){ let last=0;
+  function f(ts){ if(!canvas.isConnected)return; if(!last)last=ts; const dt=Math.min((ts-last)/1000,0.1); last=ts;
+    try{ step(dt); }catch(e){ console.error(e); } requestAnimationFrame(f); }
+  requestAnimationFrame(f); }
+/* zig-zag spring along the segment (x1,y1)->(x2,y2) */
+function drawZigSpring(ctx,x1,y1,x2,y2,coils,amp){ const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,nx=-uy,ny=ux;
+  const lead=Math.min(10,L*0.15), n=coils*2, body=Math.max(1,L-2*lead);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x1+ux*lead,y1+uy*lead);
+  for(let i=1;i<=n;i++){ const s=lead+body*(i-0.5)/n, sg=(i%2)?1:-1; ctx.lineTo(x1+ux*s+nx*amp*sg,y1+uy*s+ny*amp*sg); }
+  ctx.lineTo(x2-ux*lead,y2-uy*lead); ctx.lineTo(x2,y2); ctx.stroke(); }
+function drawArrowPx(ctx,x1,y1,x2,y2,color,w){ ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w||2;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); const a=Math.atan2(y2-y1,x2-x1),s=8;
+  ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-s*Math.cos(a-0.4),y2-s*Math.sin(a-0.4)); ctx.lineTo(x2-s*Math.cos(a+0.4),y2-s*Math.sin(a+0.4)); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function pxText(ctx,txt,x,y,color,size,align,bold){ ctx.save(); ctx.fillStyle=color; ctx.font=(bold?'700 ':'')+(size||12)+'px "JetBrains Mono",monospace'; ctx.textAlign=align||'left'; ctx.textBaseline='middle'; ctx.fillText(txt,x,y); ctx.restore(); }
+function clipToPlot(ch){ ch.ctx.save(); ch.ctx.beginPath(); ch.ctx.rect(ch.px0,ch.py1,ch.px1-ch.px0,ch.py0-ch.py1); ch.ctx.clip(); }
+
+/* ---------- free-free beam on an elastic foundation:  y'''' + 2p y'' + q y = 0 ---------- */
+function trigD(kind,w,x){ const c=Math.cos(w*x),s=Math.sin(w*x),ch=Math.cosh(w*x),sh=Math.sinh(w*x);
+  switch(kind){ case 'cos':return [c,-w*s,-w*w*c,w*w*w*s]; case 'sin':return [s,w*c,-w*w*s,-w*w*w*c];
+    case 'cosh':return [ch,w*sh,w*w*ch,w*w*w*sh]; default:return [sh,w*ch,w*w*sh,w*w*w*ch]; } }
+function prodD(f,g){ return [f[0]*g[0], f[1]*g[0]+f[0]*g[1], f[2]*g[0]+2*f[1]*g[1]+f[0]*g[2], f[3]*g[0]+3*f[2]*g[1]+3*f[1]*g[2]+f[0]*g[3]]; }
+/* the four fundamental solutions (and their first three derivatives) for each root case */
+function beamBasis(p,q,x){ const sq=Math.sqrt(q), disc=p*p-q;
+  if(Math.abs(disc)<1e-6){ const b=Math.sqrt(p),c=trigD('cos',b,x),s=trigD('sin',b,x),X=[x,1,0,0]; return {kind:'crit',B:[c,prodD(X,c),s,prodD(X,s)]}; }
+  if(disc<0){ const a=Math.sqrt((sq-p)/2),b=Math.sqrt((sq+p)/2); const ch=trigD('cosh',a,x),sh=trigD('sinh',a,x),c=trigD('cos',b,x),s=trigD('sin',b,x);
+    return {kind:'cplx',B:[prodD(ch,c),prodD(ch,s),prodD(sh,c),prodD(sh,s)]}; }
+  const sd=Math.sqrt(disc),b1=Math.sqrt(p-sd),b2=Math.sqrt(p+sd);
+  return {kind:'real',B:[trigD('cos',b1,x),trigD('sin',b1,x),trigD('cos',b2,x),trigD('sin',b2,x)]}; }
+function beamRootInfo(p,q){ const sq=Math.sqrt(q), disc=p*p-q;
+  if(Math.abs(disc)<1e-6) return {kind:'crit',beta:Math.sqrt(p)};
+  if(disc<0) return {kind:'cplx',a:Math.sqrt((sq-p)/2),b:Math.sqrt((sq+p)/2)};
+  const sd=Math.sqrt(disc); return {kind:'real',b1:Math.sqrt(p-sd),b2:Math.sqrt(p+sd)}; }
+/* boundary matrix: rows y''(0), y'''(0), y''(L), y'''(L); columns = basis functions. Returns the scaled copy (rows+columns normalised) and the column scales */
+function beamBC(p,q,L){ const b0=beamBasis(p,q,0).B, bL=beamBasis(p,q,L).B; const J=[0,1,2,3];
+  const Mx=[J.map(j=>b0[j][2]),J.map(j=>b0[j][3]),J.map(j=>bL[j][2]),J.map(j=>bL[j][3])];
+  const cs=J.map(j=>Math.hypot(Mx[0][j],Mx[1][j],Mx[2][j],Mx[3][j])||1);
+  const Mn=Mx.map(r=>r.map((v,j)=>v/cs[j])); const rs=Mn.map(r=>Math.hypot(r[0],r[1],r[2],r[3])||1);
+  return {Mn:Mn.map((r,i)=>r.map(v=>v/rs[i])),cs}; }
+function beamDn(p,q,L){ return detN(beamBC(p,q,L).Mn); }
+/* allowed lengths = zeros of the normalised BC determinant (sign changes, plus tangential zeros that occur for commensurate frequencies) */
+function beamRoots(p,q,Lmax){ const L0=0.3,N=Math.round((Lmax-L0)*60); const xs=[],ds=[],out=[];
+  for(let i=0;i<=N;i++){ const L=L0+(Lmax-L0)*i/N; xs.push(L); ds.push(beamDn(p,q,L)); }
+  for(let i=1;i<N;i++){
+    if(ds[i-1]*ds[i]<0){ let a=xs[i-1],b=xs[i],fa=ds[i-1]; for(let k=0;k<55;k++){ const m=(a+b)/2,fm=beamDn(p,q,m); if(fa*fm<=0)b=m; else{a=m;fa=fm;} } out.push((a+b)/2); }
+    else if(Math.abs(ds[i])<Math.abs(ds[i-1])&&Math.abs(ds[i])<=Math.abs(ds[i+1])&&Math.abs(ds[i])<0.05){
+      let a=xs[i-1],b=xs[i+1]; for(let k=0;k<70;k++){ const m1=a+(b-a)/3,m2=b-(b-a)/3; if(Math.abs(beamDn(p,q,m1))<Math.abs(beamDn(p,q,m2)))b=m2; else a=m1; }
+      const x=(a+b)/2; if(Math.abs(beamDn(p,q,x))<1e-9) out.push(x); } }
+  out.sort((u,v)=>u-v); const res=[]; out.forEach(x=>{ if(!res.length||x-res[res.length-1]>2e-3) res.push(x); }); return res; }
+function nullVec4(Mx){ const A=Mx.map(r=>r.slice()), pc=[]; let r=0;
+  for(let c=0;c<4&&r<4;c++){ let b=r; for(let i=r+1;i<4;i++) if(Math.abs(A[i][c])>Math.abs(A[b][c])) b=i;
+    if(Math.abs(A[b][c])<1e-6) continue; const tmp=A[r]; A[r]=A[b]; A[b]=tmp; const pv=A[r][c]; for(let k=0;k<4;k++) A[r][k]/=pv;
+    for(let i=0;i<4;i++){ if(i!==r){ const f=A[i][c]; if(f) for(let k=0;k<4;k++) A[i][k]-=f*A[r][k]; } } pc.push(c); r++; }
+  const free=[0,1,2,3].filter(c=>!pc.includes(c)); if(!free.length) return null; const f=free[0], x=[0,0,0,0]; x[f]=1; pc.forEach((c,i)=>{ x[c]=-A[i][f]; });
+  const n=Math.hypot(x[0],x[1],x[2],x[3]); return x.map(v=>v/n); }
+function beamMode(p,q,L){ const {Mn,cs}=beamBC(p,q,L); const v=nullVec4(Mn); if(!v) return null; let C=v.map((x,k)=>x/cs[k]);
+  const ev=(x,CC)=>{ const B=beamBasis(p,q,x).B; return CC[0]*B[0][0]+CC[1]*B[1][0]+CC[2]*B[2][0]+CC[3]*B[3][0]; };
+  let mx=0,sg=1; for(let i=0;i<=400;i++){ const y=ev(L*i/400,C); if(Math.abs(y)>mx){ mx=Math.abs(y); sg=y>=0?1:-1; } }
+  C=C.map(c=>c*sg/mx); const yA=ev(L*0.25,C), yB=ev(L*0.75,C);
+  const parity=Math.abs(yA-yB)<0.02?'symmetric':(Math.abs(yA+yB)<0.02?'antisymmetric':'mixed');
+  return {L,C,parity,kind:beamBasis(p,q,0).kind,fn:x=>ev(x,C),
+          d:(x,k)=>{ const B=beamBasis(p,q,x).B; return C[0]*B[0][k]+C[1]*B[1][k]+C[2]*B[2][k]+C[3]*B[3][k]; }}; }
+
+function drawRail(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const gy=H-60, ry=H-138, m=78, x0=m, x1=W-m;
+  ctx.fillStyle='#9a8466'; ctx.fillRect(0,gy,W,H-gy);
+  ctx.fillStyle='#7d6a50'; for(let i=0;i<110;i++){ const gx=(i*53.7)%W, gyy=gy+6+((i*29.3)%(H-gy-10)); ctx.fillRect(gx,gyy,3,2); }
+  const f=S.mode? Math.sin(S.tp*1.9):0, hot=Math.abs(f);
+  const sx=W-50, sy=40; ctx.fillStyle='#F59E0B'; ctx.strokeStyle='#F59E0B'; ctx.lineWidth=2;
+  for(let k=0;k<10;k++){ const a=k*Math.PI/5+S.tp*0.4; ctx.beginPath(); ctx.moveTo(sx+Math.cos(a)*22,sy+Math.sin(a)*22); ctx.lineTo(sx+Math.cos(a)*(30+4*Math.sin(S.tp*3+k)),sy+Math.sin(a)*(30+4*Math.sin(S.tp*3+k))); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(sx,sy,16,0,7); ctx.fill();
+  const A=S.amp*58, nst=26, sh=S.shape;
+  const yAt=u=>{ if(!sh) return 0; const k=u*120,i=Math.min(119,Math.floor(k)),fr=k-i; return (sh[i]*(1-fr)+sh[i+1]*fr)*A*f; };
+  ctx.strokeStyle='#4b5b6d'; ctx.lineWidth=1.6;
+  for(let i=0;i<=nst;i++){ const u=i/nst, x=x0+(x1-x0)*u, top=ry-yAt(u)+5; drawZigSpring(ctx,x,gy,x,top,4,4); }
+  const px=[],py=[]; for(let i=0;i<=120;i++){ const u=i/120; px.push(x0+(x1-x0)*u); py.push(ry-yAt(u)); }
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=lerpColor('#8896a5','#E11D48',Math.min(1,hot*0.95)); ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(px[0],py[0]); for(let i=1;i<=120;i++) ctx.lineTo(px[i],py[i]); ctx.stroke(); ctx.restore();
+  drawArrowPx(ctx,x0-52,ry,x0-12,ry,'#E11D48',3); drawArrowPx(ctx,x1+52,ry,x1+12,ry,'#E11D48',3);
+  pxText(ctx,'P',x0-34,ry-14,'#E11D48',13,'center',true); pxText(ctx,'P',x1+34,ry-14,'#E11D48',13,'center',true);
+  pxText(ctx,'ballast = springs  k',14,gy+16,'#ffffff',11,'left'); pxText(ctx,S.mode?('L = '+nf(S.mode.L,2)+'   mode '+S.n+' ('+S.mode.parity+')'):'L = —',14,gy+36,'#ffffff',12,'left',true);
+  if(!S.mode){ const msg=S.msg||'only y ≡ 0'; const w=Math.min(W-30,msg.length*7.4+30); ctx.fillStyle='rgba(255,255,255,0.88)'; ctx.fillRect((W-w)/2,ry-92,w,30);
+    ctx.strokeStyle='#E11D48'; ctx.lineWidth=1.2; ctx.strokeRect((W-w)/2,ry-92,w,30); pxText(ctx,msg,W/2,ry-77,'#9f1239',12,'center',true); } }
+
+add({ id:'free-free-beam', cat:'c2', tag:'live', title:'Free–Free Beam on an Elastic Foundation (Railroad Track)', diff:'adv', ch:'Application · 4th-order ODE · boundary values',
+  questions:[
+    'The characteristic equation r⁴+2p·r²+q=0 is quadratic in r². How do the sign of p²−q and the value of p decide between the repeated-root, complex-root and pure-trig solution types?',
+    'With free ends (y″=y‴=0 at x=0 and x=L) four conditions act on four constants C₁…C₄. Why can a nonzero solution exist only for special lengths L?',
+    'The textbook equation y⁴+8y″+16y=0 is p=4, q=16, i.e. p²=q exactly. Slide p up through √q and watch what changes — why is there a threshold P = 2√(EI·k)?'
+  ],
+  blurb:'A rail resting on ballast (elastic foundation, stiffness k) and pushed by thermal thrust P obeys EI y⁴ + P y″ + k y = 0, i.e. y⁴ + 2p y″ + q y = 0 with p = P/(2EI), q = k/EI. Pick p and q to see the characteristic roots and general solution, impose the free–free conditions y″ = y‴ = 0 at both ends, and watch the allowed buckled shapes on the track. The textbook equation y⁴ + 8y″ + 16y = 0 is the preset p = 4, q = 16.',
+  build(host){
+    const S={p:6,q:16,roots:[],mode:null,shape:null,n:1,key:'',tp:0,amp:0.7,playing:true,msg:''};
+    let playBtn=null;
+    const pS=UI.slider({label:'thermal thrust  p = P/(2EI)',min:0,max:8,step:0.1,value:6,fmt:v=>v.toFixed(1),oninput:()=>recompute()});
+    const qS=UI.slider({label:'ballast stiffness  q = k/EI',min:1,max:40,step:0.01,value:16,fmt:v=>v.toFixed(2),oninput:()=>recompute()});
+    const nS=UI.slider({label:'buckling mode n  (allowed length Lₙ)',min:1,max:1,step:1,value:1,fmt:v=>v,oninput:()=>recompute()});
+    const aS=UI.slider({label:'drawn amplitude (exaggerated)',min:0.2,max:1,step:0.05,value:0.7,fmt:v=>v.toFixed(2),oninput:v=>{ S.amp=v; }});
+    const btns=UI.buttons([
+      {label:'⏸ Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'⏸ Pause':'▶ Play'; }},
+      {label:'Textbook: p=4, q=16',onclick:()=>{ pS.set(4); qS.set(16); recompute(); }},
+      {label:'Set p = √q',onclick:()=>{ const v=Math.min(8,Math.sqrt(qS.get())); pS.set(Math.round(v*10)/10); recompute(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model — updates with p and q','','accent1');
+    const stage=animStage('railroad track on ballast — the allowed buckled shape (amplitude is free, so the animation sweeps it)',300);
+    const shapePlot=UI.plotCard('mode shape y(x)/max|y| on 0 ≤ x ≤ L',240);
+    const dPlot=UI.plotCard('boundary determinant det M(L) — zeros = allowed lengths',240);
+    const solBox=modelBox('Solution, step by step','','accent3');
+    host.appendChild(UI.appGrid([pS,qS,nS,aS,btns,stats,
+      UI.note('<b>Free ends</b> means y″(0)=y‴(0)=y″(L)=y‴(L)=0 (no bending moment, no shear). This is the textbook idealisation. The linear model fixes only the <i>shape</i> of a buckled mode; its overall size is a free scalar, so the animation just sweeps it up and down. Real rails buckle sideways and the amplitude is set by nonlinear effects.')],
+      [odeBox,stage,shapePlot,dPlot,solBox]));
+
+    function recompute(){
+      const p=pS.get(), q=qS.get(); S.p=p; S.q=q; const key=p+'|'+q;
+      if(key!==S.key){ S.key=key; S.roots=beamRoots(p,q,40).slice(0,10); }
+      const N=S.roots.length, inp=nS.querySelector('input'); inp.max=Math.max(1,N); inp.disabled=(N===0);
+      const n=Math.min(Math.max(1,Math.round(nS.get())),Math.max(1,N)); nS.set(n); S.n=n;
+      S.mode=N? beamMode(p,q,S.roots[n-1]) : null;
+      S.shape=S.mode? Array.from({length:121},(_,i)=>S.mode.fn(S.mode.L*i/120)) : null;
+      const disc=p*p-q; S.msg= disc<=1e-6 ? 'no buckling: needs p² > q  (P > 2√(EI·k))' : 'no allowed length found up to L = 40';
+      updateText(p,q,N); updatePlots(p,q,N);
+    }
+    function updateText(p,q,N){
+      const disc=p*p-q, info=beamRootInfo(p,q), sq=Math.sqrt(q);
+      const kindName={crit:'repeated imaginary roots (p² = q)',cplx:'complex roots ±a ± bi (p² < q)',real:'two pairs of imaginary roots (p² > q)'}[info.kind];
+      const mid=p>0?` + ${nf(2*p)}\\,y''`:'';
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle y^{(4)}${mid} + ${nf(q)}\\,y = 0 \\qquad (EI\\,y^{(4)} + P\\,y'' + k\\,y = 0:\\; p=\\tfrac{P}{2EI}=${nf(p)},\\; q=\\tfrac{k}{EI}=${nf(q)})`)+
+        dtex(`\\displaystyle y''(0)=y'''(0)=0,\\qquad y''(L)=y'''(L)=0 \\quad(\\text{free}\\;\\text{ends})`);
+      let h=`<div><b>1. Characteristic equation.</b></div>`+dtex(`\\displaystyle r^{4}${p>0?` + ${nf(2*p)}r^{2}`:''} + ${nf(q)} = 0 \\;\\Longrightarrow\\; r^{2}=-p\\pm\\sqrt{p^{2}-q}=-${nf(p)}\\pm ${disc>=0?`\\sqrt{${nf(disc,3)}}`:`i\\sqrt{${nf(-disc,3)}}`}`);
+      h+=`<div><b>2. Roots and general solution</b> — case: <b>${kindName}</b>.</div>`;
+      if(info.kind==='crit'){ const bt=info.beta; h+=dtex(`\\displaystyle (r^{2}+${nf(p)})^{2}=0 \\Rightarrow r=\\pm ${nf(bt,4)}\\,i\\ (\\text{each double})`)+dtex(`\\displaystyle y=(C_1+C_2x)\\cos ${coefTerm(bt,'x',4)}+(C_3+C_4x)\\sin ${coefTerm(bt,'x',4)}`); }
+      else if(info.kind==='cplx'){ h+=dtex(`\\displaystyle r=\\pm ${nf(info.a,4)}\\pm ${nf(info.b,4)}\\,i`)+dtex(`\\displaystyle y=C_1\\cosh ${coefTerm(info.a,'x',4)}\\cos ${coefTerm(info.b,'x',4)}+C_2\\cosh\\sin+C_3\\sinh\\cos+C_4\\sinh\\sin`); }
+      else { h+=dtex(`\\displaystyle r=\\pm ${nf(info.b1,4)}\\,i,\\ \\pm ${nf(info.b2,4)}\\,i`)+dtex(`\\displaystyle y=C_1\\cos ${coefTerm(info.b1,'x',4)}+C_2\\sin ${coefTerm(info.b1,'x',4)}+C_3\\cos ${coefTerm(info.b2,'x',4)}+C_4\\sin ${coefTerm(info.b2,'x',4)}`); }
+      h+=`<div><b>3. Impose the four free-end conditions.</b> They form a homogeneous 4×4 system ${itex('M(L)\\,\\mathbf C=\\mathbf 0')}. A nonzero ${itex('\\mathbf C')} (a nonzero deflection) exists only if ${itex('\\det M(L)=0')}.</div>`;
+      if(N===0){ h+= disc<=1e-6
+        ? `<div style="margin-top:6px;color:${COL.coral}"><b>Result:</b> ${itex('\\det M(L)\\neq 0')} for every length L, so ${itex('C_1=\\dots=C_4=0')} and the only solution is ${itex('y\\equiv 0')}. ${disc>-1e-6&&disc<1e-6?'The textbook case sits <b>exactly on the buckling threshold</b> p² = q: increase p a little to see the first buckled shape appear.':'The thrust is below the critical value '+itex(`p_{cr}=\\sqrt q=${nf(sq,3)}`)+'.'}</div>`
+        : `<div style="margin-top:6px;color:${COL.coral}"><b>Result:</b> no allowed length up to L = 40 for these p, q.</div>`; }
+      else { h+=`<div style="margin-top:6px"><b>Result:</b> ${itex('\\det M(L)=0')} at the allowed lengths</div>`+dtex(`\\displaystyle ${S.roots.slice(0,6).map((x,i)=>`L_{${i+1}}=${nf(x,3)}`).join(',\\;')}${N>6?',\\ \\dots':''}`);
+        const m=S.mode; if(m){ const Cs=m.C; let ytex;
+          if(info.kind==='crit'){ const bt=info.beta; ytex=`(${texNum(Cs[0])}${Cs[1]>=0?'+':'-'}${texNum(Math.abs(Cs[1]))}x)\\cos ${coefTerm(bt,'x',4)}+(${texNum(Cs[2])}${Cs[3]>=0?'+':'-'}${texNum(Math.abs(Cs[3]))}x)\\sin ${coefTerm(bt,'x',4)}`; }
+          else if(info.kind==='cplx'){ ytex=`C_1\\cosh\\cos+C_2\\cosh\\sin+C_3\\sinh\\cos+C_4\\sinh\\sin`; }
+          else { ytex=`${texNum(Cs[0])}\\cos ${coefTerm(info.b1,'x',4)}${Cs[1]>=0?'+':'-'}${texNum(Math.abs(Cs[1]))}\\sin ${coefTerm(info.b1,'x',4)}${Cs[2]>=0?'+':'-'}${texNum(Math.abs(Cs[2]))}\\cos ${coefTerm(info.b2,'x',4)}${Cs[3]>=0?'+':'-'}${texNum(Math.abs(Cs[3]))}\\sin ${coefTerm(info.b2,'x',4)}`; }
+          h+=`<div><b>4. Mode ${S.n}</b> (L = ${nf(m.L,3)}, ${m.parity}); the null vector of M(L), scaled so max|y| = 1:</div>`+dtex(`\\displaystyle y(x)=${ytex}`)+dtex(`\\displaystyle \\mathbf C=(${Cs.map(c=>texNum(c)).join(',\\;')})`)
+            +`<div style="font-family:var(--body);font-size:.84rem;color:var(--ink-soft)">Check: y″(0)=${texNum(m.d(0,2),2)}, y‴(0)=${texNum(m.d(0,3),2)}, y″(L)=${texNum(m.d(m.L,2),2)}, y‴(L)=${texNum(m.d(m.L,3),2)} — all zero up to rounding.</div>`; } }
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'root case',v:info.kind==='crit'?'repeated':info.kind==='cplx'?'complex':'imaginary pairs',accent:1},{k:'threshold p_cr = √q',v:nf(sq,3),accent:1},
+        {k:'buckles?',v:N?'yes (L₁ = '+nf(S.roots[0],2)+')':'no — only y≡0'},{k:'allowed lengths found',v:N+(N>=10?'+':'')}]);
+    }
+    function updatePlots(p,q,N){
+      const m=S.mode; const c1=shapePlot.chart(); const L=m?m.L:10; c1.setX(0,L).setY(-1.3,1.3); c1.clear(); c1.gridlines(niceTicks(0,L,7),niceTicks(-1.3,1.3,5)); c1.axes();
+      if(m){ c1.curve(m.fn,COL.calc2,2.8); c1.curve(x=>-m.fn(x),hexA(COL.calc2,.35),1.6); } else pxText(c1.ctx,'no nonzero shape: y ≡ 0',c1.W/2,c1.H/2,COL.faint,13,'center',true);
+      c1.axisX(niceTicks(0,L,7)); c1.axisY(niceTicks(-1.3,1.3,5));
+      const Lp=N? Math.min(40,Math.max(10,S.roots[Math.min(N,6)-1]*1.15)) : 20; const c2=dPlot.chart(); c2.setX(0.3,Lp).setY(-1.05,1.05); c2.clear(); c2.gridlines(niceTicks(0.3,Lp,8),niceTicks(-1,1,4)); c2.axes();
+      clipToPlot(c2); c2.curve(Lx=>beamDn(p,q,Lx),COL.calc3,2.4,500); c2.ctx.restore();
+      S.roots.forEach((r,i)=>{ if(r<=Lp) c2.dot(r,0,i+1===S.n?COL.coral:COL.ink,i+1===S.n?7:4.5); });
+      c2.axisX(niceTicks(0.3,Lp,8)); c2.axisY(niceTicks(-1,1,4));
+    }
+    recompute();
+    runLoop(stage.canvas,dt=>{ if(S.playing) S.tp+=dt; drawRail(stage.ctx2(),S); });
+  }
+});
+
 
 /* =====================================================================
    MORE · LAPLACE
