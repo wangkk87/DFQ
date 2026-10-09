@@ -609,7 +609,8 @@ const CATS = {
       {t:'use',s:'Pendulum clocks, guitar strings, and RLC radios are all governed by the same y″ + … = … template.'},
       {t:'fact',s:'A singer can shatter a wine glass by holding the glass\u2019s own natural pitch — resonance, with the \u201cmultiply by t\u201d case of undetermined coefficients.'},
       {t:'use',s:'A washing machine shakes hardest while spinning up through its natural frequency; an off-centre clump forces it with amplitude m e \u03c9\u00b2.'},
-      {t:'fact',s:'Free\u2013free beams (railroad rails, a carrying pole) have no support at the ends: y″=y‴=0 there, which makes the boundary value problem an eigenvalue problem.'}
+      {t:'fact',s:'Free\u2013free beams (railroad rails, a carrying pole) have no support at the ends: y″=y‴=0 there, which makes the boundary value problem an eigenvalue problem.'},
+      {t:'use',s:'A bungee jump is two ODEs glued together: free fall while the rope is slack, then a damped spring about L + mg/k.'}
     ]},
   c3:{name:'The Laplace Transform', color:COL.calc3, n:'03', desc:'Turning calculus into algebra: transforms, step and impulse forcing, discontinuous inputs, and the convolution integral.',
     facts:[
@@ -623,7 +624,9 @@ const CATS = {
       {t:'fact',s:'The eigenvalues of a 2×2 matrix decide everything: node, saddle, spiral, or center.'},
       {t:'use',s:'Predator–prey models (Lotka–Volterra) trace closed loops in the phase plane — boom-and-bust cycles.'},
       {t:'fact',s:'A complex eigenvalue pair always means rotation: spirals if it grows or decays, centers if it is purely imaginary.'},
-      {t:'use',s:'Coupled tanks, multi-loop circuits, and competing species all collapse into a single system x′ = A x.'}
+      {t:'use',s:'Coupled tanks, multi-loop circuits, and competing species all collapse into a single system x′ = A x.'},
+      {t:'fact',s:'In the SIR epidemic model an outbreak grows only while R\u2080\u00b7s > 1, which is why vaccinating a fraction 1 \u2212 1/R\u2080 stops it \u2014 herd immunity.'},
+      {t:'use',s:'Lynx and snowshoe-hare pelts traded in Canada for a century show the boom-and-bust cycles Lotka\u2013Volterra predicts.'}
     ]},
   c5:{name:'Practice & Test', color:COL.rose, n:'05', desc:'15 randomized problems drawn from a bank spanning every topic above — check your work and get a worked explanation for anything you miss.'},
 };
@@ -3147,6 +3150,133 @@ add({ id:'washer-unbalance', cat:'c2', tag:'live', title:'Washing Machine Spin C
 });
 
 
+/* ---------- bungee jump:  y'' = g - (c/m) y'  (rope slack, y < L)  ;   y'' + (c/m) y' + (k/m)(y-L) = g  (rope taut, y > L) ---------- */
+function bungeeSim(m,L,k,c,T,dt){ const g=9.81, lam=c/m, w2=k/m, sub=10, h=dt/sub, N=Math.round(T/dt);
+  const acc=(y,v)=>g-lam*v-(y>L? w2*(y-L):0);
+  const ts=new Float64Array(N+1), ys=new Float64Array(N+1), vs=new Float64Array(N+1), as=new Float64Array(N+1); let y=0,v=0; as[0]=g;
+  for(let n=1;n<=N;n++){ for(let s=0;s<sub;s++){
+      const a1=v,b1=acc(y,v), a2=v+h/2*b1,b2=acc(y+h/2*a1,v+h/2*b1), a3=v+h/2*b2,b3=acc(y+h/2*a2,v+h/2*b2), a4=v+h*b3,b4=acc(y+h*a3,v+h*b3);
+      y+=h/6*(a1+2*a2+2*a3+a4); v+=h/6*(b1+2*b2+2*b3+b4); }
+    ts[n]=n*dt; ys[n]=y; vs[n]=v; as[n]=acc(y,v); }
+  return {ts,ys,vs,as,N,dt}; }
+/* exact free fall until the rope becomes taut, then the exact damped solution for the first stretch */
+function bungeeExact(m,L,k,c){ const g=9.81, lam=c/m, w0=Math.sqrt(k/m), z=c/(2*Math.sqrt(k*m));
+  const yf=t=>lam<1e-9? 0.5*g*t*t : (g/lam)*t-(g/(lam*lam))*(1-Math.exp(-lam*t)), vf=t=>lam<1e-9? g*t : (g/lam)*(1-Math.exp(-lam*t));
+  let hi=1; while(yf(hi)<L) hi*=2; let lo=0; for(let n=0;n<80;n++){ const mid=(lo+hi)/2; if(yf(mid)<L)lo=mid; else hi=mid; }
+  const t1=(lo+hi)/2, v1=vf(t1), ue=m*g/k, u0=-ue; const o={g,lam,w0,z,t1,v1,ue,u0,yf,vf};
+  if(z<1-1e-6){ o.kind='under'; o.wd=w0*Math.sqrt(1-z*z); o.sg=z*w0; o.C1=u0; o.C2=(v1+o.sg*u0)/o.wd; o.u=tau=>Math.exp(-o.sg*tau)*(o.C1*Math.cos(o.wd*tau)+o.C2*Math.sin(o.wd*tau)); }
+  else if(z<=1+1e-6){ o.kind='crit'; o.C1=u0; o.C2=v1+w0*u0; o.u=tau=>Math.exp(-w0*tau)*(o.C1+o.C2*tau); }
+  else { o.kind='over'; const s=Math.sqrt(z*z-1); o.r1=w0*(-z+s); o.r2=w0*(-z-s); o.A=(v1-o.r2*u0)/(o.r1-o.r2); o.B=u0-o.A; o.u=tau=>o.A*Math.exp(o.r1*tau)+o.B*Math.exp(o.r2*tau); }
+  return o; }
+function drawBungeeScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const top=44, bot=H-34, sc=(bot-top)/S.H, wy=top+S.H*sc, tx=Math.min(110,W*0.2), px0=tx+Math.min(130,W*0.22);
+  const yp=Math.min(S.cur,S.H+4), Y=top+yp*sc, hit=S.cur>=S.H;
+  /* sky/water/tower */
+  ctx.fillStyle='rgba(120,180,230,.28)'; ctx.fillRect(0,wy,W,H-wy); ctx.strokeStyle='#2563EB'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,wy); for(let x=0;x<=W;x+=12) ctx.lineTo(x,wy+Math.sin(x*0.05+S.tau*2)*2); ctx.stroke();
+  ctx.fillStyle='#9ca3af'; ctx.strokeStyle=COL.ink; ctx.lineWidth=2; ctx.beginPath(); ctx.rect(8,top,tx-8,wy-top); ctx.fill(); ctx.stroke(); ctx.fillStyle='#6b7280'; ctx.fillRect(tx,top-3,34,6);
+  /* depth ruler */
+  const stepM=S.H>70?20:10; ctx.font='11px "JetBrains Mono",monospace'; for(let d=0;d<=S.H;d+=stepM){ const yy=top+d*sc; ctx.strokeStyle=hexA(COL.faint,.8); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(tx+34,yy); ctx.lineTo(tx+44,yy); ctx.stroke(); pxText(ctx,d+' m',W-10,yy,COL.faint,10,'right'); }
+  /* reference lines: natural rope length and hanging equilibrium */
+  const yL=top+S.L*sc, yE=top+(S.L+S.ue)*sc; ctx.setLineDash([5,4]); ctx.lineWidth=1.3; ctx.strokeStyle='#f59e0b'; ctx.beginPath(); ctx.moveTo(tx+34,yL); ctx.lineTo(W-60,yL); ctx.stroke();
+  ctx.strokeStyle='#10B981'; ctx.beginPath(); ctx.moveTo(tx+34,yE); ctx.lineTo(W-60,yE); ctx.stroke(); ctx.setLineDash([]);
+  pxText(ctx,'rope length L = '+nf(S.L,0)+' m',px0+60,yL-9,'#b45309',11,'left'); pxText(ctx,'hang-still level L + mg/k = '+nf(S.L+S.ue,1)+' m',px0+60,yE+11,'#047857',11,'left');
+  /* rope */
+  const taut=S.cur>S.L, stretch=Math.max(0,S.cur-S.L)/(S.ue*2.2), ropeCol=lerpColor('#f59e0b','#E11D48',Math.min(1,stretch));
+  ctx.strokeStyle=ropeCol; ctx.lineWidth=3; ctx.beginPath();
+  if(taut){ ctx.moveTo(tx+34,top); ctx.lineTo(px0,Y-26); } else { const slack=Math.sqrt(Math.max(0,S.L*S.L-S.cur*S.cur))*sc*0.55; ctx.moveTo(tx+34,top); ctx.bezierCurveTo(tx+34-slack*0.2,top+(Y-26-top)*0.5,px0+slack,top+(Y-26-top)*0.7,px0,Y-26); }
+  ctx.stroke();
+  /* jumper */
+  if(!hit){ ctx.strokeStyle=COL.ink; ctx.lineWidth=2.4; ctx.fillStyle='#fbbf77'; const hx=px0, hy=Y+4;
+    ctx.beginPath(); ctx.arc(hx,hy,7,0,7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(hx,hy+7); ctx.lineTo(hx,hy+26); ctx.moveTo(hx,hy+13); ctx.lineTo(hx-11,hy+22); ctx.moveTo(hx,hy+13); ctx.lineTo(hx+11,hy+22); ctx.moveTo(hx,hy+26); ctx.lineTo(hx-7,hy+38); ctx.moveTo(hx,hy+26); ctx.lineTo(hx+7,hy+38); ctx.stroke();
+    ctx.strokeStyle=ropeCol; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(hx,hy-7); ctx.lineTo(hx,hy-10); ctx.stroke(); }
+  else { pxText(ctx,'SPLASH!  \u2014 the rope was too long / too soft',W/2,H-14,'#E11D48',15,'center',true); ctx.strokeStyle='#2563EB'; ctx.lineWidth=2; for(let q=0;q<6;q++){ ctx.beginPath(); ctx.arc(px0,wy,10+q*8+((S.tau*30)%8),Math.PI,0); ctx.stroke(); } }
+  /* readouts */
+  pxText(ctx,'t = '+nf(S.t,1)+' s',12,top-28,COL.soft,12,'left'); pxText(ctx,'depth y = '+nf(S.cur,1)+' m,  height above water = '+nf(Math.max(0,S.H-S.cur),1)+' m',12,top-12,hit?'#E11D48':COL.soft,12,'left',hit);
+  pxText(ctx,'v = '+nf(S.v,1)+' m/s',W-12,top-28,COL.soft,12,'right'); pxText(ctx,'a = '+nf(S.a/9.81,2)+' g'+(taut?'  (rope pulls)':'  (free flight)'),W-12,top-12,taut?'#E11D48':COL.soft,12,'right',taut); }
+
+add({ id:'bungee-jump', cat:'c2', tag:'live', title:'Bungee Jump \u2014 Free Fall, Then a Damped Spring', diff:'inter', ch:'Application \u00b7 2nd-order, piecewise',
+  questions:[
+    'While the rope is slack the jumper just falls: y\u2033 = g \u2212 (c/m)y\u2032. Once it is taut the equation changes. Why does the jumper\u2019s position and velocity at the switch give the initial conditions for the second stage?',
+    'Why is the constant L + mg/k a particular solution of the taut-rope equation, and what does it mean physically?',
+    'Which root case (under-, critically or over-damped) does a real bungee rope have, and what would you feel if it were over-damped?',
+    'If the platform is only H metres above the water, how soft or how long may the rope be?'
+  ],
+  blurb:'A jumper of mass m falls freely until the rope of natural length L is fully stretched; then the rope acts as a spring k with damping c. Free fall: y\u2033 + (c/m)y\u2032 = g. Taut rope: y\u2033 + (c/m)y\u2032 + (k/m)(y \u2212 L) = g, a constant-coefficient equation whose particular solution y\u209a = L + mg/k comes from undetermined coefficients. Change the rope and the jumper and see whether you reach the water.',
+  build(host){
+    const S={playing:true,speed:1,t:0,tau:0,cur:0,v:0,a:9.81,T:45,H:80,L:25,ue:11,data:null,done:false,hold:0};
+    let playBtn=null;
+    const mS=UI.slider({label:'jumper mass m (kg)',min:40,max:130,step:1,value:70,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const LS=UI.slider({label:'rope natural length L (m)',min:10,max:45,step:1,value:25,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const kS=UI.slider({label:'rope stiffness k (N/m)',min:20,max:250,step:1,value:60,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const cS=UI.slider({label:'damping c (kg/s)',min:0,max:120,step:1,value:15,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const HS=UI.slider({label:'platform height above water H (m)',min:40,max:120,step:1,value:80,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const spS=UI.slider({label:'playback speed (\u00d7 real time)',min:0.25,max:3,step:0.05,value:1,fmt:v=>v.toFixed(2),oninput:v=>{ S.speed=v; }});
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Jump again',onclick:()=>restart()},
+      {label:'No damping (c = 0)',onclick:()=>{ cS.set(0); restart(); }},
+      {label:'Overdamped rope',onclick:()=>{ cS.set(120); kS.set(30); restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('the jump (y measured downward from the platform)',380);
+    const hPlot=UI.plotCard('height above the water H \u2212 y(t) in metres',250);
+    const aPlot=UI.plotCard('acceleration a(t) in g (positive = downward; what your body feels is the opposite)',220);
+    const solBox=modelBox('Solution in two stages','','accent3');
+    host.appendChild(UI.appGrid([mS,LS,kS,cS,HS,spS,btns,stats,
+      UI.note('<b>Why two equations?</b> The rope can only pull, never push. For y &lt; L the spring term is absent; for y &gt; L it acts like a damped spring about the point L + mg/k. The solution is pieced together at the instant the rope becomes taut. After the first rebound the rope may go slack again, which the animation (a numerical solution of the piecewise equation) shows automatically.')],
+      [odeBox,stage,hPlot,aPlot,solBox]));
+
+    function restart(){
+      const m=mS.get(), L=LS.get(), k=kS.get(), c=cS.get(), H=HS.get();
+      Object.assign(S,{m,L,k,c,H}); const ex=bungeeExact(m,L,k,c); S.ex=ex; S.ue=ex.ue; S.data=bungeeSim(m,L,k,c,S.T,0.01);
+      S.t=0; S.cur=0; S.v=0; S.a=9.81; S.done=false; S.hold=0;
+      const d=S.data; let ymax=0,amax=0,tHit=-1,vmax=0; for(let n=0;n<=d.N;n++){ if(d.ys[n]>ymax)ymax=d.ys[n]; if(-d.as[n]>amax)amax=-d.as[n]; if(d.vs[n]>vmax)vmax=d.vs[n]; if(tHit<0&&d.ys[n]>=H)tHit=d.ts[n]; }
+      S.ymax=ymax; S.amax=amax; S.tHit=tHit; S.vmax=vmax; updateText(); drawPlots(); }
+    function updateText(){
+      const {m,L,k,c,H,ex,ymax,amax,tHit,vmax}=S, g=9.81;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle \\text{rope slack }(y<L):\\ \\ y''+${texNum(ex.lam)}\\,y'=9.81`)+
+        dtex(`\\displaystyle \\text{rope taut }(y>L):\\ \\ y''+${texNum(ex.lam)}\\,y'+${texNum(k/m)}\\,(y-${nf(L,0)})=9.81,\\qquad y(0)=0,\\ y'(0)=0`)+
+        dtex(`\\displaystyle \\tfrac cm=${texNum(ex.lam)},\\ \\ \\omega_0=\\sqrt{k/m}=${texNum(ex.w0)}\\ \\tfrac{\\text{rad}}{\\text{s}},\\ \\ \\zeta=\\tfrac{c}{2\\sqrt{km}}=${nf(ex.z,3)}`);
+      let h=`<div><b>Stage 1: free fall</b> (linear, first order in ${itex('v=y\\prime')}):</div>`+
+        (ex.lam<1e-9? dtex(`\\displaystyle y=\\tfrac12 g t^2,\\quad v=gt\\ \\Rightarrow\\ \\text{taut at } t_1=\\sqrt{2L/g}=${nf(ex.t1,2)}\\text{ s},\\ \\ v_1=${nf(ex.v1,2)}\\ \\text{m/s}`)
+          : dtex(`\\displaystyle v=\\tfrac{mg}{c}\\big(1-e^{-ct/m}\\big),\\ \\ y=\\tfrac{mg}{c}t-\\tfrac{m^2g}{c^2}\\big(1-e^{-ct/m}\\big)\\ \\Rightarrow\\ y(t_1)=L:\\ t_1=${nf(ex.t1,2)}\\text{ s},\\ v_1=${nf(ex.v1,2)}\\text{ m/s}`));
+      h+=`<div><b>Stage 2: taut rope.</b> Undetermined coefficients: the right side is constant, so try ${itex('y_p=A')}; then ${itex('(k/m)(A-L)=g')} gives</div>`+
+        dtex(`\\displaystyle y_p=L+\\frac{mg}{k}=${nf(L,0)}+${nf(ex.ue,2)}=${nf(L+ex.ue,2)}\\text{ m}\\quad(\\text{the hang-still level})`)+
+        `<div>Let ${itex('u=y-y_p')}. Then ${itex('u\\prime\\prime+2\\zeta\\omega_0u\\prime+\\omega_0^2u=0')} with ${itex('u(t_1)=-mg/k='+nf(ex.u0,2))}, ${itex('u\\prime(t_1)=v_1='+nf(ex.v1,2))}. Roots of ${itex('r^2+2\\zeta\\omega_0r+\\omega_0^2=0')}:</div>`;
+      const tau='(t-t_1)';
+      if(ex.kind==='under') h+=dtex(`\\displaystyle r=-${texNum(ex.sg)}\\pm ${texNum(ex.wd)}\\,i\\ \\ (\\text{underdamped: you bounce})`)+
+        dtex(`\\displaystyle y=${nf(L+ex.ue,2)}+e^{-${texNum(ex.sg)}${tau}}\\big(${texNum(ex.C1)}\\cos ${texNum(ex.wd)}${tau}${ex.C2>=0?'+':'-'}${texNum(Math.abs(ex.C2))}\\sin ${texNum(ex.wd)}${tau}\\big)`);
+      else if(ex.kind==='crit') h+=dtex(`\\displaystyle r=-\\omega_0=-${texNum(ex.w0)}\\ \\text{(double)}\\ \\Rightarrow\\ y=${nf(L+ex.ue,2)}+e^{-${texNum(ex.w0)}${tau}}\\big(${texNum(ex.C1)}${ex.C2>=0?'+':'-'}${texNum(Math.abs(ex.C2))}${tau}\\big)`);
+      else h+=dtex(`\\displaystyle r_1=${texNum(ex.r1)},\\ r_2=${texNum(ex.r2)}\\ (\\text{overdamped: no bounce})\\ \\Rightarrow\\ y=${nf(L+ex.ue,2)}+${texNum(ex.A)}e^{r_1${tau}}${ex.B>=0?'+':'-'}${texNum(Math.abs(ex.B))}e^{r_2${tau}}`);
+      h+=`<div style="color:${COL.soft}">The animation integrates the piecewise equation numerically (RK4), so it stays correct even when the rope goes slack again after the first rebound. The formulas above give the first stretch exactly.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      const miss=ymax>=H;
+      stats.set([{k:'time of free fall t\u2081',v:nf(ex.t1,2)+' s'},{k:'speed when rope tightens',v:nf(ex.v1,1)+' m/s',accent:1},{k:'lowest point',v:nf(ymax,1)+' m',accent:1},
+        {k:'closest to water',v:miss?'HITS the water':nf(H-ymax,1)+' m above'},{k:'max deceleration',v:nf(amax/g,2)+' g',accent:1},{k:'period of bounce',v:nf(2*Math.PI/(ex.kind==='under'?ex.wd:ex.w0),2)+' s'}]);
+    }
+    function drawPlots(){ const d=S.data; if(!d)return; const T=S.T, H=S.H;
+      const c=hPlot.chart(); c.setX(0,T).setY(0,H); c.clear(); c.gridlines(niceTicks(0,T,9),niceTicks(0,H,5)); c.axes(); c.line(0,H-S.L,T,H-S.L,hexA('#f59e0b',.8),1.4,[6,4]); c.line(0,H-S.L-S.ue,T,H-S.L-S.ue,hexA('#10B981',.8),1.4,[6,4]);
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)), px=[],py=[],qy=[]; for(let n=0;n<=last;n+=5){ px.push(c.X(d.ts[n])); py.push(c.Y(H-d.ys[n])); qy.push(d.as[n]/9.81); }
+      clipToPlot(c); if(px.length>1) c.pline(px,py,COL.calc1,2.2); c.ctx.restore(); if(S.t<=T) c.dot(S.t,Math.max(0,H-S.cur),COL.coral,5); c.axisX(niceTicks(0,T,9)); c.axisY(niceTicks(0,H,5));
+      const c2=aPlot.chart(); const am=Math.max(2,Math.ceil(S.amax/9.81)+0.5); c2.setX(0,T).setY(-am,1.5); c2.clear(); c2.gridlines(niceTicks(0,T,9),niceTicks(-am,1.5,5)); c2.axes(); c2.line(0,1,T,1,hexA(COL.faint,.9),1.2,[4,3]);
+      const qx=[],qq=[]; for(let n=0;n<=last;n+=5){ qx.push(c2.X(d.ts[n])); qq.push(c2.Y(Math.max(-am,d.as[n]/9.81))); } clipToPlot(c2); if(qx.length>1) c2.pline(qx,qq,COL.coral,2); c2.ctx.restore();
+      c2.axisX(niceTicks(0,T,9)); c2.axisY(niceTicks(-am,1.5,5)); }
+    restart();
+    let acc=0;
+    runLoop(stage.canvas,dt=>{
+      S.tau+=dt;
+      if(S.playing&&!S.done){ S.t+=dt*S.speed; const d=S.data;
+        if(S.tHit>=0&&S.t>=S.tHit){ S.t=S.tHit; S.done=true; S.cur=S.H; S.v=0; S.a=0; }
+        else if(S.t>=S.T){ S.t=S.T; S.done=true; }
+        if(!S.done||S.tHit<0){ const x=Math.min(d.N-1,S.t/d.dt), n=Math.floor(x), a=x-n; S.cur=d.ys[n]*(1-a)+d.ys[n+1]*a; S.v=d.vs[n]*(1-a)+d.vs[n+1]*a; S.a=d.as[n]*(1-a)+d.as[n+1]*a; } }
+      drawBungeeScene(stage.ctx2(),S); acc+=dt; if(acc>0.08){ acc=0; drawPlots(); }
+    });
+  }
+});
+
+
 add({ id:'variation-of-parameters', cat:'c2', tag:'explore', title:'Variation of Parameters', diff:'adv', ch:'Variation of parameters',
   questions:['Why does this method work for any forcing g(t), even ones with no nice "guess"?','What role does the Wronskian W play, and what would a zero Wronskian mean?','How does varying the "constants" of the homogeneous solution produce a particular one?'],
   blurb:'When the forcing is messy, variation of parameters still delivers a particular solution — built from the two homogeneous solutions and their Wronskian.',
@@ -3465,6 +3595,246 @@ add({ id:'nonlinear-systems', cat:'c4', tag:'interactive', title:'Nonlinear Syst
     render();
   }
 });
+
+/* ---------- predator-prey (Lotka-Volterra, optional logistic prey) :  x' = a x (1-x/K) - b x y ,  y' = d x y - c y ---------- */
+function ppRun(P,T,dt){ const {a,b,c,d,K,x0,y0}=P, sub=5, h=dt/sub, N=Math.round(T/dt);
+  const f=(x,y)=>[a*x*(1-(K>0?x/K:0))-b*x*y, d*x*y-c*y];
+  const ts=new Float64Array(N+1), xs=new Float64Array(N+1), ys=new Float64Array(N+1); let x=x0,y=y0; xs[0]=x; ys[0]=y;
+  for(let i=1;i<=N;i++){ for(let s=0;s<sub;s++){
+      const k1=f(x,y), k2=f(x+h/2*k1[0],y+h/2*k1[1]), k3=f(x+h/2*k2[0],y+h/2*k2[1]), k4=f(x+h*k3[0],y+h*k3[1]);
+      x+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]); y+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]); }
+    ts[i]=i*dt; xs[i]=x; ys[i]=y; }
+  return {ts,xs,ys,N,dt}; }
+function ppEq(P){ const {a,b,c,d,K}=P, xe=c/d; if(K>0&&xe>=K) return null; return {x:xe,y:a*(1-(K>0?xe/K:0))/b}; }
+function drawPPScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const mx=10,my=48,mw=W-20,mh=H-my-10; ctx.fillStyle='#cfe8c0'; ctx.strokeStyle='#6b8f5a'; ctx.lineWidth=2; ctx.beginPath(); ctx.rect(mx,my,mw,mh); ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(mx,my,mw,mh); ctx.clip();
+  const nR=S.nR, nW=S.nW, R=S.rab, Wl=S.wolf;
+  /* rabbits */
+  for(let i=0;i<nR;i++){ const r=R[i], X=mx+r.x*mw, Y=my+r.y*mh;
+    ctx.fillStyle='#f8f8f5'; ctx.strokeStyle='#8b8b85'; ctx.lineWidth=1; ctx.beginPath(); ctx.ellipse(X,Y,5.5,3.8,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X+(r.dir>0?3:-3),Y-2); ctx.lineTo(X+(r.dir>0?2:-2),Y-8); ctx.stroke(); ctx.fillStyle='#8b8b85'; ctx.beginPath(); ctx.arc(X+(r.dir>0?6:-6),Y-1,1.6,0,7); ctx.fill(); }
+  /* wolves */
+  for(let i=0;i<nW;i++){ const w=Wl[i], X=mx+w.x*mw, Y=my+w.y*mh, s=w.dir>0?1:-1;
+    ctx.fillStyle='#4b5563'; ctx.strokeStyle='#111827'; ctx.lineWidth=1.3; ctx.beginPath(); ctx.ellipse(X,Y,11,6,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X+s*9,Y-4); ctx.lineTo(X+s*17,Y-1); ctx.lineTo(X+s*10,Y+3); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X+s*10,Y-3); ctx.lineTo(X+s*11,Y-10); ctx.lineTo(X+s*14,Y-3); ctx.fill();
+    ctx.fillStyle='#fca5a5'; ctx.beginPath(); ctx.arc(X+s*13,Y-1,1.5,0,7); ctx.fill(); }
+  ctx.restore();
+  pxText(ctx,'rabbits: '+nf(S.xNow*S.kR,0)+'   (x = '+nf(S.xNow,2)+')',mx+4,16,COL.calc1,13,'left',true);
+  pxText(ctx,'wolves: '+nf(S.yNow*S.kW,0)+'   (y = '+nf(S.yNow,2)+')',mx+4,34,COL.coral,13,'left',true);
+  pxText(ctx,'t = '+nf(S.t,1)+' years',W-12,16,COL.soft,12,'right');
+  if(S.extinct) pxText(ctx,S.extinct,W/2,H-24,'#E11D48',15,'center',true); }
+
+add({ id:'predator-prey-live', cat:'c4', tag:'live', title:'Predator\u2013Prey: Wolves & Rabbits', diff:'adv', ch:'Application \u00b7 Lotka\u2013Volterra',
+  questions:[
+    'Why does the number of wolves peak after the number of rabbits peaks? What does that delay look like in the phase plane?',
+    'At the interior equilibrium (\u03b3/\u03b4, \u03b1/\u03b2) the linearization has purely imaginary eigenvalues \u00b1i\u221a(\u03b1\u03b3). What does that predict for the period of small oscillations?',
+    'Why can the nonlinear system be solved implicitly even though x(t) and y(t) have no formula? (Hint: divide dy/dt by dx/dt and separate.)',
+    'Add a carrying capacity K for the rabbits. What happens to the closed loops, and what does the sign of the trace of the Jacobian say?'
+  ],
+  blurb:'Rabbits x grow by themselves and are eaten by wolves y; wolves starve without rabbits: x\u2032 = \u03b1x \u2212 \u03b2xy, y\u2032 = \u03b4xy \u2212 \u03b3y. Move the sliders to change growth, hunting success, starvation and conversion, then watch the meadow, the time curves and the closed loops in the phase plane. A carrying capacity K for the rabbits turns the loops into inward spirals.',
+  build(host){
+    const S={playing:true,speed:1.6,t:0,xNow:5,yNow:1,nR:0,nW:0,kR:15,kW:4,rab:[],wolf:[],extinct:'',data:null,P:null,eq:null};
+    let playBtn=null;
+    const aS=UI.slider({label:'rabbit growth rate \u03b1',min:0.2,max:2,step:0.05,value:1,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const bS=UI.slider({label:'hunting success \u03b2 (rabbit loss per wolf)',min:0.1,max:1,step:0.05,value:0.5,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const cS=UI.slider({label:'wolf starvation rate \u03b3',min:0.2,max:2,step:0.05,value:0.75,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const dS=UI.slider({label:'conversion \u03b4 (wolf gain per rabbit)',min:0.05,max:0.6,step:0.01,value:0.25,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const KS=UI.slider({label:'rabbit carrying capacity K  (40 = none)',min:5,max:40,step:1,value:40,fmt:v=>v>=40?'\u221e':v.toFixed(0),oninput:()=>restart()});
+    const x0S=UI.slider({label:'initial rabbits x\u2080',min:0.5,max:12,step:0.1,value:5,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const y0S=UI.slider({label:'initial wolves y\u2080',min:0.2,max:8,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const spS=UI.slider({label:'speed (years per real second)',min:0.3,max:6,step:0.1,value:1.6,fmt:v=>v.toFixed(1),oninput:v=>{ S.speed=v; }});
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>restart()},
+      {label:'Start at equilibrium',onclick:()=>{ const e=S.eq; if(e){ x0S.set(Math.round(e.x*10)/10); y0S.set(Math.round(e.y*10)/10); restart(); } }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('the meadow \u2014 each dot is an animal (1 unit of x = 15 rabbits, 1 unit of y = 4 wolves)',320);
+    const tPlot=UI.plotCard('populations x(t) (blue) and y(t) (coral)',250);
+    const pPlot=UI.plotCard('phase plane (x, y): trajectory, nullclines and equilibrium',300);
+    const solBox=modelBox('Analysis of the system','','accent3');
+    host.appendChild(UI.appGrid([aS,bS,cS,dS,KS,x0S,y0S,spS,btns,stats,
+      UI.note('<b>Reading the phase plane:</b> the amber dashed vertical line is where y\u2032 = 0 (x = \u03b3/\u03b4); the purple dashed line is where x\u2032 = 0. Their crossing is the equilibrium. Without a carrying capacity every orbit is a closed loop around it, and the larger the loop the more extreme the boom and bust.')],
+      [odeBox,stage,tPlot,pPlot,solBox]));
+
+    const rnd=(function(){ let s=11; return ()=>{ s=(s*16807)%2147483647; return s/2147483647; }; })();
+    for(let i=0;i<260;i++) S.rab.push({x:rnd(),y:rnd(),vx:(rnd()-.5)*20,vy:(rnd()-.5)*20,dir:rnd()<.5?1:-1});
+    for(let i=0;i<45;i++) S.wolf.push({x:rnd(),y:rnd(),vx:(rnd()-.5)*20,vy:(rnd()-.5)*20,dir:rnd()<.5?1:-1});
+    function restart(){
+      const K=KS.get()>=40?0:KS.get(); const P={a:aS.get(),b:bS.get(),c:cS.get(),d:dS.get(),K,x0:x0S.get(),y0:y0S.get()}; S.P=P; S.eq=ppEq(P);
+      S.T=60; S.data=ppRun(P,S.T,0.02); S.t=0; S.xNow=P.x0; S.yNow=P.y0; S.extinct='';
+      updateText(); drawPhase(); drawT(); }
+    function measuredPeriod(){ const {ts,xs,N}=S.data; const pk=[]; for(let i=2;i<N-1;i++) if(xs[i]>xs[i-1]&&xs[i]>=xs[i+1]&&xs[i]>0.02) pk.push(ts[i]); return pk.length>=2? pk[1]-pk[0] : null; }
+    function updateText(){
+      const P=S.P, {a,b,c,d,K,x0,y0}=P, e=S.eq;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle \\frac{dx}{dt}=${nf(a,2)}\\,x${K>0?`\\Big(1-\\tfrac{x}{${nf(K,0)}}\\Big)`:''}-${nf(b,2)}\\,xy,\\qquad \\frac{dy}{dt}=${nf(d,2)}\\,xy-${nf(c,2)}\\,y,\\qquad x(0)=${nf(x0,1)},\\ y(0)=${nf(y0,1)}`)+
+        dtex(`\\displaystyle \\text{(prey } x\\text{: growth }\\alpha=${nf(a,2)},\\ \\text{predation }\\beta=${nf(b,2)};\\ \\text{predator } y\\text{: conversion }\\delta=${nf(d,2)},\\ \\text{starvation }\\gamma=${nf(c,2)})`);
+      let h=`<div><b>1. Equilibria</b> (set ${itex('x\\prime=y\\prime=0')}): ${itex('(0,0)')}${K>0?` and ${itex('(K,0)')}`:''} and the coexistence point</div>`;
+      let per=measuredPeriod(), pt=per?nf(per,2)+' yr':'\u2014', eqTxt='\u2014', ev='\u2014';
+      if(!e){ h+=dtex(`\\displaystyle x^*=\\tfrac{\\gamma}{\\delta}=${nf(c/d,2)}\\ \\ge K=${nf(K,0)}`)+`<div style="color:${COL.coral}">The prey cannot feed the predators: the wolves die out and the rabbits settle at K. There is no coexistence equilibrium.</div>`; }
+      else {
+        h+=dtex(`\\displaystyle (x^*,y^*)=\\Big(\\tfrac{\\gamma}{\\delta},\\ \\tfrac{\\alpha}{\\beta}${K>0?'\\big(1-\\tfrac{x^*}{K}\\big)':''}\\Big)=(${nf(e.x,2)},\\ ${nf(e.y,2)})`);
+        h+=`<div><b>2. Linearize</b> there: Jacobian</div>`;
+        const tr=K>0? -a*e.x/K : 0, det=b*d*e.x*e.y;
+        h+=dtex(`\\displaystyle J=\\begin{pmatrix}${K>0?`-\\tfrac{\\alpha x^*}{K}`:'0'} & -\\beta x^*\\\\ \\delta y^* & 0\\end{pmatrix}=\\begin{pmatrix}${nf(tr,3)} & ${nf(-b*e.x,3)}\\\\ ${nf(d*e.y,3)} & 0\\end{pmatrix},\\quad \\text{tr}=${nf(tr,3)},\\ \\det=${nf(det,3)}`);
+        const disc=tr*tr-4*det;
+        if(K===0){ h+=dtex(`\\displaystyle \\lambda=\\pm i\\sqrt{\\alpha\\gamma}=\\pm ${nf(Math.sqrt(a*c),3)}\\,i\\ \\Longrightarrow\\ \\text{center; period of small loops }\\approx\\tfrac{2\\pi}{\\sqrt{\\alpha\\gamma}}=${nf(2*Math.PI/Math.sqrt(a*c),2)}\\text{ yr}`); ev='\u00b1'+nf(Math.sqrt(a*c),3)+' i'; eqTxt='center'; }
+        else if(disc<0){ h+=dtex(`\\displaystyle \\lambda=${nf(tr/2,3)}\\pm ${nf(Math.sqrt(-disc)/2,3)}\\,i\\ \\Longrightarrow\\ \\text{spiral sink (damped oscillation)}`); ev=nf(tr/2,3)+'\u00b1'+nf(Math.sqrt(-disc)/2,3)+' i'; eqTxt='spiral sink'; }
+        else { const l1=(tr+Math.sqrt(disc))/2,l2=(tr-Math.sqrt(disc))/2; h+=dtex(`\\displaystyle \\lambda=${nf(l1,3)},\\ ${nf(l2,3)}\\ \\Longrightarrow\\ \\text{stable node (no oscillation)}`); ev=nf(l1,3)+', '+nf(l2,3); eqTxt='node'; }
+        if(K===0){
+          h+=`<div><b>3. Exact first integral.</b> Dividing the equations, ${itex('\\dfrac{dy}{dx}=\\dfrac{y(\\delta x-\\gamma)}{x(\\alpha-\\beta y)}')} is separable:</div>`+
+            dtex(`\\displaystyle \\alpha\\ln y-\\beta y+\\gamma\\ln x-\\delta x=\\text{const}\\ \\ \\Longrightarrow\\ \\ V(x,y)=\\delta x-\\gamma\\ln x+\\beta y-\\alpha\\ln y`)+
+            dtex(`\\displaystyle V(x_0,y_0)=${nf(d*x0-c*Math.log(x0)+b*y0-a*Math.log(y0),4)}\\ \\ (V_{\\min}=${nf(d*e.x-c*Math.log(e.x)+b*e.y-a*Math.log(e.y),4)}\\text{ at the equilibrium})`)+
+            `<div>Level curves of ${itex('V')} are the closed loops in the phase plane: the populations cycle forever, but x(t), y(t) have no elementary formula.</div>`;
+        } else h+=`<div><b>3.</b> With the carrying capacity the trace is negative (${itex('-\\alpha x^*/K')}), so the loops are destroyed: every orbit spirals into (or slides to) the equilibrium. The numbers are computed by RK4.</div>`;
+      }
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'equilibrium',v:e?'('+nf(e.x,2)+', '+nf(e.y,2)+')':'wolves die out',accent:1},{k:'type',v:eqTxt},{k:'eigenvalues',v:ev},{k:'measured period',v:pt,accent:1},{k:'x-range (t \u2264 60)',v:nf(Math.min(...S.data.xs),2)+' \u2013 '+nf(Math.max(...S.data.xs),2)}]);
+    }
+    function drawT(){ const d=S.data; if(!d)return; const c=tPlot.chart(); const mxv=Math.max(Math.max(...d.xs),Math.max(...d.ys))*1.1, T=S.T;
+      c.setX(0,T).setY(0,mxv); c.clear(); c.gridlines(niceTicks(0,T,10),niceTicks(0,mxv,5)); c.axes();
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)), px=[],py=[],qy=[]; for(let i=0;i<=last;i+=2){ px.push(c.X(d.ts[i])); py.push(c.Y(d.xs[i])); qy.push(c.Y(d.ys[i])); }
+      clipToPlot(c); if(px.length>1){ c.pline(px,py,COL.calc1,2); c.pline(px,qy,COL.coral,2); } c.ctx.restore();
+      c.dot(S.t,S.xNow,COL.calc1,4); c.dot(S.t,S.yNow,COL.coral,4); c.axisX(niceTicks(0,T,10)); c.axisY(niceTicks(0,mxv,5)); }
+    function drawPhase(){ const d=S.data; if(!d)return; const c=pPlot.chart(), P=S.P, e=S.eq; const xm=Math.max(Math.max(...d.xs),e?e.x*1.5:1)*1.1, ym=Math.max(Math.max(...d.ys),e?e.y*1.5:1)*1.1;
+      c.setX(0,xm).setY(0,ym); c.clear(); c.gridlines(niceTicks(0,xm,7),niceTicks(0,ym,6)); c.axes();
+      clipToPlot(c); const fx=[],fy=[]; for(let i=0;i<=d.N;i+=2){ fx.push(c.X(d.xs[i])); fy.push(c.Y(d.ys[i])); } c.pline(fx,fy,hexA(COL.calc2,.35),1.4);
+      c.ctx.restore();
+      c.vline(P.c/P.d,hexA(COL.amber,.9),1.5,[5,4]);
+      if(P.K>0) c.line(0,P.a/P.b,P.K,0,hexA(COL.calc3,.9),1.5,[5,4]); else c.line(0,P.a/P.b,xm,P.a/P.b,hexA(COL.calc3,.9),1.5,[5,4]);
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)), px=[],py=[]; for(let i=Math.max(0,last-250);i<=last;i++){ px.push(c.X(d.xs[i])); py.push(c.Y(d.ys[i])); }
+      clipToPlot(c); if(px.length>1) c.pline(px,py,COL.calc1,2.2); c.ctx.restore();
+      if(e) c.dot(e.x,e.y,COL.ink,5); c.dot(S.xNow,S.yNow,COL.coral,6); c.axisX(niceTicks(0,xm,7)); c.axisY(niceTicks(0,ym,6)); }
+    restart();
+    function step(list,n,dt,targets,flee,sp){
+      for(let i=0;i<n;i++){ const a=list[i]; let ax=(Math.random()-.5)*60, ay=(Math.random()-.5)*60;
+        if(targets){ let best=1e9,bx=0,by=0; for(let j=0;j<targets.n;j++){ const t=targets.l[j], dx=t.x-a.x, dy=t.y-a.y, dd=dx*dx+dy*dy; if(dd<best){ best=dd; bx=dx; by=dy; } } if(best<1e8){ const L=Math.sqrt(best)||1; ax+=bx/L*(flee?-1:1)*90*(flee?(best<0.01?3:0):1); ay+=by/L*(flee?-1:1)*90*(flee?(best<0.01?3:0):1); } }
+        a.vx=(a.vx+ax*dt)*0.96; a.vy=(a.vy+ay*dt)*0.96; const sc=sp; a.x+=a.vx*dt*sc/700; a.y+=a.vy*dt*sc/300;
+        if(a.x<0){a.x=0;a.vx=Math.abs(a.vx);} if(a.x>1){a.x=1;a.vx=-Math.abs(a.vx);} if(a.y<0){a.y=0;a.vy=Math.abs(a.vy);} if(a.y>1){a.y=1;a.vy=-Math.abs(a.vy);} if(Math.abs(a.vx)>2) a.dir=a.vx>0?1:-1; } }
+    let acc=0;
+    runLoop(stage.canvas,dt=>{
+      if(S.playing){ S.t+=dt*S.speed; if(S.t>=S.T){ S.t=0; }
+        const d=S.data, x=Math.min(d.N-1,S.t/d.dt), i=Math.floor(x), a=x-i; S.xNow=d.xs[i]*(1-a)+d.xs[i+1]*a; S.yNow=d.ys[i]*(1-a)+d.ys[i+1]*a; }
+      S.nR=Math.min(260,Math.round(S.xNow*S.kR)); S.nW=Math.min(45,Math.round(S.yNow*S.kW));
+      S.extinct= S.xNow*S.kR<0.5? 'the rabbits are (almost) extinct!' : (S.yNow*S.kW<0.5? 'the wolves are (almost) extinct!' : '');
+      step(S.rab,S.nR,dt,{l:S.wolf,n:S.nW},true,1); step(S.wolf,S.nW,dt,{l:S.rab,n:S.nR},false,0.6);
+      drawPPScene(stage.ctx2(),S); acc+=dt; if(acc>0.08){ acc=0; drawT(); drawPhase(); }
+    });
+  }
+});
+
+
+/* ---------- SIR epidemic:  s' = -R s i ,  i' = (R s - 1) i  (time measured in 1/gamma), here with real rates beta, gamma ---------- */
+function sirRun(beta,gam,i0,v,T,dt){ const s0=Math.max(0,1-i0-v), sub=4, h=dt/sub, N=Math.round(T/dt);
+  const f=(s,i)=>[-beta*s*i, beta*s*i-gam*i];
+  const ts=new Float64Array(N+1), S=new Float64Array(N+1), I=new Float64Array(N+1), R=new Float64Array(N+1); let s=s0,i=i0; S[0]=s; I[0]=i; R[0]=1-s-i;
+  for(let n=1;n<=N;n++){ for(let q=0;q<sub;q++){ const k1=f(s,i),k2=f(s+h/2*k1[0],i+h/2*k1[1]),k3=f(s+h/2*k2[0],i+h/2*k2[1]),k4=f(s+h*k3[0],i+h*k3[1]);
+      s+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]); i+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]); }
+    ts[n]=n*dt; S[n]=s; I[n]=i; R[n]=1-s-i; }
+  return {ts,S,I,R,N,dt,s0}; }
+/* final fraction still susceptible:  ln(s/s0) = -R0 (1 - s - v) */
+function sirFinal(R0,s0,v){ let lo=1e-14,hi=s0; for(let k=0;k<200;k++){ const m=Math.sqrt(lo*hi), g=Math.log(m/s0)+R0*(1-m-v); if(g>0)hi=m; else lo=m; } return Math.sqrt(lo*hi); }
+function drawSIRScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const cols=S.cols, rows=S.rows, n=cols*rows, top=50, aw=W-24, ah=H-top-34, cw=aw/cols, chh=ah/rows;
+  const nR=Math.round(S.r*n), nI=S.i>1e-4? Math.max(1,Math.round(S.i*n)):0, tt=S.tau;
+  for(let k=0;k<n;k++){ const p=S.people[k], idx=p.rank; let col,rad=Math.min(cw,chh)*0.33;
+    if(idx<nR) col='#10B981'; else if(idx<nR+nI){ col='#E11D48'; rad*=1+0.22*Math.sin(tt*6+k); } else col='#4aa3df';
+    const X=12+(p.c+0.5)*cw+Math.sin(tt*1.3+k*1.7)*cw*0.12, Y=top+(p.r+0.5)*chh+Math.cos(tt*1.1+k*2.3)*chh*0.12;
+    ctx.fillStyle=col; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=0.8; ctx.beginPath(); ctx.arc(X,Y,rad,0,7); ctx.fill(); ctx.stroke();
+    if(idx>=nR&&idx<nR+nI){ ctx.strokeStyle='rgba(225,29,72,.35)'; ctx.beginPath(); ctx.arc(X,Y,rad*1.9+2*Math.sin(tt*6+k),0,7); ctx.stroke(); } }
+  const nS=n-nR-nI; pxText(ctx,'Susceptible '+nS,12,14,'#4aa3df',13,'left',true); pxText(ctx,'Infected '+nI,12+W*0.28,14,'#E11D48',13,'left',true); pxText(ctx,'Recovered / immune '+nR,12+W*0.52,14,'#10B981',13,'left',true);
+  pxText(ctx,'day '+nf(S.t,0)+'   (I = '+nf(S.i*100,1)+' %,  S = '+nf(S.s*100,1)+' %,  R = '+nf(S.r*100,1)+' %)',12,34,COL.soft,12,'left');
+  pxText(ctx,n+' people shown \u2014 each dot is '+nf(100/n,2)+' % of the population',W/2,H-14,COL.faint,11,'center'); }
+
+add({ id:'sir-epidemic', cat:'c4', tag:'live', title:'Epidemic Model (SIR) \u2014 Flatten the Curve', diff:'inter', ch:'Application \u00b7 SIR system',
+  questions:[
+    'The infected fraction grows exactly when s > 1/R\u2080. Where does this threshold come from in the equation i\u2032 = (\u03b2s \u2212 \u03b3)i?',
+    'Why does the epidemic end with some people still never infected (s\u221e > 0), even though nobody is vaccinated?',
+    'If R\u2080 = 3, what fraction of the population has to be immune at the start so that an introduced case cannot start an outbreak?',
+    'Lowering \u03b2 (masks, distancing) \u201cflattens the curve\u201d. How do the peak height, the peak time and the final size change?'
+  ],
+  blurb:'Three groups: Susceptible, Infected, Recovered. S\u2032 = \u2212\u03b2SI, I\u2032 = \u03b2SI \u2212 \u03b3I, R\u2032 = \u03b3I (fractions of the population). Change the infection rate \u03b2, recovery rate \u03b3, the starting number of cases and the vaccinated share, and watch the crowd of dots change colour while the curves and the (S, I) phase plane update. The same trick that works for the predator\u2013prey model (divide the equations) gives an exact relation between S and I.',
+  build(host){
+    const S={playing:true,speed:12,t:0,tau:0,s:1,i:0,r:0,cols:24,rows:16,people:[],data:null,T:220,hold:0};
+    let playBtn=null;
+    const bS=UI.slider({label:'infection rate \u03b2  (per day)',min:0.05,max:1.5,step:0.01,value:0.5,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const gS=UI.slider({label:'recovery rate \u03b3  (per day, 1/\u03b3 = days infectious)',min:0.05,max:0.6,step:0.01,value:0.2,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const iS=UI.slider({label:'initially infected (% of population)',min:0.1,max:5,step:0.1,value:0.5,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const vS=UI.slider({label:'initially immune / vaccinated (%)',min:0,max:90,step:1,value:0,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const spS=UI.slider({label:'speed (days per real second)',min:2,max:40,step:1,value:12,fmt:v=>v.toFixed(0),oninput:v=>{ S.speed=v; }});
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>restart()},
+      {label:'Measles-like (R\u2080 = 15)',onclick:()=>{ bS.set(1.5); gS.set(0.1); restart(); }},
+      {label:'Flatten the curve (\u03b2 \u00d7 0.6)',onclick:()=>{ bS.set(Math.max(0.05,Math.round(bS.get()*60)/100)); restart(); }},
+      {label:'Vaccinate to herd immunity',onclick:()=>{ const R0=bS.get()/gS.get(); vS.set(Math.min(90,Math.ceil((1-1/R0)*100)+1)); restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('a crowd of people \u2014 colours follow the S, I, R fractions',330);
+    const tPlot=UI.plotCard('S(t), I(t), R(t) in % of the population',270);
+    const pPlot=UI.plotCard('phase plane (S, I): all trajectories lie on i = i\u2080 + s\u2080 \u2212 s + (1/R\u2080) ln(s/s\u2080)',270);
+    const solBox=modelBox('Analysis of the system','','accent3');
+    host.appendChild(UI.appGrid([bS,gS,iS,vS,spS,btns,stats,
+      UI.note('<b>R\u2080 = \u03b2/\u03b3</b> is the number of people one case infects in a fully susceptible population. The epidemic grows only while R\u2080\u00b7s &gt; 1, peaks exactly when s = 1/R\u2080, and burns out with a fraction s\u221e still untouched.')],
+      [odeBox,stage,tPlot,pPlot,solBox]));
+
+    (function(){ const rnd=(function(){ let q=5; return ()=>{ q=(q*16807)%2147483647; return q/2147483647; }; })(); const n=S.cols*S.rows, idx=[...Array(n).keys()];
+      for(let k=n-1;k>0;k--){ const j=Math.floor(rnd()*(k+1)); [idx[k],idx[j]]=[idx[j],idx[k]]; }
+      for(let k=0;k<n;k++) S.people.push({c:k%S.cols,r:Math.floor(k/S.cols),rank:idx[k]}); })();
+    function restart(){
+      const beta=bS.get(), gam=gS.get(), i0=iS.get()/100, v=Math.min(vS.get()/100,0.999-i0); const R0=beta/gam;
+      Object.assign(S,{beta,gam,i0,v,R0}); S.T=R0*(1-v-i0)>1? (R0<1.6?600:260):120; S.data=sirRun(beta,gam,i0,v,S.T,0.1);
+      /* pick a viewing window that contains the whole epidemic */
+      const d=S.data; let tEnd=S.T; for(let k=d.N;k>0;k--){ if(d.I[k]>0.0005*Math.max(...d.I)||d.I[k]>1e-4){ tEnd=Math.min(S.T,d.ts[k]*1.1+5); break; } } S.Tv=Math.max(40,tEnd);
+      S.t=0; S.hold=0; S.s=d.S[0]; S.i=d.I[0]; S.r=d.R[0];
+      updateText(); drawT(); drawPhase(); }
+    function updateText(){
+      const {beta,gam,i0,v,R0,data:d}=S, s0=d.s0, Rs=R0*s0;
+      const imax= Rs>1? i0+s0-(1/R0)*(1+Math.log(Rs)) : i0, sinf=sirFinal(R0,s0,v), attack=1-sinf-v, hit=R0>1?1-1/R0:0;
+      let tpk=0,ipk=0; for(let k=0;k<=d.N;k++) if(d.I[k]>ipk){ ipk=d.I[k]; tpk=d.ts[k]; }
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle \\frac{dS}{dt}=-${nf(beta,2)}\\,SI,\\qquad \\frac{dI}{dt}=${nf(beta,2)}\\,SI-${nf(gam,2)}\\,I,\\qquad \\frac{dR}{dt}=${nf(gam,2)}\\,I`)+
+        dtex(`\\displaystyle S(0)=${nf(s0,3)},\\ I(0)=${nf(i0,3)},\\ R(0)=${nf(v,3)}\\qquad (S+I+R=1)`);
+      let h=`<div><b>1. Reduce to two equations.</b> Since ${itex('S+I+R=1')}, only ${itex('S')} and ${itex('I')} matter. Define ${itex('R_0=\\beta/\\gamma='+nf(R0,2))}:</div>`+
+        dtex(`\\displaystyle I'=\\gamma\\,(R_0S-1)\\,I`)+`<div>so ${itex('I')} grows if and only if ${itex('S>1/R_0='+nf(1/R0,3))}. Right now ${itex('R_0S(0)='+nf(Rs,2))}: the outbreak ${Rs>1?'<b style="color:#E11D48">takes off</b>':'<b style="color:#10B981">dies out</b>'}.</div>`;
+      h+=`<div><b>2. Exact relation between S and I.</b> Divide and separate:</div>`+
+        dtex(`\\displaystyle \\frac{dI}{dS}=-1+\\frac{1}{R_0S}\\ \\Longrightarrow\\ I=I(0)+S(0)-S+\\frac{1}{R_0}\\ln\\frac{S}{S(0)}`)+
+        `<div><b>3. Peak</b> (where ${itex('I\\prime=0')}, i.e. ${itex('S=1/R_0')}):</div>`+
+        dtex(`\\displaystyle I_{\\max}=I(0)+S(0)-\\frac{1}{R_0}\\Big(1+\\ln(R_0S(0))\\Big)=${nf(imax*100,2)}\\,\\%`)+
+        `<div><b>4. Final size.</b> As ${itex('t\\to\\infty')}, ${itex('I\\to0')}; with ${itex('R_\\infty=1-S_\\infty')} the first integral gives the transcendental equation</div>`+
+        dtex(`\\displaystyle \\ln\\frac{S_\\infty}{S(0)}=-R_0\\,(1-S_\\infty-R(0))\\ \\Longrightarrow\\ S_\\infty=${nf(sinf*100,2)}\\,\\%,\\ \\ \\text{attack rate}=${nf(attack*100,1)}\\,\\%`)+
+        `<div><b>5. Herd immunity.</b> No outbreak if ${itex('R_0S(0)\\le1')}, i.e. the immune fraction must be at least ${itex('1-\\tfrac1{R_0}='+(R0>1?nf(hit*100,1)+'\\%':'0'))}.</div>`+
+        `<div style="color:${COL.soft}">The curves S(t), I(t) have no closed form; they come from RK4. The relation in step 2 is exact.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'R\u2080 = \u03b2/\u03b3',v:nf(R0,2),accent:1},{k:'R\u2080\u00b7S(0)',v:nf(Rs,2)},{k:'peak infected',v:nf(imax*100,1)+' %',accent:1},{k:'peak day',v:Rs>1?nf(tpk,0):'\u2014'},
+        {k:'final attack rate',v:nf(attack*100,1)+' %',accent:1},{k:'herd-immunity threshold',v:R0>1?nf(hit*100,0)+' %':'0 %'}]);
+    }
+    function drawT(){ const d=S.data; if(!d)return; const c=tPlot.chart(), T=S.Tv; c.setX(0,T).setY(0,100); c.clear(); c.gridlines(niceTicks(0,T,8),niceTicks(0,100,5)); c.axes();
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)), px=[],ps=[],pi=[],pr=[]; for(let k=0;k<=last;k+=3){ px.push(c.X(d.ts[k])); ps.push(c.Y(d.S[k]*100)); pi.push(c.Y(d.I[k]*100)); pr.push(c.Y(d.R[k]*100)); }
+      clipToPlot(c); if(px.length>1){ c.pline(px,ps,'#4aa3df',2.2); c.pline(px,pr,'#10B981',2.2); c.pline(px,pi,'#E11D48',2.6); } c.ctx.restore();
+      c.vline(Math.min(S.t,T),hexA(COL.faint,.7),1.2,[4,3]); c.axisX(niceTicks(0,T,8)); c.axisY(niceTicks(0,100,5)); }
+    function drawPhase(){ const d=S.data; if(!d)return; const c=pPlot.chart(); let im=0; for(let k=0;k<=d.N;k++) im=Math.max(im,d.I[k]); im=Math.max(im*1.25,0.02);
+      c.setX(0,1).setY(0,im); c.clear(); c.gridlines(niceTicks(0,1,5),niceTicks(0,im,5)); c.axes();
+      c.vline(1/S.R0,hexA(COL.amber,.9),1.5,[5,4]);
+      const last=Math.min(d.N,Math.floor(S.t/d.dt)), px=[],py=[]; for(let k=0;k<=d.N;k+=3){ px.push(c.X(d.S[k])); py.push(c.Y(d.I[k])); } clipToPlot(c); c.pline(px,py,hexA(COL.calc3,.3),1.6);
+      const qx=[],qy=[]; for(let k=0;k<=last;k+=3){ qx.push(c.X(d.S[k])); qy.push(c.Y(d.I[k])); } if(qx.length>1) c.pline(qx,qy,COL.calc3,2.6); c.ctx.restore();
+      c.dot(S.s,S.i,'#E11D48',6); c.axisX(niceTicks(0,1,5)); c.axisY(niceTicks(0,im,5)); }
+    restart();
+    let acc=0;
+    runLoop(stage.canvas,dt=>{
+      S.tau+=dt;
+      if(S.playing){ const d=S.data; if(S.t>=S.Tv){ S.hold+=dt; if(S.hold>2.5){ S.t=0; S.hold=0; } } else S.t=Math.min(S.Tv,S.t+dt*S.speed);
+        const x=Math.min(d.N-1,S.t/d.dt), k=Math.floor(x), a=x-k; S.s=d.S[k]*(1-a)+d.S[k+1]*a; S.i=d.I[k]*(1-a)+d.I[k+1]*a; S.r=d.R[k]*(1-a)+d.R[k+1]*a; }
+      drawSIRScene(stage.ctx2(),S); acc+=dt; if(acc>0.08){ acc=0; drawT(); drawPhase(); }
+    });
+  }
+});
+
 
 /* ===================== PRACTICE & TEST QUESTION BANK ================
    Each entry is a *generator*: called fresh every quiz/reset, it rolls
