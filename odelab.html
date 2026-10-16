@@ -622,6 +622,8 @@ const CATS = {
   c4:{name:'Systems & Phase Planes', color:COL.amber, n:'04', desc:'Eigenvalues and the geometry of linear systems x′ = A x — nodes, saddles, spirals, centers — plus nonlinear phase planes and population models.',
     facts:[
       {t:'fact',s:'The eigenvalues of a 2×2 matrix decide everything: node, saddle, spiral, or center.'},
+      {t:'fact',s:'Two connected tanks give a lower-triangular matrix: no water flows backward, so the eigenvalues are just −r/V₁ and −r/V₂.'},
+      {t:'use',s:'Two coupled masses on springs have four imaginary eigenvalues ±iω₁, ±iω₂ — the two natural frequencies of a building, a bridge or a guitar string.'},
       {t:'use',s:'Predator–prey models (Lotka–Volterra) trace closed loops in the phase plane — boom-and-bust cycles.'},
       {t:'fact',s:'A complex eigenvalue pair always means rotation: spirals if it grows or decays, centers if it is purely imaginary.'},
       {t:'use',s:'Coupled tanks, multi-loop circuits, and competing species all collapse into a single system x′ = A x.'},
@@ -3593,6 +3595,462 @@ add({ id:'nonlinear-systems', cat:'c4', tag:'interactive', title:'Nonlinear Syst
       ch.axisX(niceTicks(x0,x1,7)); ch.axisY(niceTicks(y0,y1,7));
     }
     render();
+  }
+});
+
+/* ======================= Chapter 7 applets: two tanks, coupled springs, stability, complex eigenvalues ======================= */
+
+/* ---------- two-tank mixing, matrix method:  x' = A x,  A = [[-r/V1, 0],[r/V1, -r/V2]] ---------- */
+function tt2Sol(P,t){ const a=P.r/P.V1,b=P.r/P.V2,x10=P.x10,x20=P.x20; const x1=x10*Math.exp(-a*t);
+  if(Math.abs(a-b)<1e-9) return [x1,(x20+a*x10*t)*Math.exp(-a*t)];
+  const c1=x10/(b-a), c2=x20-a*c1; return [x1, a*c1*Math.exp(-a*t)+c2*Math.exp(-b*t)]; }
+function drawTwoTankScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H);
+  const P=S.P, X=tt2Sol(P,S.t), c1=X[0]/P.V1, c2=X[1]/P.V2, cm=Math.max(P.x10/P.V1,P.x20/P.V2,1e-9);
+  const vmax=Math.max(P.V1,P.V2), th=H-90, base=H-34; const h1=th*(0.45+0.55*P.V1/vmax), h2=th*(0.45+0.55*P.V2/vmax);
+  const tw=Math.min(150,W*0.24), x1l=W*0.22, x2l=W*0.62, top1=base-h1, top2=base-h2, pipeY=Math.min(top1,top2)-6;
+  function tank(xl,top,h,c,name,vol,kg){ const lw=tw; ctx.fillStyle='rgba(120,150,180,.10)'; ctx.fillRect(xl,top,lw,h);
+    const al=0.12+0.85*Math.min(1,c/cm); ctx.fillStyle='rgba(244,63,94,'+al.toFixed(3)+')'; ctx.fillRect(xl,top+h*0.12,lw,h*0.88);
+    ctx.strokeStyle=COL.ink; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(xl,top); ctx.lineTo(xl,top+h); ctx.lineTo(xl+lw,top+h); ctx.lineTo(xl+lw,top); ctx.stroke();
+    pxText(ctx,name+'  ('+vol+' L)',xl+lw/2,top-14,COL.ink,12,'center',true);
+    pxText(ctx,'x'+(name==='Tank 1'?'₁':'₂')+' = '+nf(kg,2)+' kg',xl+lw/2,top+h*0.45,COL.ink,13,'center',true);
+    pxText(ctx,nf(c,3)+' kg/L',xl+lw/2,top+h*0.45+18,COL.soft,11,'center'); }
+  /* pipes: fresh water in -> tank1 -> tank2 -> out */
+  ctx.strokeStyle=COL.slate; ctx.lineWidth=5; ctx.lineCap='round';
+  const yIn=top1+14, yMid=base-18, yOut=base-18;
+  ctx.beginPath(); ctx.moveTo(10,yIn); ctx.lineTo(x1l,yIn); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1l+tw,yMid); ctx.lineTo(x2l,yMid); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2l+tw,yOut); ctx.lineTo(W-10,yOut); ctx.stroke();
+  tank(x1l,top1,h1,c1,'Tank 1',P.V1.toFixed(0),X[0]); tank(x2l,top2,h2,c2,'Tank 2',P.V2.toFixed(0),X[1]);
+  /* moving particles */
+  const sp=S.phase; function flow(xa,xb,y,col){ const n=Math.max(2,Math.floor((xb-xa)/26)); for(let i=0;i<n;i++){ const u=((i/n)+sp)%1; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(xa+u*(xb-xa),y,3.4,0,7); ctx.fill(); } }
+  flow(10,x1l,yIn,'#4aa3df'); flow(x1l+tw,x2l,yMid,'rgba(244,63,94,'+(0.2+0.8*Math.min(1,c1/cm)).toFixed(2)+')'); flow(x2l+tw,W-10,yOut,'rgba(244,63,94,'+(0.2+0.8*Math.min(1,c2/cm)).toFixed(2)+')');
+  pxText(ctx,'fresh water  r = '+nf(P.r,1)+' L/min',12,yIn-12,'#4aa3df',11,'left',true);
+  pxText(ctx,'r = '+nf(P.r,1)+' L/min',(x1l+tw+x2l)/2,yMid-14,COL.soft,11,'center',true);
+  pxText(ctx,'out  r = '+nf(P.r,1)+' L/min',W-12,yOut-14,COL.soft,11,'right',true);
+  pxText(ctx,'t = '+nf(S.t,1)+' min',12,14,COL.soft,12,'left',true);
+  pxText(ctx,'colour depth = concentration x/V',W-12,14,COL.faint,11,'right'); }
+
+add({ id:'two-tank-matrix', cat:'c4', tag:'live', title:'Two-Tank Mixing — Matrix Method', diff:'inter', ch:'7.1 · Example 2 · Lower-triangular systems',
+  questions:[
+    'Why is the matrix A lower triangular? Which physical fact (no water flowing backward) makes the upper-right entry exactly 0?',
+    'For a triangular matrix the eigenvalues are just the diagonal entries −r/V₁ and −r/V₂. Which tank empties slowly, and which eigenvalue controls the long-time behaviour?',
+    'Start with Tank 2 empty (x₂(0) = 0). Why does x₂ first rise and then fall? Where does the peak happen in terms of λ₁, λ₂?',
+    'Set V₁ = V₂. The eigenvalue is repeated and there is only ONE eigenvector. What new factor shows up in x₂(t)?'
+  ],
+  blurb:'Chapter 7, Example 2. Fresh water enters Tank 1 (V₁ litres), the mixture flows on to Tank 2 (V₂ litres) and then drains, all at r L/min. With x₁, x₂ = kg of salt, the system is x′ = A x with a lower-triangular A. Change the volumes, the flow rate and the starting salt and compare the eigenvector solution with the sequential one.',
+  build(host){
+    const S={playing:true,speed:6,t:0,phase:0,P:null,data:null,T:60};
+    let playBtn=null;
+    const V1S=UI.slider({label:'volume of Tank 1, V₁ (L)',min:20,max:150,step:5,value:50,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const V2S=UI.slider({label:'volume of Tank 2, V₂ (L)',min:20,max:200,step:5,value:100,fmt:v=>v.toFixed(0),oninput:()=>restart()});
+    const rS=UI.slider({label:'flow rate r (L/min)',min:0.5,max:8,step:0.5,value:3,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const x1S=UI.slider({label:'initial salt in Tank 1, x₁(0) (kg)',min:0,max:20,step:0.5,value:10,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const x2S=UI.slider({label:'initial salt in Tank 2, x₂(0) (kg)',min:0,max:20,step:0.5,value:0,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const spS=UI.slider({label:'animation speed (min per real second)',min:1,max:30,step:1,value:6,fmt:v=>v.toFixed(0),oninput:v=>{ S.speed=v; }});
+    const btns=UI.buttons([
+      {label:'⏸ Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'⏸ Pause':'▶ Play'; }},
+      {label:'↺ Restart',onclick:()=>{ S.t=0; }},
+      {label:'Textbook: 50 L, 100 L, 3 L/min',onclick:()=>{ V1S.set(50); V2S.set(100); rS.set(3); restart(); }},
+      {label:'Equal tanks (repeated λ)',onclick:()=>{ V1S.set(60); V2S.set(60); restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model — updates with the sliders','','accent1');
+    const stage=animStage('the two tanks — salt flows from Tank 1 into Tank 2',270);
+    const tPlot=UI.plotCard('x₁(t) (blue) and x₂(t) (coral): kg of salt',250);
+    const pPlot=UI.plotCard('phase plane (x₁, x₂): trajectories and eigen-directions',320);
+    const solBox=modelBox('Solution by the eigenvalue method','','accent3');
+    host.appendChild(UI.appGrid([V1S,V2S,rS,x1S,x2S,spS,btns,stats,
+      UI.note('<b>Why sequential?</b> The first equation x₁′ = −(r/V₁)x₁ contains only x₁, so solve it alone; then x₁(t) is a known forcing term in the x₂ equation. In matrix language: the zero in the upper-right corner of A (Tank 2 never sends salt back) makes A lower triangular, so its eigenvalues are the diagonal entries. The dashed lines in the phase plane are the eigenvector directions ξ⁽¹⁾ (amber) and ξ⁽²⁾ (purple).')],
+      [odeBox,stage,tPlot,pPlot,solBox]));
+
+    function restart(){ const P={V1:V1S.get(),V2:V2S.get(),r:rS.get(),x10:x1S.get(),x20:x2S.get()}; S.P=P;
+      const lm=Math.min(P.r/P.V1,P.r/P.V2); S.T=Math.min(400,Math.max(5,5/lm)); const N=400, ts=[],x1=[],x2=[];
+      for(let i=0;i<=N;i++){ const t=S.T*i/N, s=tt2Sol(P,t); ts.push(t); x1.push(s[0]); x2.push(s[1]); } S.data={ts,x1,x2,N};
+      if(S.t>S.T) S.t=0; updateText(); }
+    function updateText(){
+      const P=S.P, a=P.r/P.V1, b=P.r/P.V2, same=Math.abs(a-b)<1e-9, {x10,x20}=P;
+      const Am=`\\begin{pmatrix}-\\tfrac{r}{V_1} & 0\\\\ \\tfrac{r}{V_1} & -\\tfrac{r}{V_2}\\end{pmatrix}=\\begin{pmatrix}${nf(-a,4)} & 0\\\\ ${nf(a,4)} & ${nf(-b,4)}\\end{pmatrix}`;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle x_1'=-\\frac{r}{V_1}x_1,\\qquad x_2'=\\frac{r}{V_1}x_1-\\frac{r}{V_2}x_2`)+
+        dtex(`\\displaystyle \\mathbf{x}'=A\\mathbf{x},\\qquad A=${Am},\\qquad \\mathbf{x}(0)=\\begin{pmatrix}${nf(x10,1)}\\\\ ${nf(x20,1)}\\end{pmatrix}`);
+      let h=`<div><b>1. Eigenvalues.</b> A is lower triangular, so ${itex('\\det(A-\\lambda I)=(-\\tfrac{r}{V_1}-\\lambda)(-\\tfrac{r}{V_2}-\\lambda)=0')} and</div>`+
+        dtex(`\\displaystyle \\lambda_1=-\\frac{r}{V_1}=${nf(-a,4)},\\qquad \\lambda_2=-\\frac{r}{V_2}=${nf(-b,4)}`);
+      let xs1, xs2;
+      if(!same){
+        h+=`<div><b>2. Eigenvectors.</b> Solve ${itex('(A-\\lambda I)\\xi=0')}:</div>`+
+          dtex(`\\displaystyle \\lambda_1:\\ \\begin{pmatrix}0&0\\\\ ${nf(a,4)}&${nf(a-b,4)}\\end{pmatrix}\\xi=0\\ \\Rightarrow\\ \\xi^{(1)}=\\begin{pmatrix}${nf(b-a,4)}\\\\ ${nf(a,4)}\\end{pmatrix},\\qquad \\lambda_2:\\ \\begin{pmatrix}${nf(b-a,4)}&0\\\\ ${nf(a,4)}&0\\end{pmatrix}\\xi=0\\ \\Rightarrow\\ \\xi^{(2)}=\\begin{pmatrix}0\\\\1\\end{pmatrix}`);
+        const c1=x10/(b-a), c2=x20-a*c1;
+        h+=`<div><b>3. General solution</b> ${itex('\\mathbf{x}=c_1e^{\\lambda_1t}\\xi^{(1)}+c_2e^{\\lambda_2t}\\xi^{(2)}')}, and the initial condition fixes ${itex('c_1,c_2')}:</div>`+
+          dtex(`\\displaystyle \\mathbf{x}(0)=c_1\\begin{pmatrix}${nf(b-a,4)}\\\\ ${nf(a,4)}\\end{pmatrix}+c_2\\begin{pmatrix}0\\\\1\\end{pmatrix}=\\begin{pmatrix}${nf(x10,1)}\\\\ ${nf(x20,1)}\\end{pmatrix}\\ \\Rightarrow\\ c_1=${nf(c1,4)},\\ c_2=${nf(c2,4)}`)+
+          dtex(`\\displaystyle \\mathbf{x}(t)=${nf(c1,3)}e^{${nf(-a,4)}t}\\begin{pmatrix}${nf(b-a,4)}\\\\ ${nf(a,4)}\\end{pmatrix}+${nf(c2,3)}e^{${nf(-b,4)}t}\\begin{pmatrix}0\\\\1\\end{pmatrix}`)+
+          dtex(`\\displaystyle x_1=${nf(x10,2)}e^{${nf(-a,4)}t},\\qquad x_2=${nf(a*c1,3)}e^{${nf(-a,4)}t}+${nf(c2,3)}e^{${nf(-b,4)}t}`);
+        h+=`<div><b>4. Check with the sequential method.</b> ${itex('x_1=x_1(0)e^{-rt/V_1}')} comes from the first equation alone. Putting it into ${itex('x_2\\prime+\\tfrac{r}{V_2}x_2=\\tfrac{r}{V_1}x_1')} and using the integrating factor ${itex('e^{rt/V_2}')} gives the same ${itex('x_2')}.</div>`;
+        if(x10>0){ h+=`<div><b>5. Peak of Tank 2.</b> Setting ${itex('x_2\\prime(t)=0')}: ${dtex(`\\displaystyle ${nf(-a*a*c1,3)}e^{${nf(-a,4)}t}${c2*b>=0?'-':'+'}${nf(Math.abs(b*c2),3)}e^{${nf(-b,4)}t}=0`)}`+
+            (x20===0? `With x₂(0)=0 this gives ${itex('t^*=\\dfrac{\\ln(\\lambda_1/\\lambda_2)}{\\lambda_1-\\lambda_2}='+nf(Math.log(a/b)/(a-b),2)+'\\text{ min}')} and ${itex('x_2(t^*)='+nf(tt2Sol(P,Math.log(a/b)/(a-b))[1],3)+'\\text{ kg}')}.` : `Check the curve: with salt already in Tank 2 the maximum may be at t = 0 or later.`)+`</div>`; }
+      } else {
+        h+=`<div><b>2. Repeated eigenvalue.</b> ${itex('\\lambda_1=\\lambda_2=-a')} with ${itex('a=r/V='+nf(a,4))}. ${itex('A-\\lambda I')} has rank 1, so there is only <b>one</b> eigenvector ${itex('\\xi^{(1)}=(0,1)^T')}, and a second, generalized solution with a factor ${itex('t')} is needed.</div>`;
+        h+=dtex(`\\displaystyle x_1=${nf(x10,2)}e^{${nf(-a,4)}t},\\qquad x_2=\\big(${nf(x20,2)}+${nf(a*x10,3)}\\,t\\big)e^{${nf(-a,4)}t}`);
+        h+=`<div>Sequentially: ${itex('x_2\\prime+ax_2=a\\,x_1(0)e^{-at}')}; the right side has the same exponent as the homogeneous solution (resonance), which is where ${itex('t\\,e^{-at}')} comes from.</div>`;
+        h+=`<div>For ${itex('x_2(0)=0')} the peak is at ${itex('t^*=1/a=V/r='+nf(1/a,2)+'\\text{ min}')}.</div>`; }
+      h+=`<div><b>Long-term:</b> both tanks flush out like ${itex('e^{-\\min(r/V_1,\\,r/V_2)\\,t}')}: the larger tank dominates, half-life of the slower mode = ${nf(Math.LN2/Math.min(a,b),1)} min.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      const d=S.data; let mx=0,tm=0; for(let i=0;i<=d.N;i++) if(d.x2[i]>mx){ mx=d.x2[i]; tm=d.ts[i]; }
+      stats.set([{k:'λ₁, λ₂',v:nf(-a,3)+', '+nf(-b,3),accent:1},{k:'type',v:same?'repeated node (defective)':'stable node'},{k:'max x₂',v:nf(mx,2)+' kg @ '+nf(tm,1)+' min',accent:1},{k:'slow time constant',v:nf(1/Math.min(a,b),1)+' min'}]);
+      drawT(); drawPhase(); }
+    function drawT(){ const d=S.data; if(!d)return; const c=tPlot.chart(), T=S.T; const mxv=Math.max(Math.max(...d.x1),Math.max(...d.x2),1e-6)*1.1;
+      c.setX(0,T).setY(0,mxv); c.clear(); c.gridlines(niceTicks(0,T,8),niceTicks(0,mxv,5)); c.axes();
+      const px=d.ts.map(t=>c.X(t)); clipToPlot(c); c.pline(px,d.x1.map(v=>c.Y(v)),COL.calc1,2.4); c.pline(px,d.x2.map(v=>c.Y(v)),COL.coral,2.4); c.ctx.restore();
+      const X=tt2Sol(S.P,S.t); c.vline(S.t,hexA(COL.slate,.5),1.2,[4,4]); c.dot(S.t,X[0],COL.calc1,5); c.dot(S.t,X[1],COL.coral,5);
+      c.axisX(niceTicks(0,T,8)); c.axisY(niceTicks(0,mxv,5)); }
+    function drawPhase(){ const d=S.data; if(!d)return; const P=S.P, c=pPlot.chart(); const a=P.r/P.V1,b=P.r/P.V2;
+      const xm=Math.max(P.x10,1)*1.15, ym=Math.max(P.x20,P.x10*(a>b? 0.5:0.6),Math.max(...d.x2),1)*1.15;
+      c.setX(0,xm).setY(0,ym); c.clear(); c.gridlines(niceTicks(0,xm,6),niceTicks(0,ym,6)); c.axes();
+      /* eigen directions: xi2 = (0,1) is the x2-axis; xi1 = (b-a, a) */
+      clipToPlot(c);
+      c.line(0,0,0,ym,hexA(COL.calc3,.7),2,[6,4]);
+      if(Math.abs(a-b)>1e-9) c.line(0,0,xm,xm*a/(b-a),hexA(COL.amber,.85),2,[6,4]);
+      /* family of trajectories from the right edge and the top */
+      const fam=[]; for(let i=1;i<=5;i++){ fam.push([xm*0.98,ym*i/6]); fam.push([xm*i/6,ym*0.98]); }
+      fam.forEach(p0=>{ const pts=[]; for(let k=0;k<=160;k++){ const t=S.T*k/160; const Q={V1:P.V1,V2:P.V2,r:P.r,x10:p0[0],x20:p0[1]}; const s=tt2Sol(Q,t); pts.push(s); }
+        c.pline(pts.map(p=>c.X(p[0])),pts.map(p=>c.Y(p[1])),hexA(COL.slate,.30),1.2); });
+      c.pline(d.x1.map(v=>c.X(v)),d.x2.map(v=>c.Y(v)),COL.calc2,2.8);
+      c.ctx.restore();
+      const X=tt2Sol(P,S.t); c.dot(P.x10,P.x20,COL.ink,4); c.dot(X[0],X[1],COL.coral,6); c.dot(0,0,COL.green,5);
+      c.axisX(niceTicks(0,xm,6)); c.axisY(niceTicks(0,ym,6)); }
+    restart();
+    let acc=0;
+    runLoop(stage.canvas,dt=>{
+      if(S.playing){ S.t+=dt*S.speed; if(S.t>=S.T) S.t=0; S.phase=(S.phase+dt*0.5)%1; }
+      drawTwoTankScene(stage.ctx2(),S); acc+=dt; if(acc>0.07){ acc=0; drawT(); drawPhase(); } });
+  }
+});
+
+/* ---------- coupled spring-mass:  M x'' = -K x ,  4x4 first-order form with state (x1,x2,x1',x2') ---------- */
+function csmModes(P){ const {m1,m2,k1,k2,k3}=P; const A=m1*m2, B=-(m1*(k2+k3)+m2*(k1+k2)), C=(k1+k2)*(k2+k3)-k2*k2;
+  const D=Math.max(0,B*B-4*A*C), s=Math.sqrt(D), w1=(-B-s)/(2*A), w2=(-B+s)/(2*A);   /* w = omega^2, w1 <= w2 */
+  const modes=[w1,w2].map(w=>{ let u=[k2,k1+k2-m1*w]; const n=Math.max(Math.abs(u[0]),Math.abs(u[1]))||1; u=[u[0]/n,u[1]/n]; return {w,om:Math.sqrt(Math.max(w,0)),u}; });
+  return {A,B,C,D,modes}; }
+function csmSol(P,MD,t){ const {m1,m2}=P; const x0=[P.x10,P.x20], v0=[P.v10,P.v20]; let x=[0,0];
+  MD.modes.forEach(md=>{ const u=md.u, den=m1*u[0]*u[0]+m2*u[1]*u[1];
+    const c=(m1*u[0]*x0[0]+m2*u[1]*x0[1])/den, d=(m1*u[0]*v0[0]+m2*u[1]*v0[1])/den/(md.om||1);
+    const q=c*Math.cos(md.om*t)+d*Math.sin(md.om*t); x[0]+=q*u[0]; x[1]+=q*u[1]; md.c=c; md.d=d; });
+  return x; }
+function drawCoupledScene(ch,S){ const ctx=ch.ctx,W=ch.W,H=ch.H; ctx.clearRect(0,0,W,H); const P=S.P, X=csmSol(P,S.MD,S.t);
+  const wl=26, wr=W-26, yc=H*0.52, span=wr-wl, e1=wl+span/3, e2=wl+2*span/3, sc=span*0.13;
+  const bw=m=>34+18*Math.sqrt(m), bh=m=>38+14*Math.sqrt(m);
+  const p1=e1+X[0]*sc, p2=e2+X[1]*sc, w1=bw(P.m1), w2=bw(P.m2);
+  /* walls */
+  ctx.strokeStyle=COL.ink; ctx.lineWidth=2.5; ctx.fillStyle=hexA(COL.slate,.25);
+  [[wl-12,12],[wr,12]].forEach(([x,w])=>{ ctx.fillRect(x,yc-60,w,120); ctx.strokeRect(x,yc-60,w,120); });
+  /* equilibrium markers */
+  ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle=hexA(COL.slate,.55); ctx.lineWidth=1; [e1,e2].forEach(e=>{ ctx.beginPath(); ctx.moveTo(e,yc-70); ctx.lineTo(e,yc+76); ctx.stroke(); }); ctx.restore();
+  /* springs */
+  ctx.strokeStyle=COL.slate; ctx.lineWidth=2.2; ctx.lineJoin='round';
+  drawZigSpring(ctx,wl,yc,p1-w1/2,yc,12,8+0); drawZigSpring(ctx,p1+w1/2,yc,p2-w2/2,yc,12,8); drawZigSpring(ctx,p2+w2/2,yc,wr,yc,12,8);
+  /* masses */
+  function mass(px,w,h,col,lab){ ctx.fillStyle=hexA(col,.22); ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.beginPath(); ctx.rect(px-w/2,yc-h/2,w,h); ctx.fill(); ctx.stroke(); pxText(ctx,lab,px,yc,COL.ink,14,'center',true); }
+  mass(p1,w1,bh(P.m1),COL.calc1,'m\u2081='+nf(P.m1,1)); mass(p2,w2,bh(P.m2),COL.coral,'m\u2082='+nf(P.m2,1));
+  pxText(ctx,'k\u2081='+nf(P.k1,1),(wl+p1-w1/2)/2,yc-24,COL.soft,12,'center',true);
+  pxText(ctx,'k\u2082='+nf(P.k2,1),(p1+w1/2+p2-w2/2)/2,yc-24,COL.soft,12,'center',true);
+  pxText(ctx,'k\u2083='+nf(P.k3,1),(p2+w2/2+wr)/2,yc-24,COL.soft,12,'center',true);
+  /* displacement arrows */
+  const ya=yc+bh(Math.max(P.m1,P.m2))/2+22;
+  if(Math.abs(X[0])>0.02) drawArrowPx(ctx,e1,ya,p1,ya,COL.calc1,2.4); if(Math.abs(X[1])>0.02) drawArrowPx(ctx,e2,ya+14,p2,ya+14,COL.coral,2.4);
+  pxText(ctx,'x\u2081 = '+nf(X[0],2),e1,ya+30,COL.calc1,12,'center',true); pxText(ctx,'x\u2082 = '+nf(X[1],2),e2,ya+30,COL.coral,12,'center',true);
+  pxText(ctx,'t = '+nf(S.t,2)+' s   (dashed lines = equilibrium positions)',12,14,COL.soft,12,'left',true); }
+
+add({ id:'coupled-spring-mass', cat:'c4', tag:'live', title:'Coupled Spring\u2013Mass System \u2014 Normal Modes', diff:'adv', ch:'7.1 \u00b7 Second-order system \u2192 4\u00d74 first-order',
+  questions:[
+    'Why is a pair of second-order equations equivalent to a 4\u00d74 first-order system? What are the four state variables?',
+    'The four eigenvalues come in pairs \u00b1i\u03c9\u2081, \u00b1i\u03c9\u2082. Why are they purely imaginary (what physical effect is missing)?',
+    'Press \u201cmode 1\u201d and \u201cmode 2\u201d: in each, both masses oscillate at a single frequency. Which one is the in-phase motion, and why is it the slower one?',
+    'Start with only x\u2081(0) \u2260 0. Energy slowly passes from mass 1 to mass 2 and back. Make \u03c9\u2081 and \u03c9\u2082 almost equal (weak middle spring k\u2082) \u2014 what do you see?'
+  ],
+  blurb:'Two masses m\u2081, m\u2082 joined to walls and to each other by springs k\u2081, k\u2082, k\u2083. Newton\u2019s law gives m\u2081x\u2081\u2033 = \u2212(k\u2081+k\u2082)x\u2081 + k\u2082x\u2082 and m\u2082x\u2082\u2033 = k\u2082x\u2081 \u2212 (k\u2082+k\u2083)x\u2082, i.e. a 4\u00d74 system for (x\u2081, x\u2082, x\u2081\u2032, x\u2082\u2032)\u1d40. The eigenvalues \u00b1i\u03c9\u2081, \u00b1i\u03c9\u2082 are the two natural frequencies; every motion is a combination of the two normal modes.',
+  build(host){
+    const S={playing:true,speed:1,t:0,P:null,MD:null,T:20};
+    let playBtn=null;
+    const m1S=UI.slider({label:'mass m\u2081',min:0.5,max:4,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const m2S=UI.slider({label:'mass m\u2082',min:0.5,max:4,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const k1S=UI.slider({label:'spring k\u2081 (left wall)',min:0.5,max:10,step:0.1,value:4,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const k2S=UI.slider({label:'spring k\u2082 (middle, coupling)',min:0.1,max:10,step:0.1,value:2,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const k3S=UI.slider({label:'spring k\u2083 (right wall)',min:0.5,max:10,step:0.1,value:4,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const x1S=UI.slider({label:'initial displacement x\u2081(0)',min:-1.5,max:1.5,step:0.05,value:1,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const x2S=UI.slider({label:'initial displacement x\u2082(0)',min:-1.5,max:1.5,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const v1S=UI.slider({label:'initial velocity x\u2081\u2032(0)',min:-2,max:2,step:0.1,value:0,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const v2S=UI.slider({label:'initial velocity x\u2082\u2032(0)',min:-2,max:2,step:0.1,value:0,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const spS=UI.slider({label:'animation speed',min:0.2,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1)+'\u00d7',oninput:v=>{ S.speed=v; }});
+    function setMode(j){ const MD=csmModes(curP()); const u=MD.modes[j].u; x1S.set(u[0]); x2S.set(u[1]); v1S.set(0); v2S.set(0); restart(); }
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>{ S.t=0; }},
+      {label:'Mode 1 (slow)',onclick:()=>setMode(0)},
+      {label:'Mode 2 (fast)',onclick:()=>setMode(1)},
+      {label:'Pull only m\u2081',onclick:()=>{ x1S.set(1); x2S.set(0); v1S.set(0); v2S.set(0); restart(); }},
+      {label:'Equal masses & walls',onclick:()=>{ m1S.set(1); m2S.set(1); k1S.set(4); k3S.set(4); restart(); }}
+    ]);
+    const stats=UI.statsBox();
+    const odeBox=modelBox('Model \u2014 updates with the sliders','','accent1');
+    const stage=animStage('the two masses \u2014 watch the energy move between them',270);
+    const tPlot=UI.plotCard('x\u2081(t) (blue) and x\u2082(t) (coral)',250);
+    const pPlot=UI.plotCard('configuration plane (x\u2081, x\u2082) with the two normal-mode directions',320);
+    const solBox=modelBox('Solution by eigenvalues','','accent3');
+    host.appendChild(UI.appGrid([m1S,m2S,k1S,k2S,k3S,x1S,x2S,v1S,v2S,spS,btns,stats,
+      UI.note('<b>Normal modes.</b> Try x = \u03be e<sup>i\u03c9t</sup>: both masses move with the same frequency \u03c9. Substituting gives (K \u2212 \u03c9\u00b2M)\u03be = 0, which has a non-zero solution only for the two special values \u03c9\u2081, \u03c9\u2082. Starting exactly on a mode shape (buttons) gives a pure sinusoid; any other start is a sum of the two, which is why the motion looks complicated.')],
+      [odeBox,stage,tPlot,pPlot,solBox]));
+    function curP(){ return {m1:m1S.get(),m2:m2S.get(),k1:k1S.get(),k2:k2S.get(),k3:k3S.get(),x10:x1S.get(),x20:x2S.get(),v10:v1S.get(),v20:v2S.get()}; }
+    function restart(){ const P=curP(); S.P=P; const MD=csmModes(P); S.MD=MD; S.T=Math.min(80,Math.max(6,4*2*Math.PI/MD.modes[0].om)); if(S.t>S.T) S.t=0; updateText(); }
+    function updateText(){
+      const P=S.P, MD=S.MD, [M1,M2]=MD.modes, {m1,m2,k1,k2,k3}=P;
+      const a31=-(k1+k2)/m1, a32=k2/m1, a41=k2/m2, a42=-(k2+k3)/m2;
+      odeBox.querySelector('.model-body').innerHTML=
+        dtex(`\\displaystyle m_1x_1''=-(k_1+k_2)x_1+k_2x_2,\\qquad m_2x_2''=k_2x_1-(k_2+k_3)x_2`)+
+        dtex(`\\displaystyle \\frac{d}{dt}\\begin{pmatrix}x_1\\\\x_2\\\\x_1'\\\\x_2'\\end{pmatrix}=\\begin{pmatrix}0&0&1&0\\\\0&0&0&1\\\\-\\frac{k_1+k_2}{m_1}&\\frac{k_2}{m_1}&0&0\\\\ \\frac{k_2}{m_2}&-\\frac{k_2+k_3}{m_2}&0&0\\end{pmatrix}\\mathbf{x}`)+
+        dtex(`\\displaystyle \\phantom{\\frac{d}{dt}\\mathbf{x}}=\\begin{pmatrix}0&0&1&0\\\\0&0&0&1\\\\${nf(a31,3)}&${nf(a32,3)}&0&0\\\\${nf(a41,3)}&${nf(a42,3)}&0&0\\end{pmatrix}\\mathbf{x}`);
+      const w1=M1.om, w2=M2.om;
+      let h=`<div><b>1. Eigenvalues.</b> Look for ${itex('\\mathbf{x}=\\xi e^{\\lambda t}')} and write ${itex('\\lambda^2=-\\omega^2')}. The characteristic equation ${itex('\\det(A-\\lambda I)=0')} reduces to a quadratic in ${itex('\\omega^2')}:</div>`+
+        dtex(`\\displaystyle m_1m_2\\,\\omega^4-\\big[m_1(k_2+k_3)+m_2(k_1+k_2)\\big]\\omega^2+(k_1+k_2)(k_2+k_3)-k_2^2=0`)+
+        dtex(`\\displaystyle ${nf(MD.A,3)}\\,\\omega^4${MD.B<0?'-':'+'}${nf(Math.abs(MD.B),3)}\\,\\omega^2${MD.C<0?'-':'+'}${nf(Math.abs(MD.C),3)}=0\\ \\Rightarrow\\ \\omega_1^2=${nf(M1.w,4)},\\ \\omega_2^2=${nf(M2.w,4)}`)+
+        dtex(`\\displaystyle \\lambda=\\pm i\\omega_1=\\pm ${nf(w1,3)}\\,i,\\qquad \\lambda=\\pm i\\omega_2=\\pm ${nf(w2,3)}\\,i`)+
+        `<div>Natural frequencies ${itex('\\omega_1='+nf(w1,3))}, ${itex('\\omega_2='+nf(w2,3))} rad/s, periods ${itex('T_1='+nf(2*Math.PI/w1,2))} s and ${itex('T_2='+nf(2*Math.PI/w2,2))} s. All four eigenvalues are purely imaginary (no damping), so every solution is a sum of two undamped oscillations.</div>`;
+      h+=`<div><b>2. Mode shapes</b> (eigenvectors). ${itex('(K-\\omega^2M)u=0')} gives ${itex('u=(k_2,\\ k_1+k_2-m_1\\omega^2)^T')}, scaled so the larger entry is 1:</div>`+
+        dtex(`\\displaystyle u^{(1)}=\\begin{pmatrix}${nf(M1.u[0],3)}\\\\${nf(M1.u[1],3)}\\end{pmatrix}\\ (\\omega_1),\\qquad u^{(2)}=\\begin{pmatrix}${nf(M2.u[0],3)}\\\\${nf(M2.u[1],3)}\\end{pmatrix}\\ (\\omega_2)`)+
+        `<div>${M1.u[0]*M1.u[1]>0?'Mode 1: the masses move <b>in phase</b> (the middle spring is hardly stretched \u2192 lower frequency).':'Mode 1: the masses move in opposite directions.'} ${M2.u[0]*M2.u[1]<0?'Mode 2: the masses move <b>out of phase</b> (the middle spring is stretched the most \u2192 higher frequency).':'Mode 2: the masses move in the same direction.'}</div>`;
+      h+=`<div><b>3. General real solution</b> (4 constants for the 4\u00d74 system):</div>`+
+        dtex(`\\displaystyle \\mathbf{x}(t)=\\big(c_1\\cos\\omega_1t+d_1\\sin\\omega_1t\\big)\\,u^{(1)}+\\big(c_2\\cos\\omega_2t+d_2\\sin\\omega_2t\\big)\\,u^{(2)}`);
+      const x0=[P.x10,P.x20]; csmSol(P,MD,0);
+      h+=`<div><b>4. Fit the initial data</b> ${itex('x(0)=('+nf(P.x10,2)+','+nf(P.x20,2)+'),\\ x\\prime(0)=('+nf(P.v10,1)+','+nf(P.v20,1)+')')} (use ${itex('u_j^TM(\\cdot)')} to separate the modes):</div>`+
+        dtex(`\\displaystyle c_1=${nf(M1.c,3)},\\ d_1=${nf(M1.d,3)},\\qquad c_2=${nf(M2.c,3)},\\ d_2=${nf(M2.d,3)}`);
+      const sym=Math.abs(m1-m2)<1e-9&&Math.abs(k1-k3)<1e-9;
+      if(sym) h+=`<div><b>Special case</b> ${itex('m_1=m_2=m,\\ k_1=k_3')}: ${itex('\\omega_1=\\sqrt{k_1/m}='+nf(Math.sqrt(k1/m1),3))} (mode ${itex('(1,1)')}, middle spring unstretched) and ${itex('\\omega_2=\\sqrt{(k_1+2k_2)/m}='+nf(Math.sqrt((k1+2*k2)/m1),3))} (mode ${itex('(1,-1)')}).</div>`;
+      const beat=Math.abs(w2-w1)<0.35*w1 && (Math.abs(M1.c*M1.u[0])>1e-6&&Math.abs(M2.c*M2.u[0])>1e-6);
+      if(beat) h+=`<div><b>Beats.</b> The two frequencies are close, so the motion looks like one oscillation at ${itex('(\\omega_1+\\omega_2)/2='+nf((w1+w2)/2,3))} whose amplitude swells and fades with period ${itex('2\\pi/(\\omega_2-\\omega_1)='+nf(2*Math.PI/(w2-w1),1))} s: energy sloshes between the masses.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'\u03c9\u2081, \u03c9\u2082 (rad/s)',v:nf(w1,3)+', '+nf(w2,3),accent:1},{k:'periods T\u2081, T\u2082',v:nf(2*Math.PI/w1,2)+', '+nf(2*Math.PI/w2,2)},{k:'\u03c9\u2082 / \u03c9\u2081',v:nf(w2/w1,3),accent:1},{k:'eigenvalues',v:'\u00b1'+nf(w1,2)+'i, \u00b1'+nf(w2,2)+'i'}]);
+      drawT(); drawPhase(); }
+    function drawT(){ const P=S.P,MD=S.MD,T=S.T,N=500; const xs=[],ys=[],ts=[]; let mx=1e-6;
+      for(let i=0;i<=N;i++){ const t=T*i/N, X=csmSol(P,MD,t); ts.push(t); xs.push(X[0]); ys.push(X[1]); mx=Math.max(mx,Math.abs(X[0]),Math.abs(X[1])); }
+      mx*=1.15; const c=tPlot.chart(); c.setX(0,T).setY(-mx,mx); c.clear(); c.gridlines(niceTicks(0,T,8),niceTicks(-mx,mx,6)); c.axes();
+      const px=ts.map(t=>c.X(t)); clipToPlot(c); c.pline(px,xs.map(v=>c.Y(v)),COL.calc1,2.2); c.pline(px,ys.map(v=>c.Y(v)),COL.coral,2.2); c.ctx.restore();
+      const X=csmSol(P,MD,S.t); c.vline(S.t,hexA(COL.slate,.5),1.2,[4,4]); c.dot(S.t,X[0],COL.calc1,5); c.dot(S.t,X[1],COL.coral,5);
+      c.axisX(niceTicks(0,T,8)); c.axisY(niceTicks(-mx,mx,6)); S._mx=mx; S._tr=[xs,ys]; }
+    function drawPhase(){ const P=S.P,MD=S.MD; const mx=S._mx||1.5; const c=pPlot.chart(); c.setX(-mx,mx).setY(-mx,mx); c.clear(); c.gridlines(niceTicks(-mx,mx,6),niceTicks(-mx,mx,6)); c.axes();
+      MD.modes.forEach((m,i)=>{ const L=mx*1.2/Math.max(Math.abs(m.u[0]),Math.abs(m.u[1])); c.line(-L*m.u[0],-L*m.u[1],L*m.u[0],L*m.u[1],hexA(i?COL.calc3:COL.amber,.8),2,[6,4]); });
+      const tr=S._tr; if(tr){ clipToPlot(c); c.pline(tr[0].map(v=>c.X(v)),tr[1].map(v=>c.Y(v)),hexA(COL.calc2,.8),1.6); c.ctx.restore(); }
+      const X=csmSol(P,MD,S.t); c.dot(P.x10,P.x20,COL.ink,4); c.dot(X[0],X[1],COL.coral,6);
+      c.axisX(niceTicks(-mx,mx,6)); c.axisY(niceTicks(-mx,mx,6)); }
+    restart();
+    let acc=0;
+    runLoop(stage.canvas,dt=>{ if(S.playing){ S.t+=dt*S.speed; if(S.t>=S.T) S.t=0; }
+      drawCoupledScene(stage.ctx2(),S); acc+=dt; if(acc>0.06){ acc=0; drawTcursorOnly(); } });
+    /* cheap redraw: cursor on the time plot and moving dot on the configuration plane */
+    function drawTcursorOnly(){ drawT(); drawPhase(); }
+  }
+});
+
+/* ---------- stability of x' = A x from the eigenvalues (all cases of the Chapter 7 summary) ---------- */
+function stabClassify(a,b,c,d){ const tr=+(a+d).toFixed(9), det=+(a*d-b*c).toFixed(9), disc=+(tr*tr-4*det).toFixed(9), eps=1e-7;
+  const R={tr,det,disc}; const diag=Math.abs(b)<eps&&Math.abs(c)<eps&&Math.abs(a-d)<eps;
+  if(det<-eps){ R.key='saddle'; R.name='saddle point'; R.stab='unstable'; R.col=COL.coral; }
+  else if(Math.abs(det)<eps){ R.key='zero'; R.name='degenerate: a zero eigenvalue (line of equilibria)'; R.stab=tr<-eps?'stable (not asymptotically): trajectories run to the line of equilibria':tr>eps?'unstable':'stable only if A = 0 (otherwise unstable)'; R.col=COL.slate; }
+  else if(disc>eps){ if(tr<0){ R.key='snode'; R.name='stable (nodal sink) node'; R.stab='asymptotically stable'; R.col=COL.green; } else { R.key='unode'; R.name='unstable (nodal source) node'; R.stab='unstable'; R.col=COL.coral; } }
+  else if(disc>=-eps){ if(diag){ R.key=tr<0?'sstar':'ustar'; R.name=(tr<0?'stable':'unstable')+' star node (repeated λ, two eigenvectors)'; }
+    else { R.key=tr<0?'simp':'uimp'; R.name=(tr<0?'stable':'unstable')+' improper node (repeated λ, one eigenvector)'; }
+    R.stab=tr<0?'asymptotically stable':'unstable'; R.col=tr<0?COL.green:COL.coral; }
+  else { if(tr<-eps){ R.key='sspir'; R.name='stable spiral (spiral sink)'; R.stab='asymptotically stable'; R.col=COL.green; }
+    else if(tr>eps){ R.key='uspir'; R.name='unstable spiral (spiral source)'; R.stab='unstable'; R.col=COL.coral; }
+    else { R.key='center'; R.name='center (closed orbits)'; R.stab='stable, but not asymptotically stable'; R.col=COL.calc3; } }
+  return R; }
+const STAB_ROWS=[
+  ['snode','Real, distinct, both λ < 0','Stable node','Asymptotically stable'],
+  ['unode','Real, distinct, both λ > 0','Unstable node','Unstable'],
+  ['saddle','Real, opposite signs','Saddle','Unstable'],
+  ['sspir','Complex α ± iβ,  α < 0','Stable spiral','Asymptotically stable'],
+  ['uspir','Complex α ± iβ,  α > 0','Unstable spiral','Unstable'],
+  ['center','Pure imaginary ±iβ','Center','Stable, not asymptotically'],
+  ['sstar','Repeated λ < 0, two eigenvectors','Stable star','Asymptotically stable'],
+  ['simp','Repeated λ < 0, one eigenvector','Stable improper node','Asymptotically stable'],
+  ['uimp','Repeated λ > 0 (star or improper)','Unstable node','Unstable'],
+  ['zero','One λ = 0','Line of equilibria','Not asymptotically stable']];
+
+add({ id:'stability-eigenvalues', cat:'c4', tag:'interactive', title:'Stability from Eigenvalues — Every Case', diff:'inter', ch:'7.5 · Stability of x′ = A x',
+  questions:[
+    'Only the real parts of the eigenvalues decide whether x(t) → 0. Which sign pattern makes the origin asymptotically stable?',
+    'On the trace–determinant map, what do the parabola Δ = tr² − 4 det = 0, the line det = 0 and the line tr = 0 separate?',
+    'Slide to a centre (tr = 0, det > 0). Why is this stable but NOT asymptotically stable? Nudge tr slightly in each direction.',
+    'A star and an improper node both have a repeated eigenvalue. What is different in the phase portrait, and why does the stability verdict stay the same?'
+  ],
+  blurb:'Pick a matrix A (sliders or presets) and see the classification the notes summarise: stable / unstable node, saddle, spirals, centre, and the repeated-eigenvalue star and improper nodes. Four linked pictures — phase portrait, eigenvalues in the complex plane, the trace–determinant map, and the worked computation — move together.',
+  build(host){
+    const sl=(lab,v)=>UI.slider({label:lab,min:-3,max:3,step:0.1,value:v,fmt:x=>x.toFixed(1),oninput:()=>render()});
+    const aS=sl('a₁₁',-3),bS=sl('a₁₂',1),cS=sl('a₂₁',1),dS=sl('a₂₂',-3);
+    const PRE={ snode:[-3,1,1,-3], unode:[3,1,1,3], saddle:[1,2,2,1], sspir:[-0.5,2,-2,-0.5], uspir:[0.5,2,-2,0.5], center:[0,2,-2,0], sstar:[-1,0,0,-1], simp:[-1,1,0,-1], uimp:[1,1,0,1], zero:[1,1,1,1] };
+    const sel=UI.select({label:'preset case',value:'snode',options:STAB_ROWS.map(r=>({value:r[0],label:r[2]+' — '+r[1]})),onchange:k=>{ const p=PRE[k]; aS.set(p[0]); bS.set(p[1]); cS.set(p[2]); dS.set(p[3]); render(); }});
+    let trajs=[]; const stats=UI.statsBox(); const verdict=UI.note('');
+    const clr=UI.buttons([{label:'Clear clicked trajectories',onclick:()=>{ trajs=[]; render(); }}]);
+    const phase=UI.plotCard('phase portrait · click to add a trajectory',380);
+    const eigP=UI.plotCard('eigenvalues in the complex plane (green = Re λ < 0)',250);
+    const tdP=UI.plotCard('trace–determinant map',330);
+    const tblBox=document.createElement('div'); tblBox.className='note'; tblBox.style.overflowX='auto';
+    const solBox=modelBox('Computation','','accent3');
+    host.appendChild(UI.appGrid([sel,aS,bS,cS,dS,clr,stats,verdict],[phase,eigP,tdP,tblBox,solBox]));
+    const cv=phase.canvas; cv.style.cursor='crosshair'; let down=null;
+    cv.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+    cv.addEventListener('click',e=>{ if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return; const ch=cv._chart; if(!ch)return; const r=cv.getBoundingClientRect(); trajs.push([ch.ix(e.clientX-r.left),ch.iy(e.clientY-r.top)]); render(); });
+    function render(){ const a=aS.get(),b=bS.get(),c=cS.get(),d=dS.get(); const R=stabClassify(a,b,c,d), E=ODE.eig2(a,b,c,d); const col=R.col;
+      let l1,l2,im=0,re; if(E.real){ l1=E.l1; l2=E.l2; re=null; } else { re=E.re; im=E.im; }
+      const evTxt=E.real?nf(l1,3)+', '+nf(l2,3):nf(re,3)+' ± '+nf(im,3)+' i';
+      stats.set([{k:'trace, det',v:nf(R.tr,2)+', '+nf(R.det,2)},{k:'Δ = tr²−4det',v:nf(R.disc,2)},{k:'eigenvalues',v:evTxt,accent:1},{k:'verdict',v:R.stab.startsWith('asymp')?'asympt. stable':R.stab.startsWith('stable')?'stable (borderline)':R.stab.startsWith('unstable')?'unstable':'borderline'}]);
+      verdict.innerHTML=`<b style="color:${col}">${R.name}</b><br>${R.stab}`; verdict.style.borderLeftColor=col;
+      /* ---- phase portrait ---- */
+      const lim=4, ch=phase.chart(); ch.setX(-lim,lim).setY(-lim,lim); ch.clear(); ch.gridlines(niceTicks(-lim,lim,8),niceTicks(-lim,lim,8)); ch.axes();
+      const ctx=ch.ctx, F=(t,p)=>[a*p[0]+b*p[1],c*p[0]+d*p[1]]; const G=14;
+      for(let i=0;i<=G;i++)for(let j=0;j<=G;j++){ const x=-lim+2*lim*i/G,y=-lim+2*lim*j/G, vx=a*x+b*y, vy=c*x+d*y; const px=ch.X(x),py=ch.Y(y); const dpx=ch.X(x+vx)-px,dpy=ch.Y(y+vy)-py,dl=Math.hypot(dpx,dpy)||1,k=8/dl;
+        ctx.strokeStyle=hexA(COL.slate,.28); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+dpx*k,py+dpy*k); ctx.stroke(); }
+      if(E.real&&(R.key!=='sstar'&&R.key!=='ustar')){ [[E.v1,COL.amber],[E.v2,COL.calc3]].forEach(([v,cc])=>{ const n=Math.hypot(v[0],v[1])||1; const ux=v[0]/n,uy=v[1]/n; ch.line(-lim*2*ux,-lim*2*uy,lim*2*ux,lim*2*uy,hexA(cc,.7),1.8,[6,4]); }); }
+      const mag=Math.max(Math.abs(E.real?l1:re),Math.abs(E.real?l2:re),im,0.3); const T=M.clamp(3.2/mag,0.6,9);
+      const seeds=[]; for(let k=0;k<8;k++){ const th=Math.PI/4*k+0.2; seeds.push([3*Math.cos(th),3*Math.sin(th)]); seeds.push([1.3*Math.cos(th+0.4),1.3*Math.sin(th+0.4)]); }
+      const cols=[COL.calc1,COL.calc2,COL.coral,COL.calc3,COL.amber,COL.green];
+      clipToPlot(ch); seeds.concat(trajs).forEach((p0,k)=>{ const pts=ODE.traj(F,p0,T,0.02); const cc=k>=seeds.length?COL.ink:cols[k%6];
+        ch.pline(pts.map(p=>ch.X(p[0])),pts.map(p=>ch.Y(p[1])),hexA(cc,k>=seeds.length?.95:.8),k>=seeds.length?2.4:1.8);
+        const v=F(0,p0), sx=ch.X(p0[0]), sy=ch.Y(p0[1]), n=Math.hypot(ch.X(p0[0]+v[0])-sx,ch.Y(p0[1]+v[1])-sy)||1; const ux=(ch.X(p0[0]+v[0])-sx)/n, uy=(ch.Y(p0[1]+v[1])-sy)/n;
+        drawArrowPx(ctx,sx-ux*5,sy-uy*5,sx+ux*5,sy+uy*5,cc,1.8); }); ctx.restore();
+      ch.dot(0,0,col,6); ch.axisX(niceTicks(-lim,lim,8)); ch.axisY(niceTicks(-lim,lim,8));
+      /* ---- eigenvalue plane ---- */
+      const L=Math.max(1,Math.abs(E.real?l1:re),Math.abs(E.real?l2:re),im)*1.4, e=eigP.chart(); e.setX(-L,L).setY(-L,L); e.clear();
+      ctx.save(); const ec=e.ctx; ec.fillStyle=hexA(COL.green,.10); ec.fillRect(e.px0,e.py1,e.X(0)-e.px0,e.py0-e.py1); ec.fillStyle=hexA(COL.coral,.07); ec.fillRect(e.X(0),e.py1,e.px1-e.X(0),e.py0-e.py1); ec.restore();
+      e.gridlines(niceTicks(-L,L,6),niceTicks(-L,L,6)); e.axes();
+      pxText(e.ctx,'stable',e.px0+8,e.py1+10,COL.green,11,'left',true); pxText(e.ctx,'unstable',e.px1-8,e.py1+10,COL.coral,11,'right',true); pxText(e.ctx,'Re λ',e.px1-6,e.Y(0)-10,COL.soft,11,'right'); pxText(e.ctx,'Im λ',e.X(0)+6,e.py1+24,COL.soft,11,'left');
+      if(E.real){ e.dot(l1,0,col,7); e.dot(l2,0,col,7); } else { e.dot(re,im,col,7); e.dot(re,-im,col,7); }
+      e.axisX(niceTicks(-L,L,6)); e.axisY(niceTicks(-L,L,6));
+      /* ---- trace-determinant map ---- */
+      const tm=6, dmx=9, dmn=-6, t=tdP.chart(); t.setX(-tm,tm).setY(dmn,dmx); t.clear(); const tc=t.ctx;
+      t.gridlines(niceTicks(-tm,tm,6),niceTicks(dmn,dmx,5));
+      tc.save(); tc.fillStyle=hexA(COL.coral,.10); tc.fillRect(t.px0,t.Y(0),t.px1-t.px0,t.py0-t.Y(0)); tc.restore();
+      t.axes(); t.curve(x=>x*x/4,COL.slate,2,200);
+      [['saddle (unstable)',0,-3,COL.coral],['stable node',-4.2,1.2,COL.green],['unstable node',4.2,1.2,COL.coral],['stable spiral',-3,6,COL.green],['unstable spiral',3,6,COL.coral]].forEach(([s,x,y,cc])=>pxText(t.ctx,s,t.X(x),t.Y(y),cc,11,'center',true));
+      pxText(t.ctx,'centers (tr = 0)',t.X(0)+6,t.Y(7.4),COL.calc3,11,'left',true); pxText(t.ctx,'Δ = 0',t.X(4.7),t.Y(5.6),COL.slate,10,'left');
+      const mx=M.clamp(R.tr,-tm,tm), my=M.clamp(R.det,dmn,dmx); t.dot(mx,my,col,8); t.ctx.strokeStyle=COL.ink; t.ctx.lineWidth=1.5; t.ctx.beginPath(); t.ctx.arc(t.X(mx),t.Y(my),10,0,7); t.ctx.stroke();
+      pxText(t.ctx,'trace',t.px1-4,t.Y(0)+12,COL.soft,11,'right'); pxText(t.ctx,'det',t.X(0)-6,t.py1+8,COL.soft,11,'right');
+      t.axisX(niceTicks(-tm,tm,6)); t.axisY(niceTicks(dmn,dmx,5));
+      /* ---- table ---- */
+      tblBox.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:.85rem"><tr style="text-align:left;color:var(--soft,#445268)"><th style="padding:4px 6px">eigenvalues</th><th>origin</th><th>stability</th></tr>'+
+        STAB_ROWS.map(r=>{ const on=r[0]===R.key||(R.key==='ustar'&&r[0]==='uimp'); return `<tr style="${on?'background:'+hexA(col,.18)+';font-weight:700':''}"><td style="padding:4px 6px">${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`; }).join('')+'</table>';
+      /* ---- worked computation ---- */
+      let h=dtex(`\\displaystyle A=\\begin{pmatrix}${nf(a,1)}&${nf(b,1)}\\\\${nf(c,1)}&${nf(d,1)}\\end{pmatrix},\\qquad \\operatorname{tr}A=${nf(R.tr,2)},\\quad \\det A=${nf(R.det,2)}`)+
+        `<div><b>1. Characteristic equation</b> ${itex('\\det(A-\\lambda I)=\\lambda^2-(\\operatorname{tr}A)\\lambda+\\det A=0')}:</div>`+
+        dtex(`\\displaystyle \\lambda^2${R.tr<=0?'+':'-'}${nf(Math.abs(R.tr),2)}\\lambda${R.det<0?'-':'+'}${nf(Math.abs(R.det),2)}=0,\\qquad \\lambda=\\frac{\\operatorname{tr}\\pm\\sqrt{\\operatorname{tr}^2-4\\det}}{2},\\quad \\Delta=${nf(R.disc,2)}`);
+      if(E.real) h+=`<div><b>2. Eigenvalues</b> (${R.disc>1e-7?'two real roots':'one repeated root'}):</div>`+dtex(`\\displaystyle \\lambda_1=${nf(l1,3)},\\qquad \\lambda_2=${nf(l2,3)}`);
+      else h+=`<div><b>2. Eigenvalues</b> (${itex('\\Delta<0')}: complex pair ${itex('\\alpha\\pm i\\beta')}):</div>`+dtex(`\\displaystyle \\lambda=\\alpha\\pm i\\beta=${nf(re,3)}\\pm ${nf(im,3)}\\,i`);
+      if(E.real&&R.disc>1e-7&&Math.abs(R.det)>1e-7) h+=`<div><b>3. Eigenvectors</b> (solve ${itex('(A-\\lambda I)\\xi=0')}); the solution is ${itex('\\mathbf{x}=c_1e^{\\lambda_1t}\\xi^{(1)}+c_2e^{\\lambda_2t}\\xi^{(2)}')}:</div>`+dtex(`\\displaystyle \\xi^{(1)}\\propto\\begin{pmatrix}${nf(E.v1[0],2)}\\\\${nf(E.v1[1],2)}\\end{pmatrix}\\ (\\lambda_1),\\qquad \\xi^{(2)}\\propto\\begin{pmatrix}${nf(E.v2[0],2)}\\\\${nf(E.v2[1],2)}\\end{pmatrix}\\ (\\lambda_2)`);
+      else if(!E.real) h+=`<div><b>3.</b> Real solutions come from ${itex('e^{\\alpha t}(\\cos\\beta t,\\ \\sin\\beta t)')}: the factor ${itex('e^{\\alpha t}')} decides growth or decay, ${itex('\\beta')} the rotation speed. See the next applet, <i>Real Solutions from Complex Eigenvalues</i>.</div>`;
+      else if(R.key==='simp'||R.key==='uimp') h+=`<div><b>3.</b> Only one eigenvector, so a second solution ${itex('t\\,e^{\\lambda t}\\xi+e^{\\lambda t}\\eta')} is needed (generalized eigenvector).</div>`;
+      h+=`<div><b>4. Verdict.</b> ${E.real?itex(`\\lambda_{1,2}=${nf(l1,2)},\\ ${nf(l2,2)}`):itex(`\\operatorname{Re}\\lambda=${nf(re,2)}`)} → <b style="color:${col}">${R.name}</b>; ${R.stab}.</div>`+
+        `<div style="color:var(--soft)">Rule: all ${itex('\\operatorname{Re}\\lambda<0')} ⇒ every solution → 0 (asymptotically stable); any ${itex('\\operatorname{Re}\\lambda>0')} ⇒ unstable; ${itex('\\operatorname{Re}\\lambda=0')} ⇒ borderline.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h; }
+    render();
+  }
+});
+
+/* ---------- real solutions from complex eigenvalues:  lambda = alpha +- i beta ,  xi = a + i b  ---------- */
+add({ id:'complex-eigen-real', cat:'c4', tag:'live', title:'Real Solutions from Complex Eigenvalues', diff:'inter', ch:'7.6 \u00b7 \u03bb = \u03b1 \u00b1 i\u03b2,  \u03be = a + i b',
+  questions:[
+    'A real matrix A has the eigenvalue \u03bb = \u03b1 + i\u03b2 with eigenvector \u03be = a + ib. Why is \u03bb\u0305 = \u03b1 \u2212 i\u03b2 automatically an eigenvalue too, with eigenvector \u03be\u0305 = a \u2212 ib?',
+    'The real and imaginary parts x\u207d\u00b9\u207e = e^{\u03b1t}(a cos \u03b2t \u2212 b sin \u03b2t) and x\u207d\u00b2\u207e = e^{\u03b1t}(a sin \u03b2t + b cos \u03b2t) are real. What does \u03b1 control and what does \u03b2 control in the picture?',
+    'In the right-hand plot the axes are the vectors a and b. Why does the motion become a plain spiral or circle there, and what does the matrix P = [a b] do to it?',
+    'Slide \u03b1 through 0: spiral in \u2192 closed ellipse \u2192 spiral out. Which quantity multiplies the size by e^{2\u03c0\u03b1/\u03b2} after each turn?'
+  ],
+  blurb:'For a real matrix, complex eigenvalues come in conjugate pairs \u03b1 \u00b1 i\u03b2. Choose \u03b1, \u03b2 and the vectors a, b (so \u03be = a + ib) \u2014 the applet builds the matrix A, writes the two REAL solutions x\u207d\u00b9\u207e and x\u207d\u00b2\u207e with your numbers, fits the initial condition, and draws the spiral. \u03b1 < 0: stable spiral, \u03b1 = 0: centre, \u03b1 > 0: unstable spiral.',
+  build(host){
+    const S={playing:true,speed:1,t:0,T:10,D:null,P:null};
+    let playBtn=null;
+    const alS=UI.slider({label:'real part \u03b1 (growth/decay)',min:-1,max:1,step:0.05,value:-0.3,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const beS=UI.slider({label:'imaginary part \u03b2 (rotation rate)',min:0.3,max:4,step:0.05,value:1.5,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const a1S=UI.slider({label:'a\u2081  (a = Re \u03be)',min:-2,max:2,step:0.05,value:1,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const a2S=UI.slider({label:'a\u2082',min:-2,max:2,step:0.05,value:0,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const b1S=UI.slider({label:'b\u2081  (b = Im \u03be)',min:-2,max:2,step:0.05,value:0.5,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const b2S=UI.slider({label:'b\u2082',min:-2,max:2,step:0.05,value:1,fmt:v=>v.toFixed(2),oninput:()=>restart()});
+    const x1S=UI.slider({label:'initial x\u2081(0)',min:-3,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const x2S=UI.slider({label:'initial x\u2082(0)',min:-3,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1),oninput:()=>restart()});
+    const spS=UI.slider({label:'animation speed',min:0.2,max:3,step:0.1,value:1,fmt:v=>v.toFixed(1)+'\u00d7',oninput:v=>{ S.speed=v; }});
+    function preset(al,be,a,b){ alS.set(al); beS.set(be); a1S.set(a[0]); a2S.set(a[1]); b1S.set(b[0]); b2S.set(b[1]); restart(); }
+    const btns=UI.buttons([
+      {label:'\u23f8 Pause',primary:true,ref:b=>{playBtn=b;},onclick:()=>{ S.playing=!S.playing; playBtn.textContent=S.playing?'\u23f8 Pause':'\u25b6 Play'; }},
+      {label:'\u21ba Restart',onclick:()=>{ S.t=0; }},
+      {label:'Stable spiral (\u03b1<0)',onclick:()=>preset(-0.3,1.5,[1,0],[0.5,1])},
+      {label:'Centre (\u03b1=0)',onclick:()=>preset(0,1.5,[1,0],[0.5,1])},
+      {label:'Unstable spiral (\u03b1>0)',onclick:()=>preset(0.25,1.5,[1,0],[0.5,1])},
+      {label:'Textbook: x\u2032=[[\u22121,\u22121],[2,\u22121]]x',onclick:()=>{ alS.set(-1); beS.set(1.4); a1S.set(1); a2S.set(0); b1S.set(0); b2S.set(-1.4); restart(); }}
+    ]);
+    const stats=UI.statsBox(); const warn=UI.note('');
+    const odeBox=modelBox('The system built from your \u03bb and \u03be','','accent1');
+    const phase=UI.plotCard('phase plane (x\u2081, x\u2082):  trajectory (teal), x\u207d\u00b9\u207e (blue), x\u207d\u00b2\u207e (coral), vectors a (amber) and b (purple)',380);
+    const tPlot=UI.plotCard('x\u2081(t) (blue) and x\u2082(t) (coral)',230);
+    const yPlot=UI.plotCard('same motion in the (a, b) coordinates:  x = y\u2081 a + y\u2082 b',300);
+    const solBox=modelBox('Real solutions step by step','','accent3');
+    host.appendChild(UI.appGrid([alS,beS,a1S,a2S,b1S,b2S,x1S,x2S,spS,btns,stats,warn,
+      UI.note('<b>Why two real solutions?</b> The complex solution e<sup>\u03bbt</sup>\u03be = e<sup>\u03b1t</sup>(cos \u03b2t + i sin \u03b2t)(a + ib) has a real part and an imaginary part; both are real solutions of x\u2032 = A x (take real and imaginary parts of the equation), and they are independent. So no complex numbers are left in the final answer: x = c\u2081x\u207d\u00b9\u207e + c\u2082x\u207d\u00b2\u207e.')],
+      [odeBox,phase,tPlot,yPlot,solBox]));
+    function restart(){
+      const al=alS.get(),be=beS.get(),a=[a1S.get(),a2S.get()],b=[b1S.get(),b2S.get()],x0=[x1S.get(),x2S.get()];
+      const D=a[0]*b[1]-b[0]*a[1]; const P={al,be,a,b,x0,D};
+      if(Math.abs(D)<0.02){ warn.innerHTML='<b style="color:'+COL.coral+'">a and b must be linearly independent</b> (det[a b] \u2248 0). Change a or b.'; warn.style.display=''; S.P=null; return; }
+      warn.style.display='none';
+      const Pi=[[b[1]/D,-b[0]/D],[-a[1]/D,a[0]/D]];
+      /* A = P J P^{-1},  J = [[al,be],[-be,al]] */
+      const J=[[al,be],[-be,al]], PJ=[[a[0]*J[0][0]+b[0]*J[1][0],a[0]*J[0][1]+b[0]*J[1][1]],[a[1]*J[0][0]+b[1]*J[1][0],a[1]*J[0][1]+b[1]*J[1][1]]];
+      const A=[[PJ[0][0]*Pi[0][0]+PJ[0][1]*Pi[1][0],PJ[0][0]*Pi[0][1]+PJ[0][1]*Pi[1][1]],[PJ[1][0]*Pi[0][0]+PJ[1][1]*Pi[1][0],PJ[1][0]*Pi[0][1]+PJ[1][1]*Pi[1][1]]];
+      P.A=A; P.c=[Pi[0][0]*x0[0]+Pi[0][1]*x0[1],Pi[1][0]*x0[0]+Pi[1][1]*x0[1]]; P.Pi=Pi; S.P=P;
+      const per=2*Math.PI/be; let T=4*per; if(Math.abs(al)>1e-6) T=Math.min(T,Math.max(per,3.5/Math.abs(al))); S.T=T; if(S.t>T) S.t=0;
+      const N=500; S.D={ts:[],x:[],y:[],yy1:[],yy2:[]};
+      for(let i=0;i<=N;i++){ const t=T*i/N, s=sol(P,t); S.D.ts.push(t); S.D.x.push(s.x); S.D.y.push(s.y); }
+      updateText(); }
+    function sol(P,t,c){ c=c||P.c; const e=Math.exp(P.al*t), co=Math.cos(P.be*t), si=Math.sin(P.be*t);
+      const y1=e*(c[0]*co+c[1]*si), y2=e*(-c[0]*si+c[1]*co); return {x:[y1*P.a[0]+y2*P.b[0],y1*P.a[1]+y2*P.b[1]], y:[y1,y2]}; }
+    function updateText(){ const P=S.P; if(!P)return; const {al,be,a,b,A,c}=P; const per=2*Math.PI/be, fac=Math.exp(2*Math.PI*al/be);
+      const kind=Math.abs(al)<1e-9?'centre (closed ellipses)':al<0?'stable spiral':'unstable spiral', col=Math.abs(al)<1e-9?COL.calc3:al<0?COL.green:COL.coral;
+      const dir=A[1][0]>0?'counter-clockwise':A[1][0]<0?'clockwise':'\u2014';
+      const Am=`\\begin{pmatrix}${nf(A[0][0],3)}&${nf(A[0][1],3)}\\\\${nf(A[1][0],3)}&${nf(A[1][1],3)}\\end{pmatrix}`;
+      odeBox.querySelector('.model-body').innerHTML=dtex(`\\displaystyle \\mathbf{x}'=A\\mathbf{x},\\quad A=${Am},\\qquad \\lambda=\\alpha\\pm i\\beta=${nf(al,3)}\\pm ${nf(be,3)}\\,i,\\quad \\xi=\\mathbf{a}+i\\mathbf{b}=\\begin{pmatrix}${nf(a[0],2)}\\\\${nf(a[1],2)}\\end{pmatrix}+i\\begin{pmatrix}${nf(b[0],2)}\\\\${nf(b[1],2)}\\end{pmatrix}`);
+      const cs=(v,fn)=>`${nf(v[0],2)}`;
+      let h=`<div><b>1. Complex eigen-solution.</b> ${itex('\\mathbf{x}=e^{\\lambda t}\\xi=e^{\\alpha t}(\\cos\\beta t+i\\sin\\beta t)(\\mathbf{a}+i\\mathbf{b})')}. Multiply out and separate real and imaginary parts:</div>`+
+        dtex(`\\displaystyle \\mathbf{x}=\\underbrace{e^{\\alpha t}(\\mathbf{a}\\cos\\beta t-\\mathbf{b}\\sin\\beta t)}_{\\mathbf{x}^{(1)}(t)}+i\\,\\underbrace{e^{\\alpha t}(\\mathbf{a}\\sin\\beta t+\\mathbf{b}\\cos\\beta t)}_{\\mathbf{x}^{(2)}(t)}`)+
+        `<div><b>2. With your numbers</b> (${itex('\\alpha='+nf(al,2)+',\\ \\beta='+nf(be,2))}):</div>`+
+        dtex(`\\displaystyle \\mathbf{x}^{(1)}=e^{${nf(al,2)}t}\\Big[\\begin{pmatrix}${nf(a[0],2)}\\\\${nf(a[1],2)}\\end{pmatrix}\\cos ${nf(be,2)}t-\\begin{pmatrix}${nf(b[0],2)}\\\\${nf(b[1],2)}\\end{pmatrix}\\sin ${nf(be,2)}t\\Big]`)+
+        dtex(`\\displaystyle \\mathbf{x}^{(2)}=e^{${nf(al,2)}t}\\Big[\\begin{pmatrix}${nf(a[0],2)}\\\\${nf(a[1],2)}\\end{pmatrix}\\sin ${nf(be,2)}t+\\begin{pmatrix}${nf(b[0],2)}\\\\${nf(b[1],2)}\\end{pmatrix}\\cos ${nf(be,2)}t\\Big]`)+
+        `<div><b>3. General real solution</b> ${itex('\\mathbf{x}=c_1\\mathbf{x}^{(1)}+c_2\\mathbf{x}^{(2)}')}. At ${itex('t=0')}: ${itex('\\mathbf{x}^{(1)}(0)=\\mathbf{a},\\ \\mathbf{x}^{(2)}(0)=\\mathbf{b}')}, so the initial condition requires</div>`+
+        dtex(`\\displaystyle c_1\\mathbf{a}+c_2\\mathbf{b}=\\mathbf{x}(0)\\ \\Rightarrow\\ \\begin{pmatrix}${nf(a[0],2)}&${nf(b[0],2)}\\\\${nf(a[1],2)}&${nf(b[1],2)}\\end{pmatrix}\\begin{pmatrix}c_1\\\\c_2\\end{pmatrix}=\\begin{pmatrix}${nf(P.x0[0],1)}\\\\${nf(P.x0[1],1)}\\end{pmatrix}\\ \\Rightarrow\\ c_1=${nf(c[0],3)},\\ c_2=${nf(c[1],3)}`)+
+        `<div><b>4. What \u03b1 and \u03b2 do.</b> The factor ${itex('e^{\\alpha t}='+'e^{'+nf(al,2)+'t}')} scales the motion; ${itex('\\cos\\beta t,\\ \\sin\\beta t')} turn it once every ${itex('2\\pi/\\beta='+nf(per,2))} time units. After each turn the distance from the origin is multiplied by ${itex('e^{2\\pi\\alpha/\\beta}='+nf(fac,3))}. In the (a, b) coordinates the path is the exact logarithmic spiral ${itex('y=e^{\\alpha t}(\\cos,\\ \\sin)')}; the matrix ${itex('P=[\\mathbf{a}\\ \\mathbf{b}]')} then stretches and tilts it into the ellipse-like spiral you see in the phase plane. Direction here: <b>${dir}</b>.</div>`+
+        `<div><b>5. Classification.</b> ${itex('\\alpha='+nf(al,2))} \u2192 <b style="color:${col}">${kind}</b>.</div>`;
+      solBox.querySelector('.model-body').innerHTML=h;
+      stats.set([{k:'\u03bb',v:nf(al,2)+' \u00b1 '+nf(be,2)+' i',accent:1},{k:'type',v:kind},{k:'turn period 2\u03c0/\u03b2',v:nf(per,2)},{k:'factor per turn',v:nf(fac,3),accent:1},{k:'(c\u2081, c\u2082)',v:nf(c[0],2)+', '+nf(c[1],2)},{k:'rotation',v:dir}]);
+      draw(); }
+    function draw(){ const P=S.P,D=S.D; if(!P||!D)return; const N=D.ts.length;
+      let mx=1e-6,my=1e-6; for(let i=0;i<N;i++){ mx=Math.max(mx,Math.abs(D.x[i][0]),Math.abs(P.a[0]),Math.abs(P.b[0])); my=Math.max(my,Math.abs(D.x[i][1]),Math.abs(P.a[1]),Math.abs(P.b[1])); }
+      const R=Math.max(mx,my)*1.2, now=sol(P,S.t), T=S.T;
+      /* phase plane */
+      let c=phase.chart(); c.setX(-R,R).setY(-R,R); c.clear(); c.gridlines(niceTicks(-R,R,6),niceTicks(-R,R,6)); c.axes();
+      const bas=[[1,0],[0,1]], bcol=[COL.calc1,COL.coral];
+      clipToPlot(c); bas.forEach((cc,k)=>{ const px=[],py=[]; for(let i=0;i<N;i++){ const s=sol(P,D.ts[i],cc); px.push(c.X(s.x[0])); py.push(c.Y(s.x[1])); } c.pline(px,py,hexA(bcol[k],.55),1.6,[6,4]); });
+      c.pline(D.x.map(p=>c.X(p[0])),D.x.map(p=>c.Y(p[1])),COL.calc2,2.6); c.ctx.restore();
+      c.arrow(0,0,P.a[0],P.a[1],COL.amber,2.5); c.arrow(0,0,P.b[0],P.b[1],COL.calc3,2.5);
+      pxText(c.ctx,'a',c.X(P.a[0])+8,c.Y(P.a[1])-8,COL.amber,13,'left',true); pxText(c.ctx,'b',c.X(P.b[0])+8,c.Y(P.b[1])-8,COL.calc3,13,'left',true);
+      c.dot(P.x0[0],P.x0[1],COL.ink,4); c.dot(now.x[0],now.x[1],COL.coral,7); c.dot(0,0,COL.ink,4); c.axisX(niceTicks(-R,R,6)); c.axisY(niceTicks(-R,R,6));
+      /* time plot */
+      let m2=1e-6; for(let i=0;i<N;i++) m2=Math.max(m2,Math.abs(D.x[i][0]),Math.abs(D.x[i][1])); m2*=1.15;
+      c=tPlot.chart(); c.setX(0,T).setY(-m2,m2); c.clear(); c.gridlines(niceTicks(0,T,8),niceTicks(-m2,m2,4)); c.axes();
+      const px=D.ts.map(t=>c.X(t)); clipToPlot(c); c.pline(px,D.x.map(p=>c.Y(p[0])),COL.calc1,2.2); c.pline(px,D.x.map(p=>c.Y(p[1])),COL.coral,2.2);
+      if(Math.abs(P.al)>1e-9){ const r=Math.hypot(P.c[0],P.c[1]); const env=Math.max(Math.hypot(P.a[0],P.a[1]),Math.hypot(P.b[0],P.b[1])); c.curve(t=>r*env*Math.exp(P.al*t),hexA(COL.slate,.5),1.2,200); c.curve(t=>-r*env*Math.exp(P.al*t),hexA(COL.slate,.5),1.2,200); }
+      c.ctx.restore(); c.vline(S.t,hexA(COL.slate,.5),1.2,[4,4]); c.dot(S.t,now.x[0],COL.calc1,5); c.dot(S.t,now.x[1],COL.coral,5); c.axisX(niceTicks(0,T,8)); c.axisY(niceTicks(-m2,m2,4));
+      /* (a,b) coordinates */
+      let my2=1e-6; for(let i=0;i<N;i++) my2=Math.max(my2,Math.abs(D.y[i][0]),Math.abs(D.y[i][1])); my2*=1.2; my2=Math.max(my2,Math.hypot(P.c[0],P.c[1])*1.2);
+      c=yPlot.chart(); c.setX(-my2,my2).setY(-my2,my2); c.clear(); c.gridlines(niceTicks(-my2,my2,6),niceTicks(-my2,my2,6)); c.axes();
+      c.pline(D.y.map(p=>c.X(p[0])),D.y.map(p=>c.Y(p[1])),COL.calc2,2.4); c.arrow(0,0,my2*0.8,0,COL.amber,2); c.arrow(0,0,0,my2*0.8,COL.calc3,2);
+      pxText(c.ctx,'a-axis',c.X(my2*0.8),c.Y(0)-10,COL.amber,11,'right',true); pxText(c.ctx,'b-axis',c.X(0)+8,c.Y(my2*0.8),COL.calc3,11,'left',true);
+      c.dot(P.c[0],P.c[1],COL.ink,4); c.dot(now.y[0],now.y[1],COL.coral,7); c.axisX(niceTicks(-my2,my2,6)); c.axisY(niceTicks(-my2,my2,6)); }
+    restart();
+    let acc=0;
+    runLoop(phase.canvas,dt=>{ if(!S.P)return; if(S.playing){ S.t+=dt*S.speed*S.T/14; if(S.t>=S.T) S.t=0; } acc+=dt; if(acc>0.04){ acc=0; draw(); } });
   }
 });
 
