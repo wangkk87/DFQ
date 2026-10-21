@@ -2839,6 +2839,402 @@ add({ id:'undetermined-coefficients', cat:'c2', tag:'explore', title:'Method of 
   }
 });
 
+/* ===== Higher-order undetermined coefficients engine (n >= 2, constant coefficients) =====
+   L[y] = c_n y^(n) + ... + c_1 y' + c_0 y = g(t),   g(t) = P(t) e^{at} cos(bt)  or  P(t) e^{at} sin(bt)
+   Everything is done with complex exponentials:  L[t^m e^{lam t}] = e^{lam t} * sum_j (m)_j t^{m-j} T_j,
+   T_j = p^{(j)}(lam)/j!  (Taylor coefficients of the characteristic polynomial at lam).                   */
+const HO=(function(){
+  /* ---- tiny complex arithmetic on [re,im] ---- */
+  const cadd=(a,b)=>[a[0]+b[0],a[1]+b[1]], csub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
+  const cmul=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+  const cdiv=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1];return [(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+  const cabs=a=>Math.hypot(a[0],a[1]);
+  const cexp=a=>{const e=Math.exp(a[0]);return [e*Math.cos(a[1]),e*Math.sin(a[1])];};
+  function cpow(a,k){let r=[1,0];for(let i=0;i<k;i++)r=cmul(r,a);return r;}
+  const fall=(m,j)=>{let r=1;for(let i=0;i<j;i++)r*=(m-i);return r;};   // falling factorial (m)_j (0 if j>m)
+  const binom=(k,j)=>{if(j<0||j>k)return 0;let r=1;for(let i=1;i<=j;i++)r=r*(k-j+i)/i;return r;};
+
+  /* p(r)=sum c_k r^k : Taylor coefficients about lam:  T[j]=p^(j)(lam)/j!  (repeated synthetic division) */
+  function taylor(c,lam){
+    const n=c.length-1; let a=c.map(x=>[x,0]); const T=[];
+    for(let j=0;j<=n;j++){
+      let b=[a[n-j]];                     // synthetic division of a(0..n-j) by (r-lam)
+      const out=new Array(n-j+1); out[n-j]=a[n-j];
+      for(let k=n-j-1;k>=0;k--) out[k]=cadd(a[k],cmul(lam,out[k+1]));
+      T.push(out[0]);
+      a=out.slice(1);                    // quotient
+    }
+    return T;
+  }
+  function polyDeriv(c){return c.length<=1?[0]:c.slice(1).map((x,i)=>x*(i+1));}
+  function evalC(c,z){let r=[0,0];for(let k=c.length-1;k>=0;k--)r=cadd(cmul(r,z),[c[k],0]);return r;}
+
+  /* ---- all roots: Durand-Kerner, then cluster repeated roots and polish with Newton on p^(m-1) ---- */
+  function charRoots(c){
+    const n=c.length-1, lead=c[n], mon=c.map(x=>x/lead);
+    let R=1+Math.max(...mon.slice(0,n).map(Math.abs));
+    let z=[];for(let k=0;k<n;k++){const th=2*Math.PI*k/n+0.4;z.push([0.7*R*Math.cos(th)/1.0,0.7*R*Math.sin(th)]);}
+    for(let it=0;it<5000;it++){
+      let mx=0;
+      for(let i=0;i<n;i++){
+        let den=[1,0];for(let j=0;j<n;j++)if(j!==i)den=cmul(den,csub(z[i],z[j]));
+        if(cabs(den)<1e-300)den=[1e-300,0];
+        const d=cdiv(evalC(mon,z[i]),den); z[i]=csub(z[i],d); mx=Math.max(mx,cabs(d));
+      }
+      if(mx<1e-15)break;
+    }
+    // cluster
+    const used=new Array(n).fill(false), clusters=[];
+    for(let i=0;i<n;i++){ if(used[i])continue;
+      const g=[i];used[i]=true;
+      for(let j=i+1;j<n;j++) if(!used[j]&&cabs(csub(z[i],z[j]))<6e-3*(1+cabs(z[i]))){g.push(j);used[j]=true;}
+      clusters.push(g);
+    }
+    const out=[];
+    for(const g of clusters){
+      const m=g.length;
+      let w=[0,0];g.forEach(i=>w=cadd(w,z[i]));w=[w[0]/m,w[1]/m];
+      // Newton on p^(m-1)
+      let d=c.slice();for(let q=0;q<m-1;q++)d=polyDeriv(d);
+      const dd=polyDeriv(d);
+      for(let it=0;it<60;it++){
+        const f=evalC(d,w), fp=evalC(dd,w);
+        if(cabs(fp)<1e-300)break;
+        const st=cdiv(f,fp); w=csub(w,st); if(cabs(st)<1e-15)break;
+      }
+      // snap to tidy numbers
+      const snap=x=>{const r=Math.round(x*1e6)/1e6;return Math.abs(x-r)<2e-7?r:x;};
+      let re=snap(w[0]),im=snap(w[1]); if(Math.abs(im)<1e-7)im=0;
+      out.push({re,im,mult:m});
+    }
+    // keep real roots and upper-half-plane complex roots, mirror consistency
+    const res=[];
+    for(const r of out){ if(r.im===0) res.push(r); else if(r.im>0) res.push(r); }
+    res.sort((a,b)=>(a.im===0?0:1)-(b.im===0?0:1)||b.re-a.re||a.im-b.im);
+    return res;
+  }
+
+  /* multiplicity of lam as root of p, read straight from the Taylor coefficients (exact for user-typed lam) */
+  function multiplicityAt(c,lam){
+    const T=taylor(c,lam); let sc=0;for(let k=0;k<c.length;k++)sc+=Math.abs(c[k])*Math.pow(1+cabs(lam),k);
+    for(let j=0;j<T.length;j++) if(cabs(T[j])>1e-9*sc) return j;
+    return T.length;
+  }
+
+  /* D^k ( t^m e^{lam t} ) at t   (complex) */
+  function termDeriv(m,lam,k,t){
+    let s=[0,0];
+    for(let j=0;j<=Math.min(k,m);j++){
+      const co=binom(k,j)*fall(m,j)*Math.pow(t,m-j);
+      s=cadd(s,[co*cpow(lam,k-j)[0],co*cpow(lam,k-j)[1]]);
+    }
+    return cmul(s,cexp([lam[0]*t,lam[1]*t]));
+  }
+
+  /* complementary basis: [{m,lam,part:'re'|'im', label}] */
+  function basis(roots){
+    const B=[];
+    for(const r of roots) for(let j=0;j<r.mult;j++){
+      if(r.im===0) B.push({m:j,lam:[r.re,0],part:'re',a:r.re,b:0,kind:'exp'});
+      else { B.push({m:j,lam:[r.re,r.im],part:'re',a:r.re,b:r.im,kind:'cos'}); B.push({m:j,lam:[r.re,r.im],part:'im',a:r.re,b:r.im,kind:'sin'}); }
+    }
+    return B;
+  }
+  const basisVal=(f,k,t)=>{const v=termDeriv(f.m,f.lam,k,t);return f.part==='re'?v[0]:v[1];};
+
+  function gaussSolve(M,b){
+    const n=b.length,A=M.map((r,i)=>r.concat([b[i]]));
+    for(let i=0;i<n;i++){
+      let p=i;for(let r=i+1;r<n;r++)if(Math.abs(A[r][i])>Math.abs(A[p][i]))p=r;
+      [A[i],A[p]]=[A[p],A[i]];
+      if(Math.abs(A[i][i])<1e-13)return null;
+      for(let r=i+1;r<n;r++){const f=A[r][i]/A[i][i];for(let k=i;k<=n;k++)A[r][k]-=f*A[i][k];}
+    }
+    const x=new Array(n);
+    for(let i=n-1;i>=0;i--){let s=A[i][n];for(let k=i+1;k<n;k++)s-=A[i][k]*x[k];x[i]=s/A[i][i];}
+    return x;
+  }
+
+  /* ---- main solver ----
+     spec={c:[c0..cn], P:[p0..pd], a:alpha, b:beta, kind:'cos'|'sin', ic:{t0,y:[y(t0),...,y^(n-1)(t0)]}|null}   */
+  function solve(spec){
+    const c=spec.c, n=c.length-1, P=spec.P.slice(), d=P.length-1, al=spec.a||0, be=spec.b||0;
+    const kind=be===0?'cos':(spec.kind||'cos');
+    const lam=[al,be];
+    const roots=charRoots(c), bas=basis(roots);
+    const s=multiplicityAt(c,lam), T=taylor(c,lam);
+    // right-hand side as Re[ Pc(t) e^{lam t} ]:  cos -> P ;  sin -> -i P
+    const Pc=P.map(x=>kind==='cos'?[x,0]:[0,-x]);
+    const q=new Array(d+1).fill(null);
+    for(let e=d;e>=0;e--){
+      let rhs=Pc[e];
+      for(let i=e+1;i<=d;i++){const j=s+i-e; if(j<=n) rhs=csub(rhs,cmul(q[i],[fall(s+i,j)*T[j][0],fall(s+i,j)*T[j][1]]));}
+      const lead=[fall(s+e,s)*T[s][0],fall(s+e,s)*T[s][1]];
+      q[e]=cdiv(rhs,lead);
+    }
+    const A=q.map(z=>z[0]), B=q.map(z=>-z[1]);       // Y = t^s e^{al t} sum t^i (A_i cos + B_i sin)
+    const termsY=q.map((z,i)=>({m:s+i,q:z}));
+    const Yk=(k,t)=>{let v=[0,0];for(const tm of termsY)v=cadd(v,cmul(tm.q,termDeriv(tm.m,lam,k,t)));return v[0];};
+    const Y=t=>Yk(0,t);
+    const gf=t=>{let p=0;for(let i=d;i>=0;i--)p=p*t+P[i];const e=Math.exp(al*t);return p*e*(kind==='cos'?Math.cos(be*t):Math.sin(be*t));};
+    // residual of L[Y]-g via the exact identity (uses derivatives of Y)
+    const LY=t=>{let v=0;for(let k=0;k<=n;k++)v+=c[k]*Yk(k,t);return v;};
+    // IC fit
+    let consts=null;
+    const ic=spec.ic;
+    if(ic){
+      const M=[],rhs=[];
+      for(let k=0;k<n;k++){M.push(bas.map(f=>basisVal(f,k,ic.t0)));rhs.push(ic.y[k]-Yk(k,ic.t0));}
+      consts=gaussSolve(M,rhs);
+    }
+    const ycf=(cs,t,k=0)=>{let v=0;for(let i=0;i<bas.length;i++)v+=cs[i]*basisVal(bas[i],k,t);return v;};
+    const fct=j=>{let r=1;for(let i=2;i<=j;i++)r*=i;return r;};
+    return {n,c,roots,bas,s,lam,kind,P,d,q,A,B,Y,Yk,g:gf,LY,consts,ycf,taylorVal:j=>[T[j][0]*fct(j),T[j][1]*fct(j)],
+      y:consts?(t=>ycf(consts,t)+Y(t)):null,
+      yk:consts?((k,t)=>ycf(consts,t,k)+Yk(k,t)):null};
+  }
+
+  /* independent check: RK4 on the first-order system of  c_n y^(n)+...=g  */
+  function rk4(spec,sol,t0,t1,steps){
+    const n=sol.n,c=sol.c,g=sol.g;
+    const f=(t,y)=>{const o=new Array(n);for(let i=0;i<n-1;i++)o[i]=y[i+1];let s=g(t);for(let k=0;k<n;k++)s-=c[k]*y[k];o[n-1]=s/c[n];return o;};
+    let y=spec.ic.y.slice(),t=t0,h=(t1-t0)/steps,out=[[t,y[0]]];
+    for(let i=0;i<steps;i++){
+      const k1=f(t,y),k2=f(t+h/2,y.map((v,j)=>v+h/2*k1[j])),k3=f(t+h/2,y.map((v,j)=>v+h/2*k2[j])),k4=f(t+h,y.map((v,j)=>v+h*k3[j]));
+      y=y.map((v,j)=>v+h/6*(k1[j]+2*k2[j]+2*k3[j]+k4[j]));t+=h;out.push([t,y[0]]);
+    }
+    return out;
+  }
+
+
+  /* ---- "try your own guess": unknown polynomial Q (deg d) with a chosen power s of t.
+     Least-squares on the coefficient identity (powers 0..s+d) -> shows exactly how a wrong s fails. ---- */
+  function guessFit(spec,s){
+    const c=spec.c,n=c.length-1,P=spec.P,d=P.length-1,al=spec.a||0,be=spec.b||0;
+    const kind=be===0?'cos':(spec.kind||'cos'), lam=[al,be], T=taylor(c,lam);
+    const Pc=P.map(x=>kind==='cos'?[x,0]:[0,-x]);
+    const E=s+d+1, M=Array.from({length:E},()=>Array.from({length:d+1},()=>[0,0])), rh=[];
+    for(let i=0;i<=d;i++)for(let j=0;j<=s+i&&j<=n;j++){const e=s+i-j,co=fall(s+i,j);M[e][i]=cadd(M[e][i],[co*T[j][0],co*T[j][1]]);}
+    for(let e=0;e<E;e++)rh.push(e<=d?Pc[e]:[0,0]);
+    const real=(be===0), nu=real?d+1:2*(d+1);
+    const X=[],r=[];
+    for(let e=0;e<E;e++){
+      const rowRe=[],rowIm=[];
+      for(let i=0;i<=d;i++){rowRe.push(M[e][i][0]);rowIm.push(M[e][i][1]);}
+      if(!real){for(let i=0;i<=d;i++){rowRe.push(-M[e][i][1]);rowIm.push(M[e][i][0]);}}
+      X.push(rowRe);r.push(rh[e][0]);X.push(rowIm);r.push(rh[e][1]);
+    }
+    const G=Array.from({length:nu},(_,a)=>Array.from({length:nu},(_,b)=>{let v=0;for(let k=0;k<X.length;k++)v+=X[k][a]*X[k][b];return v+(a===b?1e-12:0);}));
+    const bb=Array.from({length:nu},(_,a)=>{let v=0;for(let k=0;k<X.length;k++)v+=X[k][a]*r[k];return v;});
+    const x=gaussSolve(G,bb)||new Array(nu).fill(0);
+    const q=[];for(let i=0;i<=d;i++)q.push([x[i],real?0:x[d+1+i]]);
+    let rn=0;for(let k=0;k<X.length;k++){let v=-r[k];for(let a=0;a<nu;a++)v+=X[k][a]*x[a];rn=Math.max(rn,Math.abs(v));}
+    const termsY=q.map((z,i)=>({m:s+i,q:z}));
+    const Yk=(k,t)=>{let v=[0,0];for(const tm of termsY)v=cadd(v,cmul(tm.q,termDeriv(tm.m,lam,k,t)));return v[0];};
+    const LY=t=>{let v=0;for(let k=0;k<=n;k++)v+=c[k]*Yk(k,t);return v;};
+    return {s,q,A:q.map(z=>z[0]),B:q.map(z=>-z[1]),Y:t=>Yk(0,t),Yk,LY,exact:rn<1e-8,resid:rn};
+  }
+
+  /* pretty numbers: rational with small denominator -> {n,d} */
+  function rat(x,maxd=360){
+    if(!isFinite(x))return null; if(Math.abs(x)<1e-12)return {n:0,d:1};
+    for(let d=1;d<=maxd;d++){const nn=Math.round(x*d);if(Math.abs(x-nn/d)<1e-9*Math.max(1,Math.abs(x)))return {n:nn,d};}
+    return null;
+  }
+  return {charRoots,multiplicityAt,taylor,solve,guessFit,rk4,rat,basis,termDeriv,gaussSolve};
+})();
+
+/* ---------- higher-order undetermined coefficients (3rd / 4th order, modification rule t^s) ----------
+   L[y] = a_n y^(n) + ... + a_0 y = P(t) e^{alpha t} cos(beta t)  (or sin)                                   */
+function hoNum(x){ if(Math.abs(x)<1e-10)return '0'; const r=HO.rat(x); if(r){ if(r.d===1)return String(r.n); return (r.n<0?'-':'')+'\\frac{'+Math.abs(r.n)+'}{'+r.d+'}'; } return nf(x,4); }
+function hoCt(coef,body){ if(Math.abs(coef)<1e-10)return ''; if(!body||body==='1')return hoNum(coef); const r=HO.rat(coef); if(r&&r.d===1&&Math.abs(r.n)===1)return (r.n<0?'-':'')+body; return hoNum(coef)+body; }
+function hoBody(m,a,b,fn){ let s=''; if(m===1)s+='t'; else if(m>1)s+='t^{'+m+'}';
+  if(Math.abs(a)>1e-10){ s+=(Math.abs(a-1)<1e-10?'e^{t}':Math.abs(a+1)<1e-10?'e^{-t}':'e^{'+hoNum(a)+'t}'); }
+  if(fn){ s+= '\\'+fn+(Math.abs(b-1)<1e-10?'\\,t':'('+hoNum(b)+'t)'); }
+  return s||'1'; }
+function hoC(z){ const re=Math.abs(z[0])<1e-9?0:z[0], im=Math.abs(z[1])<1e-9?0:z[1]; if(!im)return hoNum(re);
+  const ia=Math.abs(im), is=Math.abs(ia-1)<1e-10?'':hoNum(ia); return (re?hoNum(re)+(im<0?'-':'+'):(im<0?'-':''))+is+'i'; }
+function hoPoly(coefs,v){ return joinTerms(coefs.map((c,k)=>hoCt(c,k===0?'':(k===1?v:v+'^{'+k+'}')))); }
+function hoParseNum(tok){ tok=tok.trim(); if(!tok)return NaN; const m=tok.match(/^(-?[\d.]+)\s*\/\s*(-?[\d.]+)$/); if(m)return parseFloat(m[1])/parseFloat(m[2]); return Number(tok); }
+function hoParseList(s){ const parts=(s||'').split(/[,;\s]+/).filter(x=>x.length); const v=parts.map(hoParseNum); return v.some(x=>!isFinite(x))?null:v; }
+function hoMultWord(m){ return m===1?'simple':m===2?'double':m===3?'triple':'multiplicity '+m; }
+function hoDerivName(j){ return j===0?'p(\\lambda)':j===1?"p'(\\lambda)":j===2?"p''(\\lambda)":'p^{('+j+')}(\\lambda)'; }
+function hoRand(seed){ let x=seed*9301+49297; return ()=>{ x=(x*9301+49297)%233280; return x/233280; }; }
+
+add({ id:'higher-order-undetermined', cat:'c2', tag:'explore', title:'Higher-Order Undetermined Coefficients', diff:'adv', ch:'3rd & 4th order \u00b7 the modification rule t\u02e2',
+  questions:['For a 3rd- or 4th-order equation, how do you read the multiplicity of the forcing exponent \u03bb = \u03b1 + i\u03b2 off the characteristic roots?','Why does a triple root force the guess to be multiplied by t\u00b3 (not just t)?','What does L[guess] look like against g(t) when s is too small? Too large? Just right?'],
+  blurb:'Pick any constant-coefficient ODE of order 2\u20135 and a forcing P(t)\u00b7e\u1d43\u1d57\u00b7cos \u03b2t. See the characteristic roots in the complex plane, how the forcing exponent \u03bb lands on them, the guess t\u02e2\u00b7(\u2026), the solved coefficients, and the IVP fit \u2014 checked against RK4.',
+  build(host){
+    const PRESETS={
+      ex2:{label:'Ex 2 \u2014 y\u2034 \u2212 3y\u2033 + 3y\u2032 \u2212 y = 6e\u1d57  (triple root, s = 3)',c:'1, -3, 3, -1',P:'6',a:1,b:0,kind:'cos',ivp:false,ic:'0, 0, 0',T:3},
+      ex3:{label:'Ex 3 \u2014 y\u2074 + 4y = cos t  (roots \u00b11\u00b1i, s = 0)',c:'1, 0, 0, 0, 4',P:'1',a:0,b:1,kind:'cos',ivp:false,ic:'0, 0, 0, 0',T:14},
+      ex4:{label:'Ex 4 \u2014 y\u2074 \u2212 y = 3e\u00b2\u1d57, y(0)=y\u2032(0)=y\u2033(0)=y\u2034(0)=0',c:'1, 0, 0, 0, -1',P:'3',a:2,b:0,kind:'cos',ivp:true,ic:'0, 0, 0, 0',T:3},
+      res3:{label:'3rd order resonance \u2014 y\u2034 + y\u2032 = 2 sin t  (\u03bb = i is a root, s = 1)',c:'1, 0, 1, 0',P:'2',a:0,b:1,kind:'sin',ivp:true,ic:'0, 0, 0',T:20},
+      dbl4:{label:'4th order double \u00b1i \u2014 y\u2074 + 2y\u2033 + y = t cos t  (s = 2, degree-1 polynomial)',c:'1, 0, 2, 0, 1',P:'0, 1',a:0,b:1,kind:'cos',ivp:true,ic:'1, 0, 0, 1',T:16},
+      quad0:{label:'Quadruple root 0 \u2014 y\u2074 = t  (s = 4, Y = t\u2075/120)',c:'1, 0, 0, 0, 0',P:'0, 1',a:0,b:0,kind:'cos',ivp:true,ic:'0, 0, 0, 0',T:3},
+      custom:{label:'Custom (type your own below)'}
+    };
+    const pre=UI.select({label:'preset (textbook examples first)',options:Object.keys(PRESETS).map(k=>({label:PRESETS[k].label,value:k})),value:'ex2',onchange:v=>{ loadPreset(v); render(); }});
+    const coefIn=UI.text({label:'ODE coefficients  a\u2099, \u2026, a\u2081, a\u2080   (a\u2099y\u207d\u207f\u207e + \u2026 + a\u2080y)',value:'1, -3, 3, -1',hint:'3\u20136 numbers; 1, 0, 0, 0, 4 means y\u2074 + 4y',onchange:()=>{ pre.set('custom'); render(true); }});
+    const PIn=UI.text({label:'polynomial P(t) coefficients  p\u2080, p\u2081, \u2026',value:'6',hint:'6 means 6;  0, 1 means t;  1, 2 means 1 + 2t',onchange:()=>{ pre.set('custom'); render(true); }});
+    const aN=UI.number({label:'\u03b1  (exponent: e^{\u03b1t})',value:1,step:'any',onchange:()=>{ pre.set('custom'); render(true); }});
+    const bN=UI.number({label:'\u03b2  (frequency; 0 = no trig factor)',value:0,step:'any',min:0,onchange:()=>{ pre.set('custom'); render(true); }});
+    const kindSeg=UI.seg({label:'trig factor (used when \u03b2 > 0)',options:[{label:'cos \u03b2t',value:'cos'},{label:'sin \u03b2t',value:'sin'}],value:'cos',onchange:()=>{ pre.set('custom'); render(true); }});
+    const ivpSeg=UI.seg({label:'initial conditions',options:[{label:'general solution',value:'off'},{label:'fit an IVP',value:'on'}],value:'off',onchange:()=>render(true)});
+    const icIn=UI.text({label:'y(0), y\u2032(0), y\u2033(0), \u2026',value:'0, 0, 0',onchange:()=>render(true)});
+    const Tsl=UI.slider({label:'time range t \u2208 [0, T]',min:0.5,max:30,step:0.5,value:3,fmt:v=>'T = '+v,oninput:()=>render(true)});
+    const rkSeg=UI.seg({label:'numerical check (RK4 on the same ODE)',options:[{label:'show',value:'on'},{label:'hide',value:'off'}],value:'on',onchange:()=>render(true)});
+    const sSl=UI.slider({label:'your guess: power of t in front',min:0,max:5,step:1,value:3,fmt:v=>'s = '+v,oninput:()=>render(false)});
+    const err=document.createElement('div'); err.className='hint'; err.style.color=COL.coral;
+    const rootPlot=UI.plotCard('characteristic roots (dots) and the forcing exponent \u03bb = \u03b1 + i\u03b2 (diamond)',300);
+    const solPlot=UI.plotCard('solution',340);
+    const steps=document.createElement('div'); steps.className='formula'; steps.style.cssText='font-family:var(--body);line-height:1.75;font-size:.9rem;white-space:normal;';
+    const guessPlot=UI.plotCard('try a guess: L[ guess ] versus g(t)',280);
+    const gMsg=document.createElement('div'); gMsg.className='note';
+    const sol=makeSolBox('answer');
+    host.appendChild(UI.appGrid([pre,coefIn,PIn,aN,bN,kindSeg,ivpSeg,icIn,Tsl,rkSeg,err,UI.note('<b>How to read it.</b> The forcing is Re[P(t)e<sup>\u03bbt</sup>] with \u03bb = \u03b1 + i\u03b2. Count how many times \u03bb is a root of the characteristic polynomial \u2014 that number s is the power of t you must put in front of the guess. Drag the <i>your guess</i> slider (lower card) to see what a wrong s does.'),sSl],[rootPlot,solPlot,steps,guessPlot,gMsg,sol]));
+    rootPlot.enableZoom(()=>render(false)); solPlot.enableZoom(()=>render(false)); guessPlot.enableZoom(()=>render(false));
+
+    function loadPreset(k){ const p=PRESETS[k]; if(!p||k==='custom')return; coefIn.set(p.c); PIn.set(p.P); aN.set(p.a); bN.set(p.b); kindSeg.set(p.kind); ivpSeg.set(p.ivp?'on':'off'); icIn.set(p.ic); Tsl.set(p.T); }
+    function render(resetS){
+      err.textContent='';
+      const arr=hoParseList(coefIn.get()); const P=hoParseList(PIn.get());
+      const bad=m=>{ err.textContent='\u26a0 '+m; };
+      if(!arr||arr.length<3||arr.length>6)return bad('enter 3\u20136 coefficients a\u2099 \u2026 a\u2080 (order 2\u20135)');
+      if(Math.abs(arr[0])<1e-12)return bad('leading coefficient a\u2099 must be non-zero');
+      if(!P||!P.length||P.length>4)return bad('enter 1\u20134 coefficients for P(t)');
+      if(P.every(x=>Math.abs(x)<1e-12))return bad('P(t) is identically zero \u2014 that is the homogeneous equation');
+      const c=arr.slice().reverse(), n=c.length-1, al=aN.get(), be=Math.max(0,bN.get()||0), kind=kindSeg.get()||'cos';
+      if(!isFinite(al)||!isFinite(be))return bad('\u03b1 and \u03b2 must be numbers');
+      let ic=null; const useIvp=ivpSeg.get()==='on';
+      if(useIvp){ const v=hoParseList(icIn.get())||[]; const y=[];for(let k=0;k<n;k++)y.push(v[k]||0); ic={t0:0,y}; }
+      const spec={c,P,a:al,b:be,kind,ic};
+      let S; try{ S=HO.solve(spec); }catch(e){ return bad('could not solve: '+e.message); }
+      if(useIvp&&!S.consts)return bad('the initial-condition system is singular');
+      const T=Tsl.get(); const showRK=rkSeg.get()==='on';
+      // slider range follows the order; reset to the right s when the problem changes
+      sSl.querySelector('input').max=Math.min(n+1,6); if(resetS!==false){ sSl.set(Math.min(S.s,n+1)); }
+      drawRoots(S,spec);
+      drawSolution(S,spec,T,showRK,useIvp);
+      writeSteps(S,spec,useIvp);
+      drawGuess(S,spec,T);
+    }
+
+    function drawRoots(S,spec){
+      const ch=rootPlot.chart(); const pts=[]; S.roots.forEach(r=>{ pts.push([r.re,r.im,r.mult]); if(r.im>0)pts.push([r.re,-r.im,r.mult]); });
+      const lam=S.lam; let R=1.5; pts.forEach(p=>{R=Math.max(R,Math.abs(p[0]),Math.abs(p[1]));}); R=Math.max(R,Math.abs(lam[0]),Math.abs(lam[1]));
+      R=R*1.35+0.3; ch.setX(-R*1.35,R*1.35); ch.setY(-R,R); ch.clear(); ch.gridlines(niceTicks(ch.xmin,ch.xmax,8),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      const ctx=ch.ctx; ctx.save(); ctx.font='bold 11px "JetBrains Mono",monospace'; ctx.textAlign='left';
+      const hit=(S.s>0);
+      // forcing exponent(s)
+      const lamPts=[[lam[0],lam[1]]]; if(lam[1]>0)lamPts.push([lam[0],-lam[1]]);
+      lamPts.forEach(p=>{ const x=ch.X(p[0]),y=ch.Y(p[1]); ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4); ctx.strokeStyle=hit?COL.coral:COL.amber; ctx.lineWidth=2.4; const w=hit?13:10; ctx.strokeRect(-w/2,-w/2,w,w); ctx.restore(); });
+      // roots
+      pts.forEach(p=>{ const x=ch.X(p[0]),y=ch.Y(p[1]); const m=p[2];
+        for(let k=m-1;k>=1;k--){ ctx.strokeStyle=hexA(COL.calc1,.55); ctx.lineWidth=1.6; ctx.beginPath(); ctx.arc(x,y,6+4*k,0,7); ctx.stroke(); }
+        ctx.fillStyle=COL.calc1; ctx.beginPath(); ctx.arc(x,y,5.5,0,7); ctx.fill();
+        if(m>1){ ctx.fillStyle=COL.calc1; ctx.fillText('\u00d7'+m,x+8+4*m,y-6); } });
+      const be=lam[1]; const lt=`\u03bb = ${nf(lam[0],3)}${be?(lam[1]<0?'\u2212':'+')+nf(Math.abs(lam[1]),3)+'i':''}`;
+      const lx=ch.X(lam[0])+14, ly=ch.Y(lam[1])+(lam[1]>=0?-14:18);
+      ctx.fillStyle=hit?COL.coral:COL.amber; ctx.fillText(lt+(hit?`  \u2192  s = ${S.s}`:'  \u2192  s = 0'),Math.min(lx,ch.px1-150),ly);
+      ctx.restore();
+      ch.axisX(niceTicks(ch.xmin,ch.xmax,8)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      rootPlot.setTitle(hit?'\u03bb is a characteristic root of multiplicity '+S.s+' \u2192 multiply the guess by t to the power '+S.s:'\u03bb is not a root of the characteristic equation \u2192 no modification (s = 0)');
+    }
+
+    function sample(f,T,N=500){ const xs=[],ys=[]; for(let i=0;i<=N;i++){ const t=T*i/N; xs.push(t); ys.push(f(t)); } return [xs,ys]; }
+    function clipPlot(ch,fn){ const ctx=ch.ctx; ctx.save(); ctx.beginPath(); ctx.rect(ch.px0,ch.py1,ch.px1-ch.px0,ch.py0-ch.py1); ctx.clip(); fn(); ctx.restore(); }
+    function pad(lo,hi){ const p=(hi-lo)*.12||1; return [lo-p,hi+p]; }
+
+    function drawSolution(S,spec,T,showRK,useIvp){
+      const ch=solPlot.chart(); const [xs,Yp]=sample(S.Y,T);
+      let yfull=null; if(useIvp){ yfull=sample(S.y,T)[1]; }
+      const core=(useIvp?yfull:Yp).filter(isFinite); let lo=M.min(core),hi=M.max(core); [lo,hi]=pad(lo,hi);
+      ch.setX(0,T); ch.setY(lo,hi); ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      clipPlot(ch,()=>{
+        if(!useIvp){
+          const rnd=hoRand(7); for(let k=0;k<6;k++){ const cs=S.bas.map(()=>(rnd()*2-1)*1.2); const ys=xs.map((t,i)=>Yp[i]+S.ycf(cs,t)); ch.pline(xs.map(ch.X.bind(ch)),ys.map(ch.Y.bind(ch)),hexA(COL.slate,.35),1.3); }
+          ch.pline(xs.map(ch.X.bind(ch)),Yp.map(ch.Y.bind(ch)),COL.calc3,2.8);
+        } else {
+          const yc=xs.map(t=>S.ycf(S.consts,t));
+          ch.pline(xs.map(ch.X.bind(ch)),yc.map(ch.Y.bind(ch)),hexA(COL.slate,.5),1.5,[5,4]);
+          ch.pline(xs.map(ch.X.bind(ch)),Yp.map(ch.Y.bind(ch)),hexA(COL.calc3,.9),1.9,[2,3]);
+          ch.pline(xs.map(ch.X.bind(ch)),yfull.map(ch.Y.bind(ch)),COL.calc2,2.8);
+          if(showRK){ const r=HO.rk4(spec,S,0,T,1200); let me=0; r.forEach(([t,y])=>{ const e=Math.abs(y-S.y(t)); if(e>me)me=e; }); for(let i=0;i<r.length;i+=40)ch.dot(r[i][0],r[i][1],COL.amber,3.2);
+            solPlot._rkErr=me; }
+        } });
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      solPlot.setTitle(useIvp?`y = y_c + Y (teal)  \u00b7  Y alone (violet dotted)  \u00b7  y_c alone (grey dashed)${showRK?`  \u00b7  RK4 dots, max error ${(solPlot._rkErr||0).toExponential(1)}`:''}`:'particular solution Y (violet) and the family Y + y_c for random constants (grey)');
+    }
+
+    function drawGuess(S,spec,T){
+      const s=Math.round(sSl.get()), G=HO.guessFit(spec,s); const ch=guessPlot.chart();
+      const [xs,g]=sample(S.g,T), L=xs.map(G.LY);
+      let lo=M.min(g),hi=M.max(g); const sp=(hi-lo)||1; lo-=0.35*sp; hi+=0.35*sp;
+      ch.setX(0,T); ch.setY(lo,hi); ch.clear(); ch.gridlines(niceTicks(0,T,7),niceTicks(ch.ymin,ch.ymax,6)); ch.axes();
+      clipPlot(ch,()=>{ ch.pline(xs.map(ch.X.bind(ch)),g.map(ch.Y.bind(ch)),COL.coral,2.4,[6,4]); ch.pline(xs.map(ch.X.bind(ch)),L.map(ch.Y.bind(ch)),COL.calc2,2.6); });
+      ch.axisX(niceTicks(0,T,7)); ch.axisY(niceTicks(ch.ymin,ch.ymax,6));
+      guessPlot.setTitle('L[guess] (teal) vs g(t) (red dashed) \u2014 best-fit coefficients, power of t = '+s);
+      let msg;
+      if(G.exact) msg=s===S.s?`\u2714 <b>s = ${s}</b> is the multiplicity of \u03bb. The coefficient equations are solvable and L[Y] reproduces g(t) exactly.`:`\u2714 matches (unexpectedly) \u2014 check your input.`;
+      else if(s<S.s) msg=`\u2718 <b>s = ${s} &lt; ${S.s}.</b> The terms t<sup>j</sup>e<sup>\u03bbt</sup> with j &lt; ${S.s} are already <i>homogeneous solutions</i>, so substituting them gives (nearly) 0 \u2014 the teal curve cannot reach g(t). No choice of coefficients helps; the guess must be multiplied by t<sup>${S.s}</sup>.`;
+      else msg=`\u2718 <b>s = ${s} &gt; ${S.s}.</b> Too many factors of t: L[guess] now has higher-degree terms that no coefficients can cancel, so it overshoots g(t). The smallest working power is s = ${S.s}.`;
+      gMsg.innerHTML=msg;
+    }
+
+    function writeSteps(S,spec,useIvp){
+      const n=S.n,c=S.c,al=spec.a,be=S.lam[1],d=S.d,s=S.s;
+      // characteristic polynomial and factorisation
+      const polyTex=joinTerms(c.map((cc,k)=>hoCt(cc,k===0?'':(k===1?'r':'r^{'+k+'}'))).reverse());
+      let fac=''; if(Math.abs(c[n]-1)>1e-10)fac+=hoNum(c[n]);
+      S.roots.forEach(r=>{ let f; if(r.im===0) f=Math.abs(r.re)<1e-10?'r':'(r'+(r.re<0?'+':'-')+hoNum(Math.abs(r.re))+')';
+        else f=Math.abs(r.re)<1e-10?'(r^{2}+'+hoNum(r.im*r.im)+')':'\\big((r'+(r.re<0?'+':'-')+hoNum(Math.abs(r.re))+')^{2}+'+hoNum(r.im*r.im)+'\\big)';
+        fac+=f+(r.mult>1?'^{'+r.mult+'}':''); });
+      const rootList=S.roots.map(r=>{ const v=r.im===0?hoNum(r.re):(Math.abs(r.re)<1e-10?'':hoNum(r.re))+'\\pm '+(Math.abs(r.im-1)<1e-10?'':hoNum(r.im))+'i'; return itex('r='+v)+(r.mult>1||r.im?` <span style="color:var(--ink-faint)">(${r.im?'each ':''}${hoMultWord(r.mult)})</span>`:''); }).join(', &nbsp; ');
+      // complementary function
+      const ycTerms=S.bas.map((f,i)=>{ const b=hoBody(f.m,f.a,f.b,f.kind==='exp'?null:f.kind); return 'c_{'+(i+1)+'}'+(b==='1'?'':b); });
+      const ycTex='y_c='+ycTerms.join('+').replace(/\+-/g,'-');
+      // forcing
+      const gP=hoPoly(spec.P,'t'); const gBody=hoBody(0,al,be,be?spec.kind:null);
+      const needParen=spec.P.filter(x=>Math.abs(x)>1e-10).length>1;
+      const cp=needParen?'('+gP+')':(gP==='1'&&gBody!=='1'?'':gP);
+      const gTexFix='g(t)='+((cp+(gBody==='1'?'':gBody))||'1');
+      const lamTex='\\lambda=\\alpha+i\\beta='+hoC([al,be]);
+      let seq=[]; for(let j=0;j<=Math.min(s,n);j++){ const val=S.taylorVal(j); seq.push(itex(hoDerivName(j)+'='+hoC(val)+(j===s?'\\neq 0':''))); }
+      // guess
+      const polyLetter=(L)=>d===0?L:'('+Array.from({length:d+1},(_,k)=>L+'_{'+k+'}'+(k===0?'':(k===1?'t':'t^{'+k+'}'))).join('+')+')';
+      const pre=(s>0?'t^{'+s+'}':'')+(Math.abs(al)>1e-10?hoBody(0,al,0,null):'');
+      let guess; if(!be) guess=pre+polyLetter('A'); else { const inner=polyLetter('A')+'\\cos('+(Math.abs(be-1)<1e-10?'':hoNum(be))+'t)+'+polyLetter('B')+'\\sin('+(Math.abs(be-1)<1e-10?'':hoNum(be))+'t)'; guess=pre?pre+'\\big['+inner+'\\big]':inner; }
+      guess=guess.replace(/\\cos\(t\)/g,'\\cos t').replace(/\\sin\(t\)/g,'\\sin t');
+      const unknowns=(be?2:1)*(d+1);
+      // solved coefficients
+      const Yterms=[]; for(let i=0;i<=d;i++){ Yterms.push(hoCt(S.A[i],hoBody(s+i,al,be,be?'cos':null))); if(be)Yterms.push(hoCt(S.B[i],hoBody(s+i,al,be,'sin'))); }
+      const YTex=joinTerms(Yterms);
+      const coefTex=[]; for(let i=0;i<=d;i++){ const sub=d===0?'':'_{'+i+'}'; coefTex.push('A'+sub+'='+hoNum(S.A[i])); if(be)coefTex.push('B'+sub+'='+hoNum(S.B[i])); }
+      let match;
+      if(d===0){ const kv=S.taylorVal(s);
+        match=`L[Y]=p^{(${s})}(\\lambda)\\,${be?'(A-iB)':'A'}\\,e^{\\lambda t}\\;\\Longrightarrow\\;`+(be?`${hoC(kv)}\\,(A-iB)=${spec.kind==='cos'?hoNum(spec.P[0]):'-i\\cdot'+hoNum(spec.P[0])}`:`${hoC(kv)}\\,A=${hoNum(spec.P[0])}`); }
+      else match=`\\text{match the coefficients of } t^{${d}},\\dots,t,1 \\text{ in } L[Y]=g \\;(\\text{triangular system, solved from the top})`;
+      const gen=('y=y_c+Y='+ycTerms.join('+')+'+'+YTex).replace(/\+-/g,'-');
+      const q=(h)=>`<div style="margin:7px 0;">${h}</div>`;
+      let html='';
+      html+=q(`<b>1 \u00b7 Characteristic equation.</b>`+dtex(`p(r)=${polyTex}=0\\;\\Longrightarrow\\;${fac}=0`)+`<div style="margin-top:-4px">${rootList}</div>`);
+      html+=q(`<b>2 \u00b7 Complementary solution</b> (${n} independent pieces, one per root counted with multiplicity)`+dtex(ycTex));
+      html+=q(`<b>3 \u00b7 Forcing exponent and the modification rule.</b> ${itex(gTexFix)} is the real part of ${itex('P(t)e^{\\lambda t}')} with ${itex(lamTex)}. How many times is \u03bb a root? Differentiate p until it stops vanishing at \u03bb:<div style="margin:4px 0">${seq.join(', &nbsp; ')}</div>`+(s>0?`\u21d2 <b style="color:var(--c-calc2)">\u03bb is a root of multiplicity s = ${s}</b>: the functions t<sup>j</sup>e<sup>\u03bbt</sup> (j &lt; ${s}) already solve L[y]=0, so the guess gets a factor <b>t<sup>${s}</sup></b>.`:`\u21d2 <b style="color:var(--c-calc2)">s = 0</b>: \u03bb is not a root, so the guess has the same shape as g.`));
+      html+=q(`<b>4 \u00b7 Guess</b> (${unknowns} unknown${unknowns>1?'s':''})`+dtex('Y(t)='+guess));
+      html+=q(`<b>5 \u00b7 Match coefficients.</b>`+dtex(match)+dtex(coefTex.join(',\\;\\;')+'\\;\\Longrightarrow\\;Y(t)='+YTex));
+      html+=q(`<b>6 \u00b7 General solution.</b>`+dtex(gen));
+      if(useIvp){ const cs=S.consts; html+=q(`<b>7 \u00b7 Fit the initial conditions</b> ${itex('y^{(k)}(0)='+spec.ic.y.map(hoNum).join(',\\,'))}: the ${n}\u00d7${n} linear system for c\u2081\u2026c${'\u2099'} gives`+dtex(cs.map((v,i)=>'c_{'+(i+1)+'}='+hoNum(v)).join(',\\;\\;'))); }
+      steps.innerHTML=html;
+      const fin=S.consts?S.consts.map((v,i)=>hoCt(v,hoBody(S.bas[i].m,S.bas[i].a,S.bas[i].b,S.bas[i].kind==='exp'?null:S.bas[i].kind))):null;
+      if(useIvp) sol.set('y(t)='+joinTerms(fin.concat([YTex])), `Verified numerically against RK4. Particular part Y = ${itex(YTex)}.`);
+      else sol.set('Y(t)='+YTex, `Particular solution of ${itex('('+joinTerms(c.map((cc,k)=>hoCt(cc,k===0?'':k===1?'D':'D^{'+k+'}')).reverse())+')y=g')}\u2009\u2014 add y_c and (if given) fit initial conditions.`);
+    }
+
+    loadPreset('ex2'); render();
+  }
+});
+
 /* ---------- wine glass + singer: resonance in the method of undetermined coefficients ----------
    y'' + 2 zeta w0 y' + w0^2 y = w0^2 x_s cos(w t)      (t in ms, y in micrometres, w in rad/ms)            */
 function glassSolution(w0,w,z,xs){
